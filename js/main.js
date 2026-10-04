@@ -10,6 +10,8 @@ import { getSettings, setSettings, load, save } from './storage.js';
 
 const $ = s => document.querySelector(s);
 const MAX_VIDEO_SECONDS = 180;
+// يوتيوب بيحجب الشورتس الأطول من دقيقة لو عليها مطالبة Content ID
+const SHORTS_SAFE_SECONDS = 60;
 
 // ===== الحالة =====
 const state = {
@@ -307,6 +309,10 @@ async function doExport(kind) {
       status(`✅ ${kind.toUpperCase()} جاهز (${fmtDur(d)})`);
     } else if (kind === 'mp4') {
       if (d > MAX_VIDEO_SECONDS && !confirm(`مدة الفيديو ${fmtDur(d)}، وده أطول من ٣ دقايق.\nالتحويل في المتصفح هياخد وقت طويل وممكن الصفحة تقف.\n\nالأفضل تستخدم «حزمة Filmora». تكمل برضه؟`)) {
+        status('');
+        return;
+      }
+      if (state.style.aspect === '9:16' && d > SHORTS_SAFE_SECONDS && !confirm(`مدة الفيديو ${fmtDur(d)}، يعني أطول من دقيقة.\n\nعلى يوتيوب شورتس: لو التلاوة عليها مطالبة حقوق (Content ID)، الشورت اللي أطول من دقيقة بيتحجب.\nلو مش متأكد من القارئ، خلّي المقطع أقل من ٦٠ ثانية، أو افحصه وهو «خاص» الأول.\n\nتكمل التصدير؟`)) {
         status('');
         return;
       }
