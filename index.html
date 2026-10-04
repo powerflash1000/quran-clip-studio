@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>استوديو مقاطع القرآن</title>
+  <meta name="description" content="اختار الآيات والقارئ، وصدّر صوت MP3 أو M4A أو WAV أو فيديو جاهز للنشر — من المتصفح مباشرة وببلاش.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">📖</span>
+      <div>
+        <h1>استوديو مقاطع القرآن</h1>
+        <p class="tagline">آيات وأحاديث ← صوت أو فيديو جاهز للنشر</p>
+      </div>
+    </div>
+    <button class="btn ghost" id="btn-settings" type="button">⚙️ الإعدادات</button>
+  </header>
+
+  <main class="layout">
+    <!-- ===== المعاينة ===== -->
+    <section class="preview-col">
+      <div class="card preview-card">
+        <div class="preview-wrap" id="preview-wrap">
+          <canvas id="preview"></canvas>
+        </div>
+        <div class="preview-controls">
+          <button class="btn primary" id="btn-play" type="button">▶ معاينة بالصوت</button>
+          <button class="btn" id="btn-stop" type="button" disabled>■ إيقاف</button>
+          <label class="inline grow">مقطع
+            <input type="range" id="seg-slider" min="0" max="0" value="0">
+          </label>
+          <span class="muted" id="seg-info"></span>
+        </div>
+        <div class="status" id="status" hidden>
+          <div class="status-text" id="status-text"></div>
+          <div class="bar"><div class="bar-fill" id="bar-fill"></div></div>
+        </div>
+      </div>
+
+      <!-- ===== التصدير ===== -->
+      <div class="card">
+        <h2>⬇️ التصدير</h2>
+        <div class="export-grid">
+          <div>
+            <h3>صوت</h3>
+            <div class="btn-row">
+              <button class="btn" data-export="mp3" type="button">MP3</button>
+              <button class="btn" data-export="m4a" type="button">M4A</button>
+              <button class="btn" data-export="wav" type="button">WAV</button>
+            </div>
+          </div>
+          <div>
+            <h3>فيديو وصور</h3>
+            <div class="btn-row">
+              <button class="btn primary" data-export="mp4" type="button">🎬 فيديو MP4</button>
+              <button class="btn" data-export="png" type="button">🖼️ صورة المقطع الحالي</button>
+            </div>
+            <label class="inline">الدقة
+              <select id="quality">
+                <option value="1080">1080p (أعلى جودة)</option>
+                <option value="720">720p (أسرع)</option>
+              </select>
+            </label>
+          </div>
+          <div>
+            <h3>للمونتاج</h3>
+            <div class="btn-row">
+              <button class="btn" data-export="filmora" type="button">📦 حزمة Filmora</button>
+              <button class="btn" data-export="srt" type="button">SRT ترجمة</button>
+            </div>
+          </div>
+        </div>
+        <p class="hint">التحويل كله بيحصل على جهازك. أول تصدير فيديو أو MP3/M4A بيحمّل محرك التحويل (حوالي 32MB) مرة واحدة بس.</p>
+      </div>
+    </section>
+
+    <!-- ===== التحكم ===== -->
+    <section class="controls-col">
+      <!-- المحتوى -->
+      <div class="card">
+        <h2>📜 المحتوى</h2>
+        <div class="search-box">
+          <input type="search" id="ayah-search" placeholder="ابحث في القرآن بكلمة (مثلًا: الصبر، رحمة، patience)">
+          <div class="results" id="ayah-results" hidden></div>
+        </div>
+        <ol class="blocks" id="blocks"></ol>
+        <div class="btn-row">
+          <button class="btn" id="add-quran" type="button">＋ آيات</button>
+          <button class="btn" id="add-hadith" type="button">＋ حديث</button>
+        </div>
+      </div>
+
+      <!-- القارئ -->
+      <div class="card">
+        <h2>🎙️ القارئ</h2>
+        <div class="row">
+          <select id="reciter" class="grow"></select>
+          <button class="btn icon" id="fav" type="button" title="مفضّل">☆</button>
+          <button class="btn icon" id="test-reciter" type="button" title="اسمع عينة">🔊</button>
+        </div>
+        <label class="check"><input type="checkbox" id="show-all-reciters"> عرض كل القراء</label>
+        <details>
+          <summary>قارئ مش موجود في القائمة؟</summary>
+          <p class="hint">اكتب اسم الفولدر بتاعه من موقع everyayah.com/data (مثلًا: <code>Alafasy_64kbps</code>).</p>
+          <div class="row">
+            <input type="text" id="custom-folder" class="grow" dir="ltr" placeholder="Folder_Name_128kbps">
+            <button class="btn" id="use-custom" type="button">استخدم</button>
+          </div>
+        </details>
+      </div>
+
+      <!-- الشكل -->
+      <div class="card">
+        <h2>🎨 الشكل</h2>
+        <div class="grid2">
+          <label>المقاس
+            <select id="aspect"></select>
+          </label>
+          <label>الخلفية
+            <select id="bgType">
+              <option value="gradient">تدرّج لوني</option>
+              <option value="color">لون واحد</option>
+              <option value="media">صورة أو فيديو</option>
+            </select>
+          </label>
+          <label class="when-color">اللون 1 <input type="color" id="color1"></label>
+          <label class="when-gradient">اللون 2 <input type="color" id="color2"></label>
+        </div>
+        <div class="when-media media-box">
+          <div class="btn-row">
+            <label class="btn file-btn">📁 ارفع صورة أو فيديو
+              <input type="file" id="bg-file" accept="image/*,video/*" hidden>
+            </label>
+            <button class="btn" id="open-stock" type="button">🔎 خلفيات مجانية (Pexels / Pixabay)</button>
+          </div>
+          <div class="muted" id="bg-name">مفيش خلفية مختارة</div>
+          <p class="hint">نصيحة: ولّد خلفيات (طبيعة، سماء، بحر — من غير أشخاص) في Higgsfield واحفظها، وارفعها هنا. الفيديو الأقصر والأقل دقة بيتحوّل أسرع.</p>
+        </div>
+        <label>تعتيم الخلفية <input type="range" id="dim" min="0" max="0.8" step="0.05"></label>
+        <div class="grid2">
+          <label>حجم الخط <input type="range" id="textSize" min="40" max="130" step="2"></label>
+          <label>حجم العناوين <input type="range" id="labelScale" min="0.6" max="1.6" step="0.05"></label>
+          <label>لون النص <input type="color" id="textColor"></label>
+          <label>لون العناوين <input type="color" id="accent"></label>
+          <label>لون الترجمة <input type="color" id="subColor"></label>
+          <label>المسافة بين الآيات (ث) <input type="number" id="gap" min="0" max="5" step="0.1"></label>
+        </div>
+        <div class="grid2">
+          <label class="check"><input type="checkbox" id="showLabel"> اسم السورة ورقم الآية</label>
+          <label class="check"><input type="checkbox" id="showFooter"> اسم القارئ / مصدر الحديث</label>
+          <label class="check"><input type="checkbox" id="showTranslation"> إظهار الترجمة</label>
+          <label class="check"><input type="checkbox" id="waveform"> موجة صوتية</label>
+        </div>
+        <label>لغة ترجمة القرآن <select id="translation"></select></label>
+        <details>
+          <summary>صوت خلفية هادي (مطر، طبيعة…)</summary>
+          <p class="hint">مفيد مع الأحاديث اللي من غير صوت. ارفع ملف صوت، وهيتكرر طول الفيديو.</p>
+          <div class="row">
+            <label class="btn file-btn">🎧 اختار ملف
+              <input type="file" id="ambient-file" accept="audio/*" hidden>
+            </label>
+            <span class="muted" id="ambient-name">مفيش</span>
+          </div>
+          <label>مستوى الصوت <input type="range" id="ambient-vol" min="0" max="0.6" step="0.02" value="0.15"></label>
+        </details>
+      </div>
+
+      <!-- القوالب -->
+      <div class="card">
+        <h2>🗂️ القوالب</h2>
+        <div class="row">
+          <select id="templates" class="grow"></select>
+          <button class="btn" id="tpl-apply" type="button">تطبيق</button>
+          <button class="btn" id="tpl-delete" type="button">حذف</button>
+        </div>
+        <div class="row">
+          <input type="text" id="tpl-name" class="grow" placeholder="اسم القالب الجديد">
+          <button class="btn" id="tpl-save" type="button">💾 حفظ الإعدادات الحالية</button>
+        </div>
+        <div class="btn-row">
+          <button class="btn ghost" id="tpl-export" type="button">تصدير القوالب (ملف)</button>
+          <label class="btn ghost file-btn">استيراد قوالب
+            <input type="file" id="tpl-import" accept="application/json,.json" hidden>
+          </label>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
+    الخط: KFGQPC Uthmanic Script HAFS
+  </footer>
+
+  <!-- ===== نوافذ ===== -->
+  <dialog id="dlg-settings">
+    <form method="dialog" class="dlg">
+      <h2>⚙️ الإعدادات</h2>
+      <label>مفتاح Pexels (مجاني)
+        <input type="text" id="set-pexels" dir="ltr" autocomplete="off">
+      </label>
+      <p class="hint">من <a href="https://www.pexels.com/api/" target="_blank" rel="noopener">pexels.com/api</a> ← اعمل حساب ← Your API Key.</p>
+      <label>مفتاح Pixabay (مجاني)
+        <input type="text" id="set-pixabay" dir="ltr" autocomplete="off">
+      </label>
+      <p class="hint">من <a href="https://pixabay.com/api/docs/" target="_blank" rel="noopener">pixabay.com/api/docs</a> بعد تسجيل الدخول، المفتاح بيظهر في الصفحة.</p>
+      <label>رابط الوسيط (اختياري)
+        <input type="url" id="set-proxy" dir="ltr" placeholder="https://quran-proxy.yourname.workers.dev">
+      </label>
+      <p class="hint">لو ملفات القراء مش بتتحمل، اعمل وسيط مجاني على Cloudflare Workers بالكود اللي في <code>tools/cors-proxy-worker.js</code> (الشرح في README).</p>
+      <p class="hint">المفاتيح بتتحفظ على جهازك بس.</p>
+      <div class="btn-row end">
+        <button class="btn primary" value="save">حفظ</button>
+        <button class="btn" value="cancel">إلغاء</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-stock">
+    <div class="dlg wide">
+      <div class="row">
+        <h2 class="grow">🔎 خلفيات مجانية</h2>
+        <button class="btn icon" id="stock-close" type="button">✕</button>
+      </div>
+      <div class="row wrap">
+        <input type="search" id="stock-q" class="grow" value="nature sky" placeholder="مثلًا: sky, ocean, desert, clouds, mosque">
+        <select id="stock-provider">
+          <option value="pexels">Pexels</option>
+          <option value="pixabay">Pixabay</option>
+        </select>
+        <select id="stock-kind">
+          <option value="video">فيديو</option>
+          <option value="image">صورة</option>
+        </select>
+        <button class="btn primary" id="stock-go" type="button">بحث</button>
+      </div>
+      <p class="hint">ابحث بالإنجليزي للحصول على نتايج أكتر. اختار مشاهد من غير أشخاص.</p>
+      <div class="stock-grid" id="stock-results"></div>
+    </div>
+  </dialog>
+
+  <template id="tpl-quran">
+    <li class="block quran">
+      <div class="block-head">
+        <span class="badge">آيات</span>
+        <span class="block-title"></span>
+        <span class="spacer"></span>
+        <button class="btn icon" data-act="up" type="button" title="لفوق">▲</button>
+        <button class="btn icon" data-act="down" type="button" title="لتحت">▼</button>
+        <button class="btn icon danger" data-act="remove" type="button" title="حذف">✕</button>
+      </div>
+      <div class="grid3">
+        <label class="span3">السورة <select data-f="surah"></select></label>
+        <label>من آية <input type="number" data-f="from" min="1"></label>
+        <label>إلى آية <input type="number" data-f="to" min="1"></label>
+        <label>تكرار كل آية <input type="number" data-f="repeatAyah" min="1" max="20"></label>
+        <label>تكرار المقطع كله <input type="number" data-f="repeatRange" min="1" max="20"></label>
+        <label class="check span2"><input type="checkbox" data-f="basmala"> البسملة في الأول</label>
+      </div>
+    </li>
+  </template>
+
+  <template id="tpl-hadith">
+    <li class="block hadith">
+      <div class="block-head">
+        <span class="badge alt">حديث</span>
+        <span class="block-title"></span>
+        <span class="grade"></span>
+        <span class="spacer"></span>
+        <button class="btn icon" data-act="up" type="button">▲</button>
+        <button class="btn icon" data-act="down" type="button">▼</button>
+        <button class="btn icon danger" data-act="remove" type="button">✕</button>
+      </div>
+      <div class="grid3">
+        <label class="span2">الكتاب <select data-f="col"></select></label>
+        <label>رقم الحديث <input type="number" data-f="number" min="1"></label>
+      </div>
+      <div class="btn-row">
+        <button class="btn" data-act="fetch" type="button">جلب الحديث</button>
+        <input type="search" data-f="q" class="grow" placeholder="أو ابحث في الكتاب بكلمة">
+        <button class="btn" data-act="search" type="button">بحث</button>
+      </div>
+      <div class="results" data-el="results" hidden></div>
+      <label>النص اللي هيظهر (تقدر تعدّله وتشيل السند)
+        <textarea data-f="text" rows="4"></textarea>
+      </label>
+      <div class="btn-row">
+        <button class="btn ghost" data-act="matn" type="button">✂️ المتن بس (من غير السند)</button>
+        <button class="btn ghost" data-act="full" type="button">↺ النص الكامل</button>
+      </div>
+      <div class="grade-details muted" data-el="grade-details"></div>
+      <label class="check"><input type="checkbox" data-f="showEnglish"> إظهار الترجمة الإنجليزية</label>
+      <fieldset>
+        <legend>صوت الحديث</legend>
+        <label class="check"><input type="radio" value="none" data-f="audioMode"> من غير صوت (النص يظهر لمدة)</label>
+        <label class="inline">المدة بالثواني <input type="number" data-f="seconds" min="2" max="120" step="0.5"></label>
+        <label class="check"><input type="radio" value="record" data-f="audioMode"> سجّل بصوتك</label>
+        <label class="check"><input type="radio" value="upload" data-f="audioMode"> ارفع ملف صوت</label>
+        <div class="btn-row">
+          <button class="btn" data-act="record" type="button">⏺ ابدأ التسجيل</button>
+          <label class="btn file-btn">📁 ملف صوت<input type="file" accept="audio/*" data-f="audioFile" hidden></label>
+          <span class="muted" data-el="audio-name"></span>
+        </div>
+        <audio controls data-el="audio-preview" hidden></audio>
+      </fieldset>
+    </li>
+  </template>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
