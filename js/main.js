@@ -7,6 +7,7 @@ import { exportAudio, exportVideo, exportFilmoraPackage, renderStill, makeSrt, d
 import { searchPexels, searchPixabay, downloadStock } from './stock.js';
 import * as T from './templates.js';
 import { getSettings, setSettings, load, save } from './storage.js';
+import { PLATFORMS, generate, getPublishSettings, setPublishSettings, canShareFile, shareFile } from './publish.js';
 
 const $ = s => document.querySelector(s);
 const MAX_VIDEO_SECONDS = 180;
@@ -183,6 +184,7 @@ function refreshPreview() {
     slider.value = Math.max(0, state.segIndex);
     $('#seg-info').textContent = previewSegs.length ? segInfo(state.segIndex, previewSegs.length) : '';
     drawFrame(previewSegs[state.segIndex]);
+    refreshPublish();
   }, 120);
 }
 
@@ -290,6 +292,7 @@ async function doExport(kind) {
       const { w, h } = ASPECTS[state.style.aspect];
       const blob = await renderStill(w, h, segs[state.segIndex], state.style, bgMedia());
       download(blob, `${baseName()}_${state.segIndex + 1}.png`);
+      setLastExport(blob, `${baseName()}_${state.segIndex + 1}.png`, 'image/png');
       status('✅ الصورة اتحفظت');
       return;
     }
@@ -319,6 +322,7 @@ async function doExport(kind) {
       let stage = '';
       const blob = await exportVideo(project, p => status(stage, p), onLoad, s => { stage = s; status(s, 0); });
       download(blob, `${baseName()}.mp4`);
+      setLastExport(blob, `${baseName()}.mp4`, 'video/mp4');
       status(`✅ الفيديو جاهز (${fmtDur(d)})`);
     } else if (kind === 'filmora') {
       status('تجهيز حزمة Filmora…', null);
@@ -806,6 +810,134 @@ function setupSettings() {
   });
 }
 
+// ===== النشر (العنوان والوصف والمشاركة) =====
+const PLATFORM_URLS = {
+  youtube: 'https://www.youtube.com/upload',
+  shorts: 'https://www.youtube.com/upload',
+  tiktok: 'https://www.tiktok.com/upload',
+  instagram: 'https://www.instagram.com/',
+  facebook: 'https://www.facebook.com/',
+};
+const pub = { platform: load('pubPlatform', 'shorts'), data: null, edited: false, lastFile: null };
+
+function setLastExport(blob, name, type) {
+  pub.lastFile = new File([blob], name, { type });
+  const btn = $('#pub-share');
+  const ok = canShareFile(pub.lastFile);
+  btn.disabled = !ok;
+  btn.title = ok ? `مشاركة ${name}` : 'المتصفح ده مش بيدعم مشاركة الملفات — ارفع الملف من فولدر التنزيلات';
+  $('#pub-share-hint').textContent = ok
+    ? `جاهز للمشاركة: ${name}. انسخ الوصف الأول، وبعدين اضغط «مشاركة» واختار التطبيق.`
+    : `اتحفظ ${name} في التنزيلات. المشاركة المباشرة بتشتغل من الموبايل؛ على الكمبيوتر افتح المنصة وارفع الملف.`;
+}
+
+async function refreshPublish(force = false) {
+  if (pub.edited && !force) return;
+  try {
+    pub.data = await generate(state.blocks, state.style, Q.translation);
+    pub.edited = false;
+    renderPublish();
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function renderPublish() {
+  document.querySelectorAll('#pub-tabs .tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.p === pub.platform)));
+  const p = PLATFORMS[pub.platform];
+  const d = pub.data?.[pub.platform] || {};
+  const limits = { title: p.titleMax, caption: p.captionMax, tags: p.tagsMax };
+  for (const f of ['title', 'caption', 'tags']) {
+    const wrap = document.querySelector(`[data-pf=${f}]`);
+    const has = f === 'caption' || !!p[f];
+    wrap.hidden = !has;
+    if (!has) continue;
+    const el = wrap.querySelector('[data-pv]');
+    if (document.activeElement !== el) el.value = d[f] || '';
+    updateCount(f, limits[f]);
+  }
+  $('#pub-open').href = PLATFORM_URLS[pub.platform];
+  $('#pub-open').textContent = `↗ افتح ${p.name}`;
+}
+
+function updateCount(f, max) {
+  const wrap = document.querySelector(`[data-pf=${f}]`);
+  const len = [...wrap.querySelector('[data-pv]').value].length;
+  const c = wrap.querySelector('.count');
+  c.textContent = `${len} / ${max}`;
+  c.classList.toggle('over', len > max);
+}
+
+async function copyText(text, btn) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); ta.remove();
+  }
+  if (btn) { const o = btn.textContent; btn.textContent = '✅'; setTimeout(() => { btn.textContent = o; }, 1200); }
+}
+
+function setupPublish() {
+  $('#pub-tabs').innerHTML = Object.entries(PLATFORMS)
+    .map(([id, p]) => `<button type="button" class="tab" role="tab" data-p="${id}">${p.name}</button>`).join('');
+  $('#pub-tabs').onclick = e => {
+    const t = e.target.closest('.tab');
+    if (!t) return;
+    pub.platform = t.dataset.p;
+    save('pubPlatform', pub.platform);
+    renderPublish();
+  };
+  for (const f of ['title', 'caption', 'tags']) {
+    const el = document.querySelector(`[data-pv=${f}]`);
+    el.oninput = () => {
+      pub.data[pub.platform][f] = el.value;
+      pub.edited = true;
+      const p = PLATFORMS[pub.platform];
+      updateCount(f, { title: p.titleMax, caption: p.captionMax, tags: p.tagsMax }[f]);
+    };
+  }
+  document.querySelectorAll('[data-copy]').forEach(b => {
+    b.onclick = () => copyText(document.querySelector(`[data-pv=${b.dataset.copy}]`).value, b);
+  });
+  $('#pub-copy-all').onclick = () => {
+    const p = PLATFORMS[pub.platform];
+    const d = pub.data[pub.platform];
+    const parts = [p.title && d.title, d.caption, p.tags && d.tags && `Tags: ${d.tags}`].filter(Boolean);
+    copyText(parts.join('\n\n'), $('#pub-copy-all'));
+  };
+  $('#pub-regen').onclick = () => refreshPublish(true);
+  $('#pub-share').onclick = async () => {
+    if (!pub.lastFile) return;
+    const d = pub.data?.[pub.platform] || {};
+    await copyText([d.title, d.caption].filter(Boolean).join('\n\n'));
+    try {
+      await shareFile(pub.lastFile, d.caption);
+    } catch (e) {
+      if (e.name !== 'AbortError') showError(new Error('المشاركة مش متاحة: ' + e.message));
+    }
+  };
+
+  const ps = getPublishSettings();
+  $('#pub-signature').value = ps.signature;
+  $('#pub-hashtags').value = ps.extraHashtags;
+  for (const k of ['includeText', 'includeTranslation', 'includeCredits']) $('#pub-' + k).checked = ps[k];
+  const saveSettings = () => {
+    setPublishSettings({
+      signature: $('#pub-signature').value,
+      extraHashtags: $('#pub-hashtags').value,
+      includeText: $('#pub-includeText').checked,
+      includeTranslation: $('#pub-includeTranslation').checked,
+      includeCredits: $('#pub-includeCredits').checked,
+    });
+    refreshPublish(true);
+  };
+  ['#pub-signature', '#pub-hashtags'].forEach(id => { $(id).onchange = saveSettings; });
+  ['includeText', 'includeTranslation', 'includeCredits'].forEach(k => { $('#pub-' + k).onchange = saveSettings; });
+  refreshPublish(true);
+}
+
 // ===== البداية =====
 async function init() {
   status('تحميل نص المصحف…');
@@ -830,6 +962,7 @@ async function init() {
     drawFrame(previewSegs[state.segIndex]);
   };
   document.querySelectorAll('[data-export]').forEach(b => { b.onclick = () => doExport(b.dataset.export); });
+  setupPublish();
   idleLoop();
 }
 

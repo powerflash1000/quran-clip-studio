@@ -76,6 +76,45 @@
         </div>
         <p class="hint">التحويل كله بيحصل على جهازك. أول تصدير فيديو أو MP3/M4A بيحمّل محرك التحويل (حوالي 32MB) مرة واحدة بس.</p>
       </div>
+
+      <!-- ===== النشر ===== -->
+      <div class="card">
+        <h2>📣 النشر</h2>
+        <div class="tabs" id="pub-tabs" role="tablist"></div>
+        <div id="pub-fields">
+          <div class="pub-field" data-pf="title">
+            <div class="pub-head"><span>العنوان</span><span class="count"></span><button class="btn icon" type="button" data-copy="title" title="نسخ">📋</button></div>
+            <input type="text" data-pv="title">
+          </div>
+          <div class="pub-field" data-pf="caption">
+            <div class="pub-head"><span>الوصف</span><span class="count"></span><button class="btn icon" type="button" data-copy="caption" title="نسخ">📋</button></div>
+            <textarea data-pv="caption" rows="9"></textarea>
+          </div>
+          <div class="pub-field" data-pf="tags">
+            <div class="pub-head"><span>الكلمات الدلالية (Tags)</span><span class="count"></span><button class="btn icon" type="button" data-copy="tags" title="نسخ">📋</button></div>
+            <textarea data-pv="tags" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn" id="pub-regen" type="button">↻ توليد من جديد</button>
+          <button class="btn" id="pub-copy-all" type="button">📋 نسخ الكل</button>
+          <button class="btn primary" id="pub-share" type="button" disabled title="صدّر فيديو أو صورة الأول">📤 مشاركة آخر ملف</button>
+          <a class="btn ghost" id="pub-open" href="#" target="_blank" rel="noopener">↗ افتح المنصة</a>
+        </div>
+        <p class="hint" id="pub-share-hint">زرار «مشاركة» بيشتغل على الموبايل: بيبعت الفيديو لتيك توك أو إنستجرام أو غيرهم، وانسخ الوصف الأول عشان تلزقه هناك.</p>
+        <details>
+          <summary>إعدادات الوصف</summary>
+          <label>توقيعك (بيتضاف في آخر كل وصف)
+            <textarea id="pub-signature" rows="2" placeholder="مثلًا: تابعونا لمزيد من التلاوات 🤍"></textarea>
+          </label>
+          <label>هاشتاجات ثابتة لقناتك
+            <input type="text" id="pub-hashtags" placeholder="#اسم_قناتك #تلاوات">
+          </label>
+          <label class="check"><input type="checkbox" id="pub-includeText"> نص الآيات والأحاديث في الوصف</label>
+          <label class="check"><input type="checkbox" id="pub-includeTranslation"> الترجمة في الوصف</label>
+          <label class="check"><input type="checkbox" id="pub-includeCredits"> ذكر المصادر</label>
+        </details>
+      </div>
     </section>
 
     <!-- ===== التحكم ===== -->
