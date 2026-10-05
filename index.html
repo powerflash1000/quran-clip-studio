@@ -327,6 +327,27 @@
     </div>
   </dialog>
 
+  <dialog id="dlg-prompter">
+    <div class="dlg wide">
+      <div class="row wrap">
+        <h2 class="grow">🎙️ تسجيل الحديث بصوتك</h2>
+        <label class="inline">حجم الخط <input type="range" id="pr-size" min="22" max="72" value="38"></label>
+        <button class="btn icon" id="pr-close" type="button">✕</button>
+      </div>
+      <div class="prompter-text" id="pr-text"></div>
+      <div class="pr-status" id="pr-status"></div>
+      <div class="btn-row">
+        <button class="btn primary" id="pr-start" type="button">⏺ ابدأ التسجيل</button>
+        <button class="btn" id="pr-stop" type="button" hidden>⏹ إيقاف</button>
+        <button class="btn" id="pr-redo" type="button" hidden>↺ سجّل تاني</button>
+        <button class="btn primary" id="pr-use" type="button" hidden>✓ استخدم التسجيل ده</button>
+      </div>
+      <label class="check"><input type="checkbox" id="pr-trim" checked> قص السكوت من أول التسجيل وآخره</label>
+      <audio id="pr-audio" controls hidden></audio>
+      <p class="hint">نصيحة: اقرا في مكان هادي، وخلّي الموبايل أو الميكروفون على بُعد شبر من بُقك. التسجيل بيبدأ بعد عدّ ٣، ٢، ١.</p>
+    </div>
+  </dialog>
+
   <template id="tpl-quran">
     <li class="block quran">
       <div class="block-head">
@@ -385,7 +406,7 @@
         <label class="check"><input type="radio" value="record" data-f="audioMode"> سجّل بصوتك</label>
         <label class="check"><input type="radio" value="upload" data-f="audioMode"> ارفع ملف صوت</label>
         <div class="btn-row">
-          <button class="btn" data-act="record" type="button">⏺ ابدأ التسجيل</button>
+          <button class="btn primary" data-act="record" type="button">🎙️ سجّل بصوتك (شاشة قراءة)</button>
           <label class="btn file-btn">📁 ملف صوت<input type="file" accept="audio/*" data-f="audioFile" hidden></label>
           <span class="muted" data-el="audio-name"></span>
         </div>

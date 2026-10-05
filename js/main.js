@@ -1,7 +1,7 @@
 import * as Q from './quran.js';
 import { RECITERS, findReciter, customReciter, ayahAudioUrls } from './reciters.js';
 import { COLLECTIONS, collection, getHadith, searchHadith, extractMatn, assessGrade } from './hadith.js';
-import { loadAudio, decode, buildTimeline, startRecording } from './audio.js';
+import { loadAudio, decode, buildTimeline, startRecording, trimSilence, bufferToWavBlob } from './audio.js';
 import { ASPECTS, ensureFonts, drawBackground, drawOverlay, drawWave } from './slides.js';
 import { exportAudio, exportVideo, exportFilmoraPackage, renderStill, makeSrt, download } from './exporter.js';
 import { searchPexels, searchPixabay, downloadStock } from './stock.js';
@@ -532,27 +532,14 @@ function hadithBlockEl(b, i) {
   f('seconds').oninput = () => { b.seconds = clamp(f('seconds').value, 2, 120); persist(); };
   li.querySelectorAll('[data-f=audioMode]').forEach(r => r.onchange = () => { b.audioMode = r.value; persist(); });
 
-  // التسجيل
-  let rec = null;
+  // التسجيل بشاشة قراءة
   act('record').onclick = async () => {
-    if (!rec) {
-      try {
-        rec = await startRecording();
-        act('record').textContent = '⏹ إيقاف التسجيل';
-        act('record').classList.add('active');
-      } catch (e) {
-        showError(new Error('مقدرتش أفتح الميكروفون: ' + e.message));
-      }
-    } else {
-      const { blob, buffer } = await rec.stop();
-      rec = null;
-      act('record').textContent = '⏺ ابدأ التسجيل';
-      act('record').classList.remove('active');
-      setHadithAudio(b, buffer, 'تسجيل', blob);
-      b.audioMode = 'record';
-      li.querySelectorAll('[data-f=audioMode]').forEach(r => { r.checked = r.value === 'record'; });
-      sync(); persist();
-    }
+    const res = await openPrompter(b.text || '');
+    if (!res) return;
+    setHadithAudio(b, res.buffer, 'تسجيل', res.blob);
+    b.audioMode = 'record';
+    li.querySelectorAll('[data-f=audioMode]').forEach(r => { r.checked = r.value === 'record'; });
+    sync(); persist();
   };
   f('audioFile').onchange = async () => {
     const file = f('audioFile').files[0];
@@ -581,6 +568,85 @@ function setHadithAudio(b, buffer, name, blob) {
 function estimateSeconds(text) {
   const words = (text || '').split(/\s+/).filter(Boolean).length;
   return Math.round(Math.min(30, Math.max(5, words * 0.45 + 2)) * 2) / 2;
+}
+
+// ===== شاشة القراءة والتسجيل =====
+// بترجع { buffer, blob } لو المستخدم اختار التسجيل، أو null لو قفل
+function openPrompter(text) {
+  const dlg = $('#dlg-prompter');
+  const el = id => $('#pr-' + id);
+  el('text').textContent = text || '(اكتب نص الحديث الأول أو اضغط «جلب الحديث»)';
+  el('size').value = load('prompterSize', 38);
+  el('text').style.fontSize = el('size').value + 'px';
+  el('size').oninput = () => { el('text').style.fontSize = el('size').value + 'px'; save('prompterSize', Number(el('size').value)); };
+
+  let rec = null, result = null, timer = null, cancelled = false;
+  const setStatus = (msg, cls = '') => { el('status').textContent = msg; el('status').className = 'pr-status ' + cls; };
+  const show = (...ids) => { for (const id of ['start', 'stop', 'redo', 'use']) el(id).hidden = !ids.includes(id); };
+  const reset = () => {
+    result = null;
+    el('audio').hidden = true;
+    el('audio').removeAttribute('src');
+    setStatus('جاهز. اضغط «ابدأ التسجيل» واقرا النص بهدوء.');
+    show('start');
+  };
+  reset();
+
+  const start = async () => {
+    cancelled = false;
+    show();
+    for (const n of ['٣', '٢', '١']) {
+      setStatus(n, 'count');
+      await new Promise(r => setTimeout(r, 800));
+      if (cancelled) return;
+    }
+    try {
+      rec = await startRecording();
+    } catch (e) {
+      setStatus('مقدرتش أفتح الميكروفون: ' + e.message + ' — اسمح للموقع باستخدام الميكروفون من شريط العنوان.', 'rec');
+      show('start');
+      return;
+    }
+    const t0 = Date.now();
+    const tick = () => setStatus(`● بيسجّل… ${((Date.now() - t0) / 1000).toFixed(0)} ث`, 'rec');
+    tick();
+    timer = setInterval(tick, 500);
+    el('text').scrollTop = 0;
+    show('stop');
+  };
+
+  const stopRec = async () => {
+    clearInterval(timer);
+    if (!rec) return;
+    setStatus('بيجهز التسجيل…');
+    let { buffer } = await rec.stop();
+    rec = null;
+    if (el('trim').checked) buffer = trimSilence(buffer);
+    const blob = bufferToWavBlob(buffer);
+    result = { buffer, blob };
+    el('audio').src = URL.createObjectURL(blob);
+    el('audio').hidden = false;
+    setStatus(`تم ✔ (${buffer.duration.toFixed(1)} ث). اسمع التسجيل، ولو تمام اضغط «استخدم».`);
+    show('redo', 'use');
+  };
+
+  return new Promise(resolve => {
+    const finish = val => {
+      cancelled = true;
+      clearInterval(timer);
+      if (rec) { rec.stop().catch(() => {}); rec = null; }
+      el('audio').pause();
+      dlg.close();
+      resolve(val);
+    };
+    el('start').onclick = start;
+    el('stop').onclick = stopRec;
+    el('redo').onclick = () => { reset(); start(); };
+    el('use').onclick = () => finish(result);
+    el('close').onclick = () => finish(null);
+    dlg.oncancel = e => { e.preventDefault(); finish(null); };
+    dlg.showModal();
+  });
 }
 
 // ===== البحث في القرآن =====

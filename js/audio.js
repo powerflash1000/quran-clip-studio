@@ -111,3 +111,26 @@ export async function startRecording() {
     }),
   };
 }
+
+// قص السكوت من أول التسجيل وآخره (مع هامش صغير)
+export function trimSilence(buffer, { threshold = 0.02, pad = 0.2 } = {}) {
+  const ch = [];
+  for (let c = 0; c < buffer.numberOfChannels; c++) ch.push(buffer.getChannelData(c));
+  const loud = i => ch.some(d => Math.abs(d[i]) > threshold);
+  let start = 0, end = buffer.length - 1;
+  while (start < end && !loud(start)) start++;
+  while (end > start && !loud(end)) end--;
+  if (end <= start) return buffer; // كله سكوت؛ سيبه زي ما هو
+  const p = Math.round(pad * buffer.sampleRate);
+  start = Math.max(0, start - p);
+  end = Math.min(buffer.length - 1, end + p);
+  const out = new AudioBuffer({ length: end - start + 1, numberOfChannels: buffer.numberOfChannels, sampleRate: buffer.sampleRate });
+  ch.forEach((d, c) => out.copyToChannel(d.subarray(start, end + 1), c));
+  return out;
+}
+
+export function bufferToWavBlob(buffer) {
+  const left = buffer.getChannelData(0);
+  const right = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : left;
+  return new Blob([encodeWav({ left, right })], { type: 'audio/wav' });
+}
