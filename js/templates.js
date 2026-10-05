@@ -18,7 +18,8 @@ export const DEFAULT_STYLE = {
   showFooter: true,
   showTranslation: true,
   waveform: false,
-  gap: 0.6,
+  gap: 0.25,
+  trimSilence: true,       // قص السكوت من أول وآخر ملف كل آية
   quality: '1080',
 };
 

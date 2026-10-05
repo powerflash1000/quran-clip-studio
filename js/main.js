@@ -139,6 +139,8 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
         const s = queue.shift();
         try {
           s.audio = await loadAudio(s.audioUrls);
+          // ملفات التلاوة فيها سكوت في أولها وآخرها؛ بنقصه عشان الآيات تبان متصلة
+          if (st.trimSilence && s.kind !== 'title') s.audio = trimSilence(s.audio, { threshold: 0.008, pad: 0.06 });
         } catch (e) {
           const err = new Error(`تعذر تحميل تلاوة ${s.label}.\nجرّب قارئ تاني، أو اضبط «رابط الوسيط» من الإعدادات.`);
           err.cause = e;
@@ -725,7 +727,7 @@ function setupReciters() {
 }
 
 // ===== الشكل =====
-const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation'];
+const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation'];
 
 function applyStyleToInputs() {
   const st = state.style;
@@ -1058,7 +1060,7 @@ async function ayahDurations(surah, from, to) {
     while (list.length) {
       const a = list.shift();
       const buf = await loadAudio(ayahAudioUrls(reciter, surah, a, Q.globalAyah(surah, a)));
-      out[a] = buf.duration;
+      out[a] = (state.style.trimSilence ? trimSilence(buf, { threshold: 0.008, pad: 0.06 }) : buf).duration;
       status('قياس مدة الآيات…', ++done / (to - from + 1));
     }
   };

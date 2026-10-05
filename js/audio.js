@@ -43,9 +43,12 @@ export function buildTimeline(segments, { gap = 0.6, leadIn = 0.3, tail = 0.8, a
     const l = a.getChannelData(0);
     const r = a.numberOfChannels > 1 ? a.getChannelData(1) : l;
     const gain = seg.gain ?? 1;
+    // تلاشي قصير جدًا (15ms) في أول وآخر كل مقطع عشان مفيش «تكّة» عند القص
+    const fade = Math.min(Math.round(0.015 * SAMPLE_RATE), a.length >> 2);
     for (let i = 0; i < a.length && off + i < n; i++) {
-      left[off + i] += l[i] * gain;
-      right[off + i] += r[i] * gain;
+      const g = gain * (i < fade ? i / fade : i > a.length - fade ? (a.length - i) / fade : 1);
+      left[off + i] += l[i] * g;
+      right[off + i] += r[i] * g;
     }
   }
 
