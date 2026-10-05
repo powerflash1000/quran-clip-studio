@@ -107,6 +107,13 @@ export function drawOverlay(ctx, W, H, seg, style) {
     ctx.font = `bold ${Math.round(40 * unit * style.labelScale)}px ${TEXT_FONT}`;
     drawLines(ctx, [seg.label], W / 2, top - 40 * unit, 40 * unit * style.labelScale, 1.2, 'rtl');
   }
+  // رقم الجزء في السلسلة (مثلًا: الجزء ٣ من ١٢)
+  if (seg.badge) {
+    ctx.fillStyle = style.subColor;
+    const bs = Math.round(30 * unit * style.labelScale);
+    ctx.font = `${bs}px ${TEXT_FONT}`;
+    drawLines(ctx, [seg.badge], W / 2, top - 40 * unit - 62 * unit * style.labelScale, bs, 1.2, 'rtl');
+  }
 
   const isQuran = seg.kind === 'ayah' || seg.kind === 'basmala';
   const mainFont = s => isQuran ? `${s}px ${QURAN_FONT}` : `${s}px ${TEXT_FONT}`;

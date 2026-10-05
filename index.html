@@ -133,6 +133,42 @@
         </div>
       </div>
 
+      <!-- وضع السلسلة -->
+      <div class="card">
+        <h2>🧩 وضع السلسلة</h2>
+        <p class="hint">قسّم سورة لأجزاء قصيرة (شورتس / ريلز)، كل جزء عليه «الجزء ٣ من ١٢»، وفي آخره «تابع الجزء التالي».</p>
+        <div class="grid3">
+          <label class="span3">السورة <select id="ser-surah"></select></label>
+          <label>من آية <input type="number" id="ser-from" min="1"></label>
+          <label>إلى آية <input type="number" id="ser-to" min="1"></label>
+          <label>التقسيم
+            <select id="ser-mode">
+              <option value="duration">بالمدة</option>
+              <option value="count">عدد آيات ثابت</option>
+              <option value="manual">أعداد بإيدي</option>
+            </select>
+          </label>
+          <label class="ser-when" data-mode="duration">أقصى مدة للجزء (ث) <input type="number" id="ser-max" min="10" max="180" step="1"></label>
+          <label class="ser-when" data-mode="count">آيات في كل جزء <input type="number" id="ser-count" min="1" max="50"></label>
+          <label class="ser-when span2" data-mode="manual">الأعداد بالترتيب <input type="text" id="ser-sizes" placeholder="5, 7, 6"></label>
+        </div>
+        <div class="grid2">
+          <label class="check"><input type="checkbox" id="ser-basmala"> البسملة في أول جزء</label>
+          <label class="check"><input type="checkbox" id="ser-end"> شاشة «تابع الجزء التالي»</label>
+          <label>مدة الشاشة الأخيرة (ث) <input type="number" id="ser-endsec" min="1" max="8" step="0.5"></label>
+        </div>
+        <div class="btn-row">
+          <button class="btn primary" id="ser-split" type="button">✂️ قسّم</button>
+          <button class="btn" id="ser-full" type="button">📖 حمّل النطاق كله في المحرر (للفيديو الطويل)</button>
+        </div>
+        <ol class="parts" id="ser-parts"></ol>
+        <div class="btn-row" id="ser-actions" hidden>
+          <button class="btn primary" id="ser-export-all" type="button">🎬 صدّر كل الأجزاء فيديو</button>
+          <button class="btn" id="ser-info" type="button">📝 أوصاف كل الأجزاء + فصول الفيديو الطويل</button>
+        </div>
+        <p class="hint" id="ser-hint" hidden>المتصفح ممكن يسألك «السماح بتنزيل ملفات متعددة» — اضغط سماح (Allow).</p>
+      </div>
+
       <!-- القارئ -->
       <div class="card">
         <h2>🎙️ القارئ</h2>

@@ -7,6 +7,7 @@ import { exportAudio, exportVideo, exportFilmoraPackage, renderStill, makeSrt, d
 import { searchPexels, searchPixabay, downloadStock } from './stock.js';
 import * as T from './templates.js';
 import { getSettings, setSettings, load, save } from './storage.js';
+import { splitRange, chaptersText, chaptersWarnings } from './series.js';
 import { PLATFORMS, generate, getPublishSettings, setPublishSettings, canShareFile, shareFile } from './publish.js';
 
 const $ = s => document.querySelector(s);
@@ -25,6 +26,9 @@ const state = {
   showAll: false,
   segIndex: 0,
   busy: false,
+  activeSeries: null, // { index, total, endSlide, endSeconds }
+  series: { surah: 12, from: 1, to: 111, mode: 'duration', max: 58, count: 5, sizes: '5, 7, 6', basmala: true, end: true, endSec: 2.5, ...load('series', {}) },
+  parts: [],
 };
 
 function uid() { return Math.random().toString(36).slice(2, 9); }
@@ -55,13 +59,14 @@ function status(msg, p = null, isError = false) {
 
 // ===== بناء المقاطع =====
 // withAudio=false: نص بس (للمعاينة السريعة من غير تحميل)
-async function buildSegments(withAudio, onProgress) {
+// series: { index, total, endSlide, endSeconds } لو المقطع جزء من سلسلة
+async function buildSegments(withAudio, onProgress, blocks = state.blocks, series = state.activeSeries) {
   const st = state.style;
   const reciter = findReciter(st.reciter);
   const segs = [];
   const jobs = [];
 
-  for (const b of state.blocks) {
+  for (const b of blocks) {
     if (b.type === 'quran') {
       const s = Q.surah(b.surah);
       const from = clamp(b.from, 1, s.count), to = clamp(Math.max(b.to, from), from, s.count);
@@ -100,6 +105,24 @@ async function buildSegments(withAudio, onProgress) {
     }
   }
 
+  if (series) {
+    const badge = `الجزء ${Q.arabicNum(series.index)} من ${Q.arabicNum(series.total)}`;
+    for (const s of segs) s.badge = badge;
+    if (series.endSlide) {
+      const q = blocks.find(b => b.type === 'quran');
+      const last = series.index === series.total;
+      segs.push({
+        kind: 'title',
+        text: last ? 'تمّت السورة بحمد الله 🤍' : 'تابع الجزء التالي ⬅️',
+        sub: '',
+        label: q ? `سورة ${Q.surah(q.surah).ar}` : '',
+        footer: last ? '' : `التالي: الجزء ${Q.arabicNum(series.index + 1)} من ${Q.arabicNum(series.total)}`,
+        badge,
+        silence: Number(series.endSeconds) || 2.5,
+      });
+    }
+  }
+
   // الترجمة
   if (st.showTranslation && st.translation) {
     await Promise.all(segs.filter(s => s.kind === 'ayah').map(async s => {
@@ -133,9 +156,9 @@ async function buildSegments(withAudio, onProgress) {
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, Number(v) || a));
 
-async function buildProject() {
+async function buildProject(blocks = state.blocks, series = state.activeSeries) {
   status('تحميل التلاوات…', 0);
-  const segments = await buildSegments(true, p => status('تحميل التلاوات…', p));
+  const segments = await buildSegments(true, p => status('تحميل التلاوات…', p), blocks, series);
   if (!segments.length) throw new Error('ضيف آيات أو حديث الأول');
   const timeline = buildTimeline(segments, {
     gap: Number(state.style.gap) || 0,
@@ -261,6 +284,8 @@ function showError(e) {
 function baseName() {
   const b = state.blocks[0];
   if (!b) return 'clip';
+  const ser = state.activeSeries;
+  if (b.type === 'quran' && ser) return `quran_${b.surah}_part${String(ser.index).padStart(2, '0')}_${b.from}-${b.to}_${state.style.reciter}`;
   if (b.type === 'quran') return `quran_${b.surah}_${b.from}-${b.to}_${state.style.reciter}`;
   return `hadith_${b.col}_${b.number}`;
 }
@@ -347,7 +372,9 @@ function surahOptions(sel) {
   sel.innerHTML = Q.surahs().map(s => `<option value="${s.n}">${s.n}. ${s.ar} — ${s.tr} (${s.count})</option>`).join('');
 }
 
-function renderBlocks() {
+// أي تغيير في ترتيب أو عدد الكتل بيلغي «الجزء الحالي من السلسلة»
+function renderBlocks(keepSeries = false) {
+  if (!keepSeries && state.activeSeries) { state.activeSeries = null; markParts(); }
   blocksEl.innerHTML = '';
   state.blocks.forEach((b, i) => blocksEl.appendChild(b.type === 'quran' ? quranBlockEl(b, i) : hadithBlockEl(b, i)));
   persist();
@@ -834,7 +861,7 @@ function setLastExport(blob, name, type) {
 async function refreshPublish(force = false) {
   if (pub.edited && !force) return;
   try {
-    pub.data = await generate(state.blocks, state.style, Q.translation);
+    pub.data = await generate(state.blocks, state.style, Q.translation, state.activeSeries);
     pub.edited = false;
     renderPublish();
   } catch (e) {
@@ -938,6 +965,229 @@ function setupPublish() {
   refreshPublish(true);
 }
 
+// ===== وضع السلسلة =====
+const partsWord = n => (n >= 3 && n <= 10 ? `${n} أجزاء` : n === 2 ? 'جزأين' : `${n} جزء`);
+const SER_INPUTS = { surah: 'ser-surah', from: 'ser-from', to: 'ser-to', mode: 'ser-mode', max: 'ser-max', count: 'ser-count', sizes: 'ser-sizes', basmala: 'ser-basmala', end: 'ser-end', endSec: 'ser-endsec' };
+
+function seriesMeta(i) {
+  const ser = state.series;
+  return { index: i + 1, total: state.parts.length, endSlide: ser.end, endSeconds: ser.endSec };
+}
+
+function partBlock(i) {
+  const ser = state.series, p = state.parts[i];
+  const b = newQuranBlock(ser.surah, p.from, p.to);
+  b.basmala = i === 0 && ser.basmala && p.from === 1;
+  return b;
+}
+
+// مدة كل آية بالثواني (بيحمّل التلاوات، وبتتحفظ في الكاش)
+async function ayahDurations(surah, from, to) {
+  const reciter = findReciter(state.style.reciter);
+  const out = {};
+  const list = [];
+  for (let a = from; a <= to; a++) list.push(a);
+  let done = 0;
+  const worker = async () => {
+    while (list.length) {
+      const a = list.shift();
+      const buf = await loadAudio(ayahAudioUrls(reciter, surah, a, Q.globalAyah(surah, a)));
+      out[a] = buf.duration;
+      status('قياس مدة الآيات…', ++done / (to - from + 1));
+    }
+  };
+  await Promise.all(Array.from({ length: 6 }, worker));
+  let basmala = 0;
+  try { basmala = (await loadAudio(ayahAudioUrls(reciter, 1, 1, 1))).duration; } catch { /* اختياري */ }
+  return { durations: out, basmala };
+}
+
+async function doSplit() {
+  const ser = state.series;
+  const s = Q.surah(ser.surah);
+  ser.from = clamp(ser.from, 1, s.count);
+  ser.to = clamp(Math.max(ser.to, ser.from), ser.from, s.count);
+  const gap = Number(state.style.gap) || 0;
+  const overhead = 0.3 + 0.8 - gap + (ser.end ? Number(ser.endSec) + gap : 0);
+  let durations = null, basmalaSec = 0;
+  setBusy(true);
+  try {
+    try {
+      const d = await ayahDurations(ser.surah, ser.from, ser.to);
+      durations = d.durations;
+      if (ser.basmala && ser.from === 1 && ser.surah !== 1 && ser.surah !== 9) basmalaSec = d.basmala + gap;
+    } catch (e) {
+      if (ser.mode === 'duration') throw new Error('التقسيم بالمدة محتاج يحمّل التلاوات، والتحميل فشل. جرّب «عدد آيات ثابت»، أو اضبط رابط الوسيط.');
+    }
+    state.parts = splitRange({ from: ser.from, to: ser.to, mode: ser.mode, count: ser.count, sizes: ser.sizes, maxSec: Number(ser.max) || 58, durations, gap, overhead, basmalaSec });
+    status(`✅ اتقسمت لـ ${partsWord(state.parts.length)}`);
+    renderParts();
+  } catch (e) {
+    showError(e);
+  } finally {
+    setBusy(false);
+  }
+}
+
+function renderParts() {
+  const ol = $('#ser-parts');
+  ol.innerHTML = '';
+  const total = state.parts.length;
+  const short = state.style.aspect === '9:16';
+  state.parts.forEach((p, i) => {
+    const li = document.createElement('li');
+    li.className = 'part';
+    li.dataset.i = i;
+    const range = p.from === p.to ? `الآية ${Q.arabicNum(p.from)}` : `الآيات ${Q.arabicNum(p.from)}–${Q.arabicNum(p.to)}`;
+    li.innerHTML = `<span class="pname"></span><span class="pinfo"></span><span class="pdur"></span>
+      <button class="btn icon" type="button" data-a="open" title="افتح في المحرر والمعاينة">👁</button>
+      <button class="btn icon" type="button" data-a="mp4" title="صدّر الجزء ده فيديو">🎬</button>
+      <button class="btn icon" type="button" data-a="mp3" title="صدّر الجزء ده MP3">🎵</button>`;
+    li.querySelector('.pname').textContent = `الجزء ${Q.arabicNum(i + 1)} من ${Q.arabicNum(total)}`;
+    li.querySelector('.pinfo').textContent = range;
+    const dur = li.querySelector('.pdur');
+    if (p.duration != null) {
+      dur.textContent = fmtDur(p.duration);
+      if (short && p.duration > SHORTS_SAFE_SECONDS) { dur.classList.add('over'); dur.title = 'أطول من دقيقة'; }
+    }
+    li.querySelector('[data-a=open]').onclick = () => loadPart(i);
+    li.querySelector('[data-a=mp4]').onclick = () => { loadPart(i); doExport('mp4'); };
+    li.querySelector('[data-a=mp3]').onclick = () => { loadPart(i); doExport('mp3'); };
+    ol.appendChild(li);
+  });
+  $('#ser-actions').hidden = !total;
+  $('#ser-hint').hidden = !total;
+  markParts();
+}
+
+function markParts(doneSet) {
+  document.querySelectorAll('#ser-parts .part').forEach(li => {
+    const i = Number(li.dataset.i);
+    li.classList.toggle('active', state.activeSeries?.index === i + 1);
+    if (doneSet?.has(i)) li.classList.add('done');
+  });
+}
+
+function loadPart(i) {
+  stop();
+  state.blocks = [partBlock(i)];
+  renderBlocks(true);
+  state.activeSeries = seriesMeta(i);
+  state.segIndex = 0;
+  markParts();
+  refreshPreview();
+  refreshPublish(true);
+}
+
+async function exportAllParts() {
+  if (state.busy || !state.parts.length) return;
+  const n = state.parts.length;
+  const long = state.parts.filter(p => p.duration != null && p.duration > SHORTS_SAFE_SECONDS).length;
+  if (state.style.aspect === '9:16' && long && !confirm(`${long} جزء أطول من دقيقة. لو التلاوة عليها مطالبة حقوق، الشورتس دي هتتحجب على يوتيوب.\n\nتكمل؟`)) return;
+  if (!confirm(`هيتصدّر ${partsWord(n)} (فيديو لكل جزء) ورا بعض. سيب الصفحة مفتوحة لحد ما يخلصوا.\nتبدأ؟`)) return;
+  stop();
+  setBusy(true);
+  const done = new Set();
+  const onLoad = p => status('تحميل محرك التحويل (مرة واحدة بس)…', p);
+  try {
+    for (let i = 0; i < n; i++) {
+      loadPart(i);
+      const project = await buildProject();
+      let stage = '';
+      const blob = await exportVideo(project, p => status(`الجزء ${i + 1} من ${n}: ${stage}`, p), onLoad, s => { stage = s; status(`الجزء ${i + 1} من ${n}: ${s}`, 0); });
+      download(blob, `${baseName()}.mp4`);
+      setLastExport(blob, `${baseName()}.mp4`, 'video/mp4');
+      done.add(i);
+      markParts(done);
+    }
+    status(`✅ اتصدّر ${partsWord(n)}. بيتجهز ملف الأوصاف والفصول…`);
+    setBusy(false);
+    await seriesInfo();
+  } catch (e) {
+    showError(e);
+  } finally {
+    setBusy(false);
+  }
+}
+
+// ملف نصي فيه عنوان ووصف كل جزء + فصول الفيديو الطويل
+async function seriesInfo() {
+  if (!state.parts.length) return;
+  const ser = state.series;
+  const name = `سورة ${Q.surah(ser.surah).ar}`;
+  const platform = pub.platform;
+  const n = state.parts.length;
+  let txt = `${name} — سلسلة من ${partsWord(n)}\nالمنصة: ${PLATFORMS[platform].name}\n\n`;
+  try {
+    for (let i = 0; i < n; i++) {
+      const d = (await generate([partBlock(i)], state.style, Q.translation, seriesMeta(i)))[platform];
+      txt += `==================== الجزء ${i + 1} ====================\n`;
+      if (d.title) txt += `العنوان:\n${d.title}\n\n`;
+      txt += `الوصف:\n${d.caption}\n\n`;
+      if (d.tags) txt += `Tags:\n${d.tags}\n\n`;
+    }
+
+    // الفصول: بنبني النطاق كله كفيديو واحد ونقيس بداية كل جزء
+    status('حساب توقيت الفصول…');
+    const full = newQuranBlock(ser.surah, state.parts[0].from, state.parts[n - 1].to);
+    full.basmala = ser.basmala;
+    const segs = await buildSegments(true, p => status('حساب توقيت الفصول…', p), [full], null);
+    const tl = buildTimeline(segs, { gap: Number(state.style.gap) || 0 });
+    const starts = state.parts.map(p => (segs.find(sg => sg.kind === 'ayah' && sg.a === p.from) || segs[0]).start);
+    starts[0] = 0;
+    txt += `==================== فصول الفيديو الطويل (Chapters) ====================\n`;
+    txt += `انسخ السطور دي في وصف فيديو السورة كاملة على يوتيوب:\n\n`;
+    txt += chaptersText(state.parts, starts, name, Q.arabicNum) + '\n';
+    const warn = chaptersWarnings(starts, tl.duration);
+    if (warn.length) txt += `\n⚠️ ${warn.join('\n⚠️ ')}\n`;
+    txt += `\nمدة الفيديو الطويل: ${fmtDur(tl.duration)} — صدّره من زرار «حمّل النطاق كله في المحرر»؛ ولو أطول من ٣ دقايق استخدم «حزمة Filmora».\n`;
+    status('✅ ملف الأوصاف والفصول جاهز');
+  } catch (e) {
+    txt += `\n(تعذر حساب الفصول: ${e.message})\n`;
+    showError(e);
+  }
+  download(new Blob(['﻿' + txt], { type: 'text/plain;charset=utf-8' }), `quran_${ser.surah}_series_info.txt`);
+}
+
+function setupSeries() {
+  surahOptions($('#ser-surah'));
+  const ser = state.series;
+  const apply = () => {
+    for (const [k, id] of Object.entries(SER_INPUTS)) {
+      const el = $('#' + id);
+      if (el.type === 'checkbox') el.checked = !!ser[k]; else el.value = ser[k];
+    }
+    document.querySelectorAll('.ser-when').forEach(el => { el.hidden = el.dataset.mode !== ser.mode; });
+    $('#ser-basmala').disabled = ser.surah === 1 || ser.surah === 9;
+  };
+  apply();
+  for (const [k, id] of Object.entries(SER_INPUTS)) {
+    const el = $('#' + id);
+    el.addEventListener('change', () => {
+      let v = el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value;
+      if (k === 'surah') { v = Number(v); ser.from = 1; ser.to = Q.surah(v).count; }
+      ser[k] = v;
+      save('series', ser);
+      apply();
+    });
+  }
+  $('#ser-split').onclick = doSplit;
+  $('#ser-full').onclick = () => {
+    const b = newQuranBlock(ser.surah, ser.from, ser.to);
+    b.basmala = ser.basmala && ser.from === 1;
+    state.blocks = [b];
+    renderBlocks();
+    refreshPublish(true);
+    status(`اتحمّل ${Q.surah(ser.surah).ar} (${ser.from}–${ser.to}) في المحرر. للفيديو الطويل اختار مقاس 16:9.`);
+  };
+  $('#ser-export-all').onclick = exportAllParts;
+  $('#ser-info').onclick = async () => {
+    if (state.busy) return;
+    setBusy(true);
+    try { await seriesInfo(); } finally { setBusy(false); }
+  };
+}
+
 // ===== البداية =====
 async function init() {
   status('تحميل نص المصحف…');
@@ -963,6 +1213,7 @@ async function init() {
   };
   document.querySelectorAll('[data-export]').forEach(b => { b.onclick = () => doExport(b.dataset.export); });
   setupPublish();
+  setupSeries();
   idleLoop();
 }
 

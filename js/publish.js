@@ -53,7 +53,8 @@ function clip(text, max) {
 }
 
 // يرجع { title, caption, tags } لكل منصة
-export async function generate(blocks, style, translationOf) {
+// series (اختياري): { index, total } لو المقطع جزء من سلسلة
+export async function generate(blocks, style, translationOf, series = null) {
   const ps = getPublishSettings();
   const reciter = findReciter(style.reciter);
   const quran = blocks.filter(b => b.type === 'quran');
@@ -63,7 +64,9 @@ export async function generate(blocks, style, translationOf) {
   let title;
   if (quran.length) {
     const extra = (quran.length > 1 ? ' وآيات أخرى' : '') + (hadith.length ? ' + حديث شريف' : '');
-    title = quranTitle(quran[0], reciter, extra);
+    title = series
+      ? `سورة ${Q.surah(quran[0].surah).ar} | الجزء ${N(series.index)} من ${N(series.total)} (${rangeLabel(quran[0])}) | ${reciterShort(reciter)}`
+      : quranTitle(quran[0], reciter, extra);
   } else if (hadith.length) {
     const h = hadith[0];
     title = `حديث شريف | ${collection(h.col).name} ${N(h.number)}`;
@@ -98,6 +101,11 @@ export async function generate(blocks, style, translationOf) {
     }
   }
   if (quran.length) info.push(`🎙️ بصوت القارئ: ${reciterShort(reciter)}`);
+  if (series) {
+    info.push(series.index < series.total
+      ? `📌 الجزء ${N(series.index)} من ${N(series.total)} — تابع باقي الأجزاء في قائمة التشغيل`
+      : `📌 الجزء الأخير (${N(series.total)} من ${N(series.total)}) — السلسلة كاملة في قائمة التشغيل`);
+  }
 
   const credits = [];
   if (ps.includeCredits) {
