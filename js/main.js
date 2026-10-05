@@ -1171,6 +1171,21 @@ function setupSeries() {
       apply();
     });
   }
+  // التفعيل اختياري: لما يتقفل، البرنامج بيرجع يشتغل عادي من غير «الجزء ٣ من ١٢» ولا شاشة النهاية
+  const setEnabled = on => {
+    ser.enabled = on;
+    save('series', ser);
+    $('#ser-enabled').checked = on;
+    $('#ser-body').hidden = !on;
+    if (!on && state.activeSeries) {
+      state.activeSeries = null;
+      markParts();
+      refreshPreview();
+      refreshPublish(true);
+    }
+  };
+  setEnabled(!!ser.enabled);
+  $('#ser-enabled').onchange = () => setEnabled($('#ser-enabled').checked);
   $('#ser-split').onclick = doSplit;
   $('#ser-full').onclick = () => {
     const b = newQuranBlock(ser.surah, ser.from, ser.to);

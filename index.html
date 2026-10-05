@@ -135,8 +135,12 @@
 
       <!-- وضع السلسلة -->
       <div class="card">
-        <h2>🧩 وضع السلسلة</h2>
-        <p class="hint">قسّم سورة لأجزاء قصيرة (شورتس / ريلز)، كل جزء عليه «الجزء ٣ من ١٢»، وفي آخره «تابع الجزء التالي».</p>
+        <div class="row">
+          <h2 class="grow" style="margin:0">🧩 وضع السلسلة</h2>
+          <label class="check" style="margin:0"><input type="checkbox" id="ser-enabled"> تفعيل</label>
+        </div>
+        <p class="hint">اختياري: قسّم سورة لأجزاء قصيرة (شورتس / ريلز)، كل جزء عليه «الجزء ٣ من ١٢»، وفي آخره «تابع الجزء التالي». لو مقفول، البرنامج بيشتغل عادي من غير تقسيم.</p>
+        <div id="ser-body" hidden>
         <div class="grid3">
           <label class="span3">السورة <select id="ser-surah"></select></label>
           <label>من آية <input type="number" id="ser-from" min="1"></label>
@@ -167,6 +171,7 @@
           <button class="btn" id="ser-info" type="button">📝 أوصاف كل الأجزاء + فصول الفيديو الطويل</button>
         </div>
         <p class="hint" id="ser-hint" hidden>المتصفح ممكن يسألك «السماح بتنزيل ملفات متعددة» — اضغط سماح (Allow).</p>
+        </div>
       </div>
 
       <!-- القارئ -->
