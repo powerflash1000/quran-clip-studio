@@ -8,6 +8,8 @@ import { searchPexels, searchPixabay, downloadStock } from './stock.js';
 import * as T from './templates.js';
 import { getSettings, setSettings, load, save } from './storage.js';
 import * as EL from './elevenlabs.js';
+import * as SND from './sounds.js';
+import { fetchFirst } from './net.js';
 import { splitRange, chaptersText, chaptersWarnings } from './series.js';
 import { PLATFORMS, generate, getPublishSettings, setPublishSettings, canShareFile, shareFile } from './publish.js';
 
@@ -801,13 +803,13 @@ function setupStyle() {
     const file = $('#ambient-file').files[0];
     if (!file) return;
     try {
-      state.ambient = { name: file.name, buffer: await decode(await file.arrayBuffer()) };
-      $('#ambient-name').textContent = file.name;
+      setAmbient(file.name, await decode(await file.arrayBuffer()));
     } catch {
       showError(new Error('الملف ده مش ملف صوت مدعوم'));
     }
   };
   $('#ambient-vol').oninput = () => { state.ambientVolume = Number($('#ambient-vol').value); };
+  setupSoundSearch();
 }
 
 function setMedia(file) {
@@ -828,6 +830,83 @@ function setMedia(file) {
   updateBgVisibility();
   $('#bg-name').textContent = `${isVideo ? '🎞️' : '🖼️'} ${file.name} (${(file.size / 1048576).toFixed(1)} MB)`;
   persist();
+}
+
+function setAmbient(name, buffer) {
+  state.ambient = { name, buffer };
+  $('#ambient-name').textContent = `${name} (${fmtDur(buffer.duration)})`;
+}
+
+// ===== أصوات الخلفية: Freesound + Pixabay =====
+function setupSoundSearch() {
+  const box = $('#snd-results');
+  let preview = null;
+  const stopPreview = () => { if (preview) { preview.pause(); preview = null; } };
+  $('#snd-presets').innerHTML = SND.PRESETS.map(([ar, en]) => `<button type="button" class="chip" data-q="${en}">${ar}</button>`).join('');
+  const syncPixabay = q => { $('#snd-pixabay').href = q ? SND.pixabayUrl(q) : 'https://pixabay.com/sound-effects/'; };
+  const go = async q => {
+    q = (q ?? $('#snd-q').value).trim();
+    if (!q) return;
+    $('#snd-q').value = q;
+    syncPixabay(q);
+    stopPreview();
+    box.innerHTML = '<li class="muted">جاري البحث…</li>';
+    try {
+      const res = await SND.searchFreesound(q, { cc0Only: $('#snd-cc0').checked });
+      box.innerHTML = res.length ? '' : '<li class="muted">مفيش نتايج — جرّب كلمة تانية أو شيل فلتر CC0.</li>';
+      for (const r of res) {
+        const li = document.createElement('li');
+        li.className = 'snd-item';
+        li.innerHTML = `<button class="btn icon" type="button" data-a="play" title="اسمع">▶</button>
+          <span class="snd-name"></span><span class="muted snd-meta"></span>
+          <button class="btn" type="button" data-a="use">استخدم</button>`;
+        li.querySelector('.snd-name').textContent = r.name;
+        li.querySelector('.snd-meta').textContent = `${fmtDur(r.duration)} • ${SND.licenseLabel(r.license)} • ${r.author}`;
+        const play = li.querySelector('[data-a=play]');
+        play.onclick = () => {
+          const same = preview && preview.dataset.id === String(r.id);
+          stopPreview();
+          box.querySelectorAll('[data-a=play]').forEach(b => { b.textContent = '▶'; });
+          if (same) return;
+          preview = new Audio(r.preview);
+          preview.dataset.id = r.id;
+          preview.volume = 0.6;
+          preview.play().catch(() => {});
+          preview.onended = () => { play.textContent = '▶'; };
+          play.textContent = '⏸';
+        };
+        li.querySelector('[data-a=use]').onclick = async e => {
+          const btn = e.currentTarget;
+          btn.disabled = true; btn.textContent = '…';
+          try {
+            const buf = await decode(await fetchFirst([r.preview]));
+            setAmbient(r.name, buf);
+            if (!/publicdomain\/zero|Creative Commons 0/i.test(r.license)) {
+              alert(`الصوت ده رخصته ${SND.licenseLabel(r.license)}.\nاكتب في وصف الفيديو: «صوت الخلفية: ${r.name} — ${r.author} (freesound.org)».`);
+            }
+            status(`✅ صوت الخلفية: ${r.name}`);
+            btn.textContent = '✓';
+          } catch (err) {
+            showError(new Error('تعذر تحميل الصوت: ' + err.message));
+            btn.textContent = 'استخدم';
+          } finally {
+            btn.disabled = false;
+          }
+        };
+        box.appendChild(li);
+      }
+    } catch (e) {
+      box.innerHTML = '';
+      const li = document.createElement('li');
+      li.className = 'muted';
+      li.textContent = e.message;
+      box.appendChild(li);
+    }
+  };
+  $('#snd-presets').onclick = e => { const c = e.target.closest('.chip'); if (c) go(c.dataset.q); };
+  $('#snd-go').onclick = () => go();
+  $('#snd-q').onkeydown = e => { if (e.key === 'Enter') go(); };
+  $('#snd-q').oninput = () => syncPixabay($('#snd-q').value);
 }
 
 // ===== الخلفيات المجانية =====
@@ -921,6 +1000,7 @@ function setupSettings() {
     $('#set-pexels').value = s.pexelsKey;
     $('#set-pixabay').value = s.pixabayKey;
     $('#set-proxy').value = s.proxyUrl;
+    $('#set-freesound').value = s.freesoundKey;
     $('#set-eleven-key').value = s.elevenKey;
     $('#set-eleven-voice').value = s.elevenVoiceId;
     $('#set-eleven-model').innerHTML = EL.MODELS.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
@@ -934,6 +1014,7 @@ function setupSettings() {
       pexelsKey: $('#set-pexels').value.trim(),
       pixabayKey: $('#set-pixabay').value.trim(),
       proxyUrl: $('#set-proxy').value.trim(),
+      freesoundKey: $('#set-freesound').value.trim(),
       elevenKey: $('#set-eleven-key').value.trim(),
       elevenVoiceId: $('#set-eleven-voice').value.trim(),
       elevenModel: $('#set-eleven-model').value,

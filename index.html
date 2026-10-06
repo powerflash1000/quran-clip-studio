@@ -239,11 +239,20 @@
         <label>لغة ترجمة القرآن <select id="translation"></select></label>
         <details>
           <summary>صوت خلفية هادي (مطر، طبيعة…)</summary>
-          <p class="hint">مفيد مع الأحاديث اللي من غير صوت. ارفع ملف صوت، وهيتكرر طول الفيديو.</p>
-          <div class="btn-row">
-            <a class="btn ghost" href="https://studio.youtube.com/channel/UC/music" target="_blank" rel="noopener">🎵 افتح مكتبة صوت يوتيوب</a>
+          <p class="hint">مفيد مع الأحاديث اللي من غير صوت. الصوت بيتكرر طول الفيديو.</p>
+          <h3>🔎 بحث في Freesound</h3>
+          <div class="chips" id="snd-presets"></div>
+          <div class="row">
+            <input type="search" id="snd-q" class="grow" placeholder="أو اكتب بالإنجليزي: rain, waves, wind…">
+            <button class="btn primary" id="snd-go" type="button">بحث</button>
           </div>
-          <p class="hint">هتفتح في تاب جديد بحساب قناتك. اختار <b>Sound effects</b> (مش Free music)، وابحث مثلًا عن rain أو wind أو ocean، ونزّل الملف، وبعدين اختاره من الزرار اللي تحت.</p>
+          <label class="check"><input type="checkbox" id="snd-cc0" checked> رخصة CC0 بس (حر تمامًا ومن غير ذكر اسم)</label>
+          <ol class="snd-results" id="snd-results"></ol>
+          <div class="btn-row">
+            <a class="btn ghost" id="snd-pixabay" href="https://pixabay.com/sound-effects/" target="_blank" rel="noopener">🎵 نفس البحث في Pixabay</a>
+            <a class="btn ghost" href="https://studio.youtube.com/channel/UC/music" target="_blank" rel="noopener">🎵 مكتبة يوتيوب</a>
+          </div>
+          <p class="hint">من Pixabay أو يوتيوب: نزّل الملف، وبعدين اختاره من «🎧 اختار ملف». في يوتيوب اختار <b>Sound effects</b> بس.</p>
           <div class="row">
             <label class="btn file-btn">🎧 اختار ملف
               <input type="file" id="ambient-file" accept="audio/*" hidden>
@@ -296,6 +305,10 @@
       <label>رابط الوسيط (اختياري)
         <input type="url" id="set-proxy" dir="ltr" placeholder="https://quran-proxy.yourname.workers.dev">
       </label>
+      <label>مفتاح Freesound (مجاني — لأصوات الخلفية)
+        <input type="text" id="set-freesound" dir="ltr" autocomplete="off">
+      </label>
+      <p class="hint">اعمل حساب في freesound.org، وبعدين افتح <a href="https://freesound.org/apiv2/apply" target="_blank" rel="noopener">freesound.org/apiv2/apply</a>، واملا الفورم، وانسخ الـ <b>Client secret/Api key</b>.</p>
       <p class="hint">لو ملفات القراء مش بتتحمل، اعمل وسيط مجاني على Cloudflare Workers بالكود اللي في <code>tools/cors-proxy-worker.js</code> (الشرح في README).</p>
       <details>
         <summary>🤖 ElevenLabs (قراءة الأحاديث بصوتك — اختياري)</summary>

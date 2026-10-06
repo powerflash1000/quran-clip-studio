@@ -231,3 +231,13 @@ dialog:has(.dlg.wide) { width: min(980px, calc(100vw - 32px)); }
 .pr-status { text-align: center; font-size: 1.1rem; margin: .6rem 0; min-height: 1.6em; }
 .pr-status.rec { color: var(--danger); font-weight: 700; }
 .pr-status.count { font-size: 2.4rem; color: var(--accent); font-weight: 700; }
+
+/* ===== أصوات الخلفية ===== */
+.chips { display: flex; flex-wrap: wrap; gap: .35rem; margin: .3rem 0; }
+.chip { font: inherit; font-size: .85rem; cursor: pointer; padding: .2rem .65rem; border-radius: 99px; border: 1px solid var(--line); background: var(--field); color: var(--text); }
+.chip:hover { border-color: var(--primary); }
+.snd-results { list-style: none; padding: 0; margin: .4rem 0; display: grid; gap: .35rem; max-height: 320px; overflow-y: auto; }
+.snd-item { display: flex; align-items: center; gap: .45rem; padding: .3rem .5rem; border: 1px solid var(--line); border-radius: 9px; background: var(--field); }
+.snd-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: ltr; text-align: start; font-size: .9rem; }
+.snd-meta { font-size: .78rem; white-space: nowrap; }
+@media (max-width: 520px) { .snd-meta { display: none; } }
