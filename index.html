@@ -297,7 +297,22 @@
         <input type="url" id="set-proxy" dir="ltr" placeholder="https://quran-proxy.yourname.workers.dev">
       </label>
       <p class="hint">لو ملفات القراء مش بتتحمل، اعمل وسيط مجاني على Cloudflare Workers بالكود اللي في <code>tools/cors-proxy-worker.js</code> (الشرح في README).</p>
-      <p class="hint">🔒 المفاتيح بتتحفظ في المتصفح ده على جهازك بس، ومش بتترفع على GitHub، ومحدش بيفتح الموقع يقدر يشوفها. بتتبعت بس لـ Pexels أو Pixabay وقت البحث.</p>
+      <details>
+        <summary>🤖 ElevenLabs (قراءة الأحاديث بصوتك — اختياري)</summary>
+        <label>مفتاح API
+          <input type="password" id="set-eleven-key" dir="ltr" autocomplete="off">
+        </label>
+        <p class="hint">⚠️ ده مفتاح مدفوع: من elevenlabs.io ← Developers ← API Keys اعمل مفتاح <b>محدود</b>: صلاحية Text to Speech و Voices (قراءة) بس، وحط له حد أقصى للكريديت.</p>
+        <div class="row">
+          <label class="grow">الصوت (Voice ID)
+            <input type="text" id="set-eleven-voice" dir="ltr" placeholder="مثلًا: 21m00Tcm4TlvDq8ikWAM">
+          </label>
+          <button class="btn" id="set-eleven-load" type="button">جيب أصواتي</button>
+        </div>
+        <select id="set-eleven-voices" hidden></select>
+        <label>الموديل <select id="set-eleven-model"></select></label>
+      </details>
+      <p class="hint">🔒 المفاتيح بتتحفظ في المتصفح ده على جهازك بس، ومش بتترفع على GitHub، ومحدش بيفتح الموقع يقدر يشوفها. بتتبعت بس للخدمة نفسها (Pexels أو Pixabay أو ElevenLabs) وقت الاستخدام.</p>
       <div class="btn-row end">
         <button class="btn primary" value="save">حفظ</button>
         <button class="btn" value="cancel">إلغاء</button>
@@ -406,9 +421,11 @@
         <label class="inline">المدة بالثواني <input type="number" data-f="seconds" min="2" max="120" step="0.5"></label>
         <label class="check"><input type="radio" value="record" data-f="audioMode"> سجّل بصوتك</label>
         <label class="check"><input type="radio" value="upload" data-f="audioMode"> ارفع ملف صوت</label>
+        <label class="check"><input type="radio" value="ai" data-f="audioMode"> 🤖 اقرا بصوتي (ElevenLabs)</label>
         <div class="btn-row">
           <button class="btn primary" data-act="record" type="button">🎙️ سجّل بصوتك (شاشة قراءة)</button>
           <label class="btn file-btn">📁 ملف صوت<input type="file" accept="audio/*" data-f="audioFile" hidden></label>
+          <button class="btn" data-act="ai" type="button">🤖 ولّد بصوتي</button>
           <span class="muted" data-el="audio-name"></span>
         </div>
         <audio controls data-el="audio-preview" hidden></audio>

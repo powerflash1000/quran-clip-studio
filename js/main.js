@@ -7,6 +7,7 @@ import { exportAudio, exportVideo, exportFilmoraPackage, renderStill, makeSrt, d
 import { searchPexels, searchPixabay, downloadStock } from './stock.js';
 import * as T from './templates.js';
 import { getSettings, setSettings, load, save } from './storage.js';
+import * as EL from './elevenlabs.js';
 import { splitRange, chaptersText, chaptersWarnings } from './series.js';
 import { PLATFORMS, generate, getPublishSettings, setPublishSettings, canShareFile, shareFile } from './publish.js';
 
@@ -543,6 +544,33 @@ function hadithBlockEl(b, i) {
     li.querySelectorAll('[data-f=audioMode]').forEach(r => { r.checked = r.value === 'record'; });
     sync(); persist();
   };
+  // قراءة بصوتك عن طريق ElevenLabs
+  act('ai').onclick = async () => {
+    if (!EL.isConfigured()) {
+      alert('حط مفتاح ElevenLabs ورقم صوتك الأول من ⚙️ الإعدادات ← ElevenLabs.');
+      return;
+    }
+    const text = EL.prepareText(b.text || '');
+    if (text.length < 3) { alert('اكتب نص الحديث الأول أو اضغط «جلب الحديث».'); return; }
+    if (!confirm(`هيتبعت ${text.length} حرف لـ ElevenLabs، وده هيتخصم من رصيدك هناك (تقريبًا حرف = كريديت).\n\nبعد التوليد لازم تسمع الصوت كله وتتأكد من النطق والتشكيل.\nتكمل؟`)) return;
+    const btn = act('ai');
+    btn.disabled = true; btn.textContent = '⏳ بيولّد…';
+    try {
+      const blob = await EL.speak(text);
+      const buffer = await decode(await blob.arrayBuffer());
+      setHadithAudio(b, trimSilence(buffer), 'ElevenLabs', blob);
+      b.audioMode = 'ai';
+      li.querySelectorAll('[data-f=audioMode]').forEach(r => { r.checked = r.value === 'ai'; });
+      sync(); persist(); refreshPublish(true);
+      el('audio-preview').hidden = false;
+      el('audio-preview').play().catch(() => {});
+      status('✅ الصوت اتولّد. اسمعه كله وراجع النطق والتشكيل قبل التصدير. ولو فيه غلط، عدّل النص وولّد تاني.');
+    } catch (e) {
+      showError(e);
+    } finally {
+      btn.disabled = false; btn.textContent = '🤖 ولّد بصوتي';
+    }
+  };
   f('audioFile').onchange = async () => {
     const file = f('audioFile').files[0];
     if (!file) return;
@@ -893,6 +921,11 @@ function setupSettings() {
     $('#set-pexels').value = s.pexelsKey;
     $('#set-pixabay').value = s.pixabayKey;
     $('#set-proxy').value = s.proxyUrl;
+    $('#set-eleven-key').value = s.elevenKey;
+    $('#set-eleven-voice').value = s.elevenVoiceId;
+    $('#set-eleven-model').innerHTML = EL.MODELS.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+    $('#set-eleven-model').value = s.elevenModel;
+    $('#set-eleven-voices').hidden = true;
     dlg.showModal();
   };
   dlg.addEventListener('close', () => {
@@ -901,8 +934,32 @@ function setupSettings() {
       pexelsKey: $('#set-pexels').value.trim(),
       pixabayKey: $('#set-pixabay').value.trim(),
       proxyUrl: $('#set-proxy').value.trim(),
+      elevenKey: $('#set-eleven-key').value.trim(),
+      elevenVoiceId: $('#set-eleven-voice').value.trim(),
+      elevenModel: $('#set-eleven-model').value,
     });
   });
+  // جلب الأصوات من حساب ElevenLabs (بالمفتاح المكتوب حاليًا في الخانة)
+  $('#set-eleven-load').onclick = async () => {
+    const btn = $('#set-eleven-load');
+    const prev = getSettings();
+    setSettings({ elevenKey: $('#set-eleven-key').value.trim() });
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      const voices = await EL.listVoices();
+      const sel = $('#set-eleven-voices');
+      sel.innerHTML = '<option value="">— اختار صوتك —</option>' + voices
+        .sort((a, b) => (b.category === 'cloned') - (a.category === 'cloned'))
+        .map(v => `<option value="${v.id}">${v.category === 'cloned' ? '🎙️ ' : ''}${escapeHtml(v.name)}</option>`).join('');
+      sel.hidden = false;
+      sel.onchange = () => { if (sel.value) $('#set-eleven-voice').value = sel.value; };
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setSettings({ elevenKey: prev.elevenKey });
+      btn.disabled = false; btn.textContent = 'جيب أصواتي';
+    }
+  };
 }
 
 // ===== النشر (العنوان والوصف والمشاركة) =====

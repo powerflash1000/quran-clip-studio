@@ -10,13 +10,17 @@ const ALLOWED_HOSTS = [
   'cdn.jsdelivr.net',
   'raw.githubusercontent.com',
   'verses.quran.com',
+  'api.elevenlabs.io',
 ];
+// الهيدرز اللي بتتبعت للخدمة الأصلية (مفتاح ElevenLabs ونوع المحتوى)
+const FORWARD_HEADERS = ['xi-api-key', 'content-type', 'accept'];
 
 export default {
   async fetch(request) {
     const cors = {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS',
+      'Access-Control-Allow-Headers': FORWARD_HEADERS.join(', '),
     };
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
 
@@ -27,7 +31,18 @@ export default {
       return new Response('host not allowed', { status: 403, headers: cors });
     }
 
-    const upstream = await fetch(url.toString(), { cf: { cacheEverything: true, cacheTtl: 86400 } });
+    let upstream;
+    if (request.method === 'POST') {
+      const fwd = new Headers();
+      for (const h of FORWARD_HEADERS) if (request.headers.get(h)) fwd.set(h, request.headers.get(h));
+      upstream = await fetch(url.toString(), { method: 'POST', headers: fwd, body: request.body });
+    } else if (url.hostname === 'api.elevenlabs.io') {
+      const fwd = new Headers();
+      for (const h of FORWARD_HEADERS) if (request.headers.get(h)) fwd.set(h, request.headers.get(h));
+      upstream = await fetch(url.toString(), { headers: fwd });
+    } else {
+      upstream = await fetch(url.toString(), { cf: { cacheEverything: true, cacheTtl: 86400 } });
+    }
     const headers = new Headers(upstream.headers);
     for (const [k, v] of Object.entries(cors)) headers.set(k, v);
     return new Response(upstream.body, { status: upstream.status, headers });
