@@ -134,7 +134,7 @@
         <div class="btn-row">
           <button class="btn" id="add-quran" type="button">＋ آيات</button>
           <button class="btn" id="add-hadith" type="button">＋ حديث</button>
-          <button class="btn" id="add-zikr" type="button">＋ ذكر / دعاء</button>
+          <button class="btn primary" id="add-zikr" type="button">📿 مكتبة الأذكار والأدعية</button>
         </div>
         <div class="btn-row">
           <span class="muted">جاهز:</span>
@@ -462,6 +462,26 @@
       </fieldset>
     </li>
   </template>
+
+  <dialog id="dlg-azkar">
+    <div class="dlg wide">
+      <div class="row">
+        <h2 class="grow">📿 مكتبة الأذكار والأدعية <span class="muted">(حصن المسلم)</span></h2>
+        <button class="btn icon" id="az-close" type="button">✕</button>
+      </div>
+      <input type="search" id="az-q" placeholder="ابحث في كل الأذكار… (مثلًا: الهم، النوم، السفر، أستغفر)">
+      <div class="az-layout">
+        <div class="az-cats" id="az-cats"></div>
+        <div class="az-main">
+          <div class="row wrap">
+            <h3 class="grow" id="az-title"></h3>
+            <button class="btn" id="az-add-all" type="button">＋ أضف الكل بالترتيب</button>
+          </div>
+          <div class="az-items" id="az-items"></div>
+        </div>
+      </div>
+    </div>
+  </dialog>
 
   <template id="tpl-zikr">
     <li class="block zikr">

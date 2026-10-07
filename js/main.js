@@ -729,6 +729,102 @@ function zikrBlockEl(b, i) {
   return li;
 }
 
+// ===== مكتبة الأذكار (نافذة) =====
+const AZ_FIRST = ['أذكار الصباح', 'أذكار المساء', 'أذكار النوم', 'أذكار الاستيقاظ من النوم', 'الرقية الشرعية من القرآن الكريم',
+  'الرقية الشرعية من السنة النبوية', 'الأذكار بعد السلام من الصلاة', 'دعاء الهم والحزن', 'دعاء الكرب',
+  'الاستغفار و التوبة', 'التسبيح، التحميد، التهليل، التكبير', 'فضل الصلاة على النبي صلى الله عليه و سلم', 'دعاء السفر'];
+const azNorm = t => (t || '').replace(/[\u0610-\u061A\u064B-\u065F\u0670]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه');
+let azCat = 'أذكار الصباح';
+
+function focusLastBlock() {
+  const li = blocksEl.lastElementChild;
+  if (!li) return;
+  li.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  li.classList.add('flash');
+  setTimeout(() => li.classList.remove('flash'), 1700);
+}
+
+function openAzkarLibrary() {
+  if (!AZKAR?.categories.length) { alert('ملف الأذكار ماتحمّلش. اعمل Refresh للصفحة (Ctrl + Shift + R).'); return; }
+  renderAzCats();
+  renderAzItems();
+  $('#dlg-azkar').showModal();
+}
+
+function sortedCats() {
+  const cats = [...AZKAR.categories];
+  const rank = c => { const i = AZ_FIRST.indexOf(c.name); return i === -1 ? 999 : i; };
+  return cats.sort((a, b) => rank(a) - rank(b));
+}
+
+function renderAzCats() {
+  const box = $('#az-cats');
+  box.innerHTML = '';
+  for (const c of sortedCats()) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'az-cat';
+    b.setAttribute('aria-selected', String(c.name === azCat && !$('#az-q').value.trim()));
+    b.innerHTML = '<span></span><span class="n"></span>';
+    b.firstChild.textContent = c.name;
+    b.lastChild.textContent = c.items.length;
+    b.onclick = () => { azCat = c.name; $('#az-q').value = ''; renderAzCats(); renderAzItems(); };
+    box.appendChild(b);
+  }
+}
+
+function renderAzItems() {
+  const q = azNorm($('#az-q').value.trim());
+  let list;
+  if (q.length >= 2) {
+    list = [];
+    for (const c of AZKAR.categories) c.items.forEach((it, k) => {
+      if (azNorm(it.t).includes(q) || azNorm(c.name).includes(q)) list.push({ cat: c.name, k, it });
+    });
+    $('#az-title').textContent = `نتايج البحث (${list.length})`;
+    $('#az-add-all').hidden = true;
+  } else {
+    const c = AZKAR.categories.find(x => x.name === azCat) || AZKAR.categories[0];
+    azCat = c.name;
+    list = c.items.map((it, k) => ({ cat: c.name, k, it }));
+    $('#az-title').textContent = `${c.name} (${c.items.length})`;
+    $('#az-add-all').hidden = c.items.length < 2;
+  }
+  const box = $('#az-items');
+  box.innerHTML = list.length ? '' : '<p class="muted">مفيش نتايج.</p>';
+  for (const { cat, k, it } of list.slice(0, 150)) {
+    const d = document.createElement('div');
+    d.className = 'az-item';
+    d.innerHTML = '<div class="cat"></div><div class="txt"></div><div class="meta"></div><button class="btn" type="button">＋ أضف للفيديو</button>';
+    d.querySelector('.cat').textContent = q ? cat : '';
+    d.querySelector('.txt').textContent = it.t;
+    d.querySelector('.meta').textContent = [it.n > 1 && `🔁 ${it.n} مرات`, it.r && `📖 ${it.r}`, it.d && `💡 ${it.d}`].filter(Boolean).join('  •  ');
+    d.querySelector('button').onclick = () => {
+      state.blocks.push(newZikrBlock(cat, k));
+      $('#dlg-azkar').close();
+      renderBlocks();
+      focusLastBlock();
+      status(`✅ اتضاف: ${cat}`);
+    };
+    box.appendChild(d);
+  }
+}
+
+function setupAzkarLibrary() {
+  $('#az-close').onclick = () => $('#dlg-azkar').close();
+  let t = null;
+  $('#az-q').oninput = () => { clearTimeout(t); t = setTimeout(() => { renderAzCats(); renderAzItems(); }, 200); };
+  $('#az-add-all').onclick = () => {
+    const c = AZKAR.categories.find(x => x.name === azCat);
+    if (!c) return;
+    c.items.forEach((_, k) => state.blocks.push(newZikrBlock(c.name, k)));
+    $('#dlg-azkar').close();
+    renderBlocks();
+    focusLastBlock();
+    status(`✅ اتضاف ${c.items.length} ذكر من «${c.name}». القايمة الطويلة هتطلع فيديو طويل — الأنسب لها MP3 أو «حزمة Filmora»، أو فعّل «وضع السلسلة» لاحقًا.`);
+  };
+}
+
 // قوايم جاهزة من القرآن بصوت القارئ اللي مختاره
 const PRESETS = {
   // الآيات اللي في أذكار الصباح والمساء: آية الكرسي، والمعوذات ٣ مرات
@@ -1578,9 +1674,10 @@ async function init() {
   setupSettings();
   renderBlocks();
 
-  $('#add-quran').onclick = () => { state.blocks.push(newQuranBlock(1, 1, 1)); renderBlocks(); };
-  $('#add-hadith').onclick = () => { state.blocks.push(newHadithBlock()); renderBlocks(); };
-  $('#add-zikr').onclick = () => { state.blocks.push(newZikrBlock()); renderBlocks(); };
+  $('#add-quran').onclick = () => { state.blocks.push(newQuranBlock(1, 1, 1)); renderBlocks(); focusLastBlock(); };
+  $('#add-hadith').onclick = () => { state.blocks.push(newHadithBlock()); renderBlocks(); focusLastBlock(); };
+  $('#add-zikr').onclick = openAzkarLibrary;
+  setupAzkarLibrary();
   document.querySelectorAll('[data-preset]').forEach(btn => { btn.onclick = () => applyPreset(btn.dataset.preset); });
   $('#btn-play').onclick = play;
   $('#btn-stop').onclick = stop;

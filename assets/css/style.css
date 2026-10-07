@@ -242,3 +242,20 @@ dialog:has(.dlg.wide) { width: min(980px, calc(100vw - 32px)); }
 .snd-meta { font-size: .78rem; white-space: nowrap; }
 @media (max-width: 520px) { .snd-meta { display: none; } }
 .badge.zk { background: #6b4fa0; color: #fff; }
+
+/* ===== مكتبة الأذكار ===== */
+#dlg-azkar { width: min(1100px, calc(100vw - 24px)); }
+.az-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: .8rem; margin-top: .6rem; }
+@media (min-width: 760px) { .az-layout { grid-template-columns: 260px minmax(0, 1fr); } }
+.az-cats { display: flex; flex-direction: column; gap: .25rem; max-height: 62vh; overflow-y: auto; }
+@media (max-width: 759px) { .az-cats { flex-direction: row; overflow-x: auto; max-height: none; padding-bottom: .3rem; } .az-cat { white-space: nowrap; } }
+.az-cat { font: inherit; font-size: .9rem; text-align: start; cursor: pointer; padding: .35rem .6rem; border-radius: 8px; border: 1px solid var(--line); background: var(--field); color: var(--text); display: flex; justify-content: space-between; gap: .5rem; }
+.az-cat[aria-selected="true"] { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
+.az-cat .n { opacity: .7; font-size: .8rem; }
+.az-items { display: grid; gap: .5rem; max-height: 58vh; overflow-y: auto; }
+.az-item { border: 1px solid var(--line); border-radius: 10px; padding: .6rem .8rem; background: var(--field); }
+.az-item .txt { font-size: 1.05rem; line-height: 1.9; white-space: pre-wrap; }
+.az-item .meta { color: var(--muted); font-size: .82rem; margin: .3rem 0; }
+.az-item .cat { color: var(--accent); font-size: .8rem; }
+.block.flash { animation: flash 1.6s ease; }
+@keyframes flash { 0%, 40% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: none; } }
