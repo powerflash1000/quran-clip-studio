@@ -366,6 +366,13 @@ async function doExport(kind) {
       download(blob, `${baseName()}.${kind}`);
       status(`✅ ${kind.toUpperCase()} جاهز (${fmtDur(d)})`);
     } else if (kind === 'mp4') {
+      // فيديو من غير صوت: الصوت هيتضاف من المنصة («استخدم هذا الصوت»)
+      if ($('#silent').checked) {
+        project.silent = true;
+        const target = Number($('#silent-dur').value);
+        if (target > 0) stretchProject(project, target);
+      }
+      const d = project.timeline.duration;
       if (d > MAX_VIDEO_SECONDS && !confirm(`مدة الفيديو ${fmtDur(d)}، وده أطول من ٣ دقايق.\nالتحويل في المتصفح هياخد وقت طويل وممكن الصفحة تقف.\n\nالأفضل تستخدم «حزمة Filmora». تكمل برضه؟`)) {
         status('');
         return;
@@ -390,6 +397,17 @@ async function doExport(kind) {
   } finally {
     setBusy(false);
   }
+}
+
+// بنمط توقيت المقاطع كله عشان الفيديو ياخد المدة المطلوبة (لما يكون من غير صوت)
+function stretchProject(project, target) {
+  const k = target / project.timeline.duration;
+  for (const s of project.segments) {
+    s.start *= k;
+    s.end *= k;
+    if (s.wordTimes) s.wordTimes = s.wordTimes.map(t => t * k);
+  }
+  project.timeline.duration = target;
 }
 
 const segInfo = (i, n) => `${i + 1} من ${n}`;
@@ -818,6 +836,7 @@ function setupStyle() {
     });
   }
   $('#quality').onchange = () => { state.style.quality = $('#quality').value; persist(); };
+  $('#silent').onchange = () => { $('#silent-dur-wrap').hidden = !$('#silent').checked; };
 
   $('#bg-file').onchange = () => {
     const file = $('#bg-file').files[0];

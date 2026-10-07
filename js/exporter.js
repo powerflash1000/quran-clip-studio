@@ -148,7 +148,7 @@ export async function exportVideo(project, onProgress, onLoad, onStage) {
       `[1:v]fps=${FPS},format=rgba,scale=${W}:${H}[ov];` +
       `[bg][ov]overlay=0:0:format=auto[v1]`;
     let last = 'v1';
-    if (style.waveform) {
+    if (style.waveform && !project.silent) {
       const wh = Math.round(H * 0.1);
       const y = Math.round(H * (H > W ? 0.86 : 0.93) - wh / 2);
       const color = style.accent.replace('#', '0x');
@@ -163,12 +163,12 @@ export async function exportVideo(project, onProgress, onLoad, onStage) {
       '-f', 'concat', '-safe', '0', '-i', 'list.txt',
       '-i', 'audio.wav',
       '-filter_complex', filter,
-      '-map', '[v]', '-map', '2:a',
+      '-map', '[v]', ...(project.silent ? [] : ['-map', '2:a']),
       '-t', timeline.duration.toFixed(3),
       '-r', String(FPS),
       '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '22',
       ...(isVideoBg ? [] : ['-tune', 'stillimage']),
-      '-c:a', 'aac', '-b:a', '192k',
+      ...(project.silent ? ['-an'] : ['-c:a', 'aac', '-b:a', '192k']),
       '-movflags', '+faststart',
       'out.mp4',
     ];
