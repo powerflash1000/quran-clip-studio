@@ -2,6 +2,7 @@ import { encodeWav } from './audio.js';
 import { getFFmpeg, run, cleanup } from './ffmpeg.js';
 import { drawBackground, drawOverlay, canvasToPng } from './slides.js';
 import { makeZip } from './zip.js';
+import { fastConfig, fastExportVideo } from './fastexport.js';
 
 export const FPS = 25;
 
@@ -104,6 +105,21 @@ export async function exportVideo(project, onProgress, onLoad, onStage) {
   const { segments, timeline, style, media } = project;
   let { W, H } = project;
   if (project.quality === '720') { const k = 720 / Math.min(W, H); W = Math.round(W * k / 2) * 2; H = Math.round(H * k / 2) * 2; }
+
+  // الطريقة السريعة (WebCodecs) لما الجهاز يدعمها والخلفية مش فيديو
+  if (!project.forceFfmpeg && media?.kind !== 'video') {
+    try {
+      const cfg = await fastConfig(W, H, !!project.silent);
+      if (cfg) {
+        project.usedFast = true;
+        return await fastExportVideo(project, cfg, onProgress, onStage);
+      }
+    } catch (e) {
+      console.warn('التصدير السريع فشل، هنكمل بـ ffmpeg', e);
+      project.usedFast = false;
+    }
+  }
+  project.usedFast = false;
 
   const ff = await getFFmpeg(onLoad);
   const files = [];

@@ -259,3 +259,31 @@ dialog:has(.dlg.wide) { width: min(980px, calc(100vw - 32px)); }
 .az-item .cat { color: var(--accent); font-size: .8rem; }
 .block.flash { animation: flash 1.6s ease; }
 @keyframes flash { 0%, 40% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: none; } }
+
+/* ===== الخطوات (تابات) ===== */
+.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .35rem; position: sticky; top: 76px; z-index: 4; background: var(--bg); padding: .2rem 0 .4rem; }
+.steps button { font: inherit; font-size: .9rem; cursor: pointer; padding: .55rem .3rem; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); line-height: 1.25; }
+.steps button b { display: inline-grid; place-items: center; width: 1.5em; height: 1.5em; border-radius: 99px; background: var(--field); margin-inline-end: .25rem; font-size: .85em; }
+.steps button[aria-selected="true"] { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
+.steps button[aria-selected="true"] b { background: rgba(255,255,255,.25); }
+.tab-panel { display: grid; gap: 16px; }
+.tab-panel[hidden] { display: none !important; }
+@media (max-width: 520px) { .steps button { font-size: .78rem; } .steps button b { display: block; margin: 0 auto .15rem; } }
+details.adv { border-top: 1px dashed var(--line); padding-top: .4rem; }
+
+/* ===== شريط الموبايل ===== */
+.mobile-bar { display: none; }
+@media (max-width: 959px) {
+  .mobile-bar { display: grid; grid-template-columns: repeat(3, 1fr); position: fixed; bottom: 0; inset-inline: 0; z-index: 20; background: var(--card); border-top: 1px solid var(--line); padding: .35rem .5rem calc(.35rem + env(safe-area-inset-bottom)); box-shadow: 0 -4px 16px rgba(0,0,0,.08); }
+  .mobile-bar button { font: inherit; font-size: 1.2rem; background: none; border: 0; color: var(--text); display: grid; justify-items: center; gap: .1rem; cursor: pointer; padding: .2rem; }
+  .mobile-bar button span { font-size: .75rem; color: var(--muted); }
+  body { padding-bottom: 72px; }
+  .steps { top: 0; }
+  .topbar { position: static; }
+}
+@media (max-width: 600px) {
+  .topbar .lbl, .tagline { display: none; }
+  .topbar h1 { font-size: 1.1rem; }
+  .topbar { padding: .5rem 12px; }
+}
+@media (max-width: 959px) { #preview { max-height: 46vh; } }

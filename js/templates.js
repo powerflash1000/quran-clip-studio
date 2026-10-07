@@ -22,6 +22,10 @@ export const DEFAULT_STYLE = {
   trimSilence: true,       // قص السكوت من أول وآخر ملف كل آية
   wordMode: 'full',        // full | reveal (الكلمات بتظهر مع التلاوة) | highlight (تظليل الكلمة الحالية)
   quality: '1080',
+  intro: '',               // جملة افتتاحية في أول الفيديو (فاضية = من غير)
+  introSeconds: 1.6,
+  handle: '',              // @اسم_حسابك على الفيديو
+  handlePos: 'bottom',
 };
 
 const BUILTIN = {

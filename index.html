@@ -17,7 +17,11 @@
         <p class="tagline">آيات وأحاديث ← صوت أو فيديو جاهز للنشر</p>
       </div>
     </div>
-    <button class="btn ghost" id="btn-settings" type="button">⚙️ الإعدادات</button>
+    <div class="btn-row" style="margin:0">
+      <button class="btn ghost" id="proj-save" type="button" title="احفظ المشروع كله في ملف">💾<span class="lbl"> حفظ</span></button>
+      <label class="btn ghost file-btn" title="افتح مشروع محفوظ">📂<span class="lbl"> فتح</span><input type="file" id="proj-open" accept=".json,application/json" hidden></label>
+      <button class="btn ghost" id="btn-settings" type="button" title="الإعدادات">⚙️<span class="lbl"> الإعدادات</span></button>
+    </div>
   </header>
 
   <main class="layout">
@@ -41,6 +45,239 @@
         </div>
       </div>
 
+    </section>
+
+    <!-- ===== التحكم ===== -->
+    <section class="controls-col">
+      <nav class="steps" id="steps" role="tablist">
+        <button type="button" data-tab="content"><b>١</b> المحتوى</button>
+        <button type="button" data-tab="audio"><b>٢</b> الصوت</button>
+        <button type="button" data-tab="look"><b>٣</b> الشكل</button>
+        <button type="button" data-tab="export"><b>٤</b> التصدير والنشر</button>
+      </nav>
+    <div class="tab-panel" data-panel="content">
+      <!-- المحتوى -->
+      <div class="card">
+        <h2>📜 المحتوى</h2>
+        <div class="search-box">
+          <input type="search" id="ayah-search" placeholder="ابحث في القرآن بكلمة (مثلًا: الصبر، رحمة، patience)">
+          <div class="results" id="ayah-results" hidden></div>
+        </div>
+        <ol class="blocks" id="blocks"></ol>
+        <div class="btn-row">
+          <button class="btn" id="add-quran" type="button">＋ آيات</button>
+          <button class="btn" id="add-hadith" type="button">＋ حديث</button>
+          <button class="btn primary" id="add-zikr" type="button">📿 مكتبة الأذكار والأدعية</button>
+        </div>
+        <div class="btn-row">
+          <span class="muted">جاهز:</span>
+          <button class="btn ghost" data-preset="morning" type="button">🌅 آيات أذكار الصباح والمساء</button>
+          <button class="btn ghost" data-preset="ruqyah" type="button">🛡️ الرقية الشرعية (قرآن)</button>
+        </div>
+      </div>
+
+      <!-- وضع السلسلة -->
+      <div class="card">
+        <div class="row">
+          <h2 class="grow" style="margin:0">🧩 وضع السلسلة</h2>
+          <label class="check" style="margin:0"><input type="checkbox" id="ser-enabled"> تفعيل</label>
+        </div>
+        <p class="hint">اختياري: قسّم سورة لأجزاء قصيرة (شورتس / ريلز)، كل جزء عليه «الجزء ٣ من ١٢»، وفي آخره «تابع الجزء التالي». لو مقفول، البرنامج بيشتغل عادي من غير تقسيم.</p>
+        <div id="ser-body" hidden>
+        <div class="grid3">
+          <label class="span3">السورة <select id="ser-surah"></select></label>
+          <label>من آية <input type="number" id="ser-from" min="1"></label>
+          <label>إلى آية <input type="number" id="ser-to" min="1"></label>
+          <label>التقسيم
+            <select id="ser-mode">
+              <option value="duration">بالمدة</option>
+              <option value="count">عدد آيات ثابت</option>
+              <option value="manual">أعداد بإيدي</option>
+            </select>
+          </label>
+          <label class="ser-when" data-mode="duration">أقصى مدة للجزء (ث) <input type="number" id="ser-max" min="10" max="180" step="1"></label>
+          <label class="ser-when" data-mode="count">آيات في كل جزء <input type="number" id="ser-count" min="1" max="50"></label>
+          <label class="ser-when span2" data-mode="manual">الأعداد بالترتيب <input type="text" id="ser-sizes" placeholder="5, 7, 6"></label>
+        </div>
+        <div class="grid2">
+          <label class="check"><input type="checkbox" id="ser-basmala"> البسملة في أول جزء</label>
+          <label class="check"><input type="checkbox" id="ser-end"> شاشة «تابع الجزء التالي»</label>
+          <label>مدة الشاشة الأخيرة (ث) <input type="number" id="ser-endsec" min="1" max="8" step="0.5"></label>
+        </div>
+        <div class="btn-row">
+          <button class="btn primary" id="ser-split" type="button">✂️ قسّم</button>
+          <button class="btn" id="ser-full" type="button">📖 حمّل النطاق كله في المحرر (للفيديو الطويل)</button>
+        </div>
+        <ol class="parts" id="ser-parts"></ol>
+        <div class="btn-row" id="ser-actions" hidden>
+          <button class="btn primary" id="ser-export-all" type="button">🎬 صدّر كل الأجزاء فيديو</button>
+          <button class="btn" id="ser-info" type="button">📝 أوصاف كل الأجزاء + فصول الفيديو الطويل</button>
+        </div>
+        <p class="hint" id="ser-hint" hidden>المتصفح ممكن يسألك «السماح بتنزيل ملفات متعددة» — اضغط سماح (Allow).</p>
+        </div>
+      </div>
+
+      <div class="btn-row end"><button class="btn primary" type="button" data-next="audio">التالي ←</button></div>
+    </div>
+    <div class="tab-panel" data-panel="audio">
+      <!-- القارئ -->
+      <div class="card">
+        <h2>🎙️ القارئ</h2>
+        <div class="row">
+          <select id="reciter" class="grow"></select>
+          <button class="btn icon" id="fav" type="button" title="مفضّل">☆</button>
+          <button class="btn icon" id="test-reciter" type="button" title="اسمع عينة">🔊</button>
+        </div>
+        <label class="check"><input type="checkbox" id="show-all-reciters"> عرض كل القراء</label>
+        <details>
+          <summary>قارئ مش موجود في القائمة؟</summary>
+          <p class="hint">اكتب اسم الفولدر بتاعه من موقع everyayah.com/data (مثلًا: <code>Alafasy_64kbps</code>).</p>
+          <div class="row">
+            <input type="text" id="custom-folder" class="grow" dir="ltr" placeholder="Folder_Name_128kbps">
+            <button class="btn" id="use-custom" type="button">استخدم</button>
+          </div>
+        </details>
+      </div>
+
+      <div class="card">
+        <h2>🔊 ضبط الصوت</h2>
+        <div class="grid2">
+          <label class="check span2"><input type="checkbox" id="trimSilence"> قص السكتات الزايدة بين الآيات (تلاوة متصلة) — ومعاها خلّي «المسافة بين الآيات» 0 أو 0.2</label>
+          <label>المسافة بين الآيات (ث) <input type="number" id="gap" min="0" max="5" step="0.05"></label>
+        </div>
+        <details open>
+          <summary>صوت خلفية هادي (مطر، طبيعة…)</summary>
+          <p class="hint">مفيد مع الأحاديث اللي من غير صوت. الصوت بيتكرر طول الفيديو.</p>
+          <h3>🔎 بحث في Freesound</h3>
+          <div class="chips" id="snd-presets"></div>
+          <div class="row">
+            <input type="search" id="snd-q" class="grow" placeholder="أو اكتب بالإنجليزي: rain, waves, wind…">
+            <button class="btn primary" id="snd-go" type="button">بحث</button>
+          </div>
+          <label class="check"><input type="checkbox" id="snd-cc0" checked> رخصة CC0 بس (حر تمامًا ومن غير ذكر اسم)</label>
+          <ol class="snd-results" id="snd-results"></ol>
+          <div class="btn-row">
+            <a class="btn ghost" id="snd-pixabay" href="https://pixabay.com/sound-effects/" target="_blank" rel="noopener">🎵 نفس البحث في Pixabay</a>
+            <a class="btn ghost" href="https://studio.youtube.com/channel/UC/music" target="_blank" rel="noopener">🎵 مكتبة يوتيوب</a>
+          </div>
+          <p class="hint">من Pixabay أو يوتيوب: نزّل الملف، وبعدين اختاره من «🎧 اختار ملف». في يوتيوب اختار <b>Sound effects</b> بس.</p>
+          <div class="row">
+            <label class="btn file-btn">🎧 اختار ملف
+              <input type="file" id="ambient-file" accept="audio/*" hidden>
+            </label>
+            <span class="muted" id="ambient-name">مفيش</span>
+          </div>
+          <label>مستوى الصوت <input type="range" id="ambient-vol" min="0" max="0.6" step="0.02" value="0.15"></label>
+        </details>
+      </div>
+      <div class="btn-row end"><button class="btn primary" type="button" data-next="look">التالي ←</button></div>
+    </div>
+    <div class="tab-panel" data-panel="look">
+      <!-- الشكل -->
+      <div class="card">
+        <h2>🎨 الشكل</h2>
+        <div class="grid2">
+          <label>المقاس
+            <select id="aspect"></select>
+          </label>
+          <label>الخلفية
+            <select id="bgType">
+              <option value="gradient">تدرّج لوني</option>
+              <option value="color">لون واحد</option>
+              <option value="media">صورة أو فيديو</option>
+            </select>
+          </label>
+          <label class="when-color">اللون 1 <input type="color" id="color1"></label>
+          <label class="when-gradient">اللون 2 <input type="color" id="color2"></label>
+        </div>
+        <div class="when-media media-box">
+          <div class="btn-row">
+            <label class="btn file-btn">📁 ارفع صورة أو فيديو
+              <input type="file" id="bg-file" accept="image/*,video/*" hidden>
+            </label>
+            <button class="btn" id="open-stock" type="button">🔎 خلفيات مجانية (Pexels / Pixabay)</button>
+          </div>
+          <div class="muted" id="bg-name">مفيش خلفية مختارة</div>
+          <p class="hint">نصيحة: ولّد خلفيات (طبيعة، سماء، بحر — من غير أشخاص) في Higgsfield واحفظها، وارفعها هنا. الفيديو الأقصر والأقل دقة بيتحوّل أسرع.</p>
+        </div>
+        <label>تعتيم الخلفية <input type="range" id="dim" min="0" max="0.8" step="0.05"></label>
+        <div class="grid2">
+          <label>حجم الخط <input type="range" id="textSize" min="40" max="130" step="2"></label>
+          <label>لون النص <input type="color" id="textColor"></label>
+          <label>لون العناوين <input type="color" id="accent"></label>
+        </div>
+        <div class="grid2">
+          <label class="span2">ظهور الآية
+            <select id="wordMode">
+              <option value="full">الآية كاملة مرة واحدة</option>
+              <option value="reveal">الكلمات بتظهر مع التلاوة</option>
+              <option value="highlight">الآية ظاهرة باهتة والكلمة الحالية بتنوّر</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" id="showLabel"> اسم السورة ورقم الآية</label>
+          <label class="check"><input type="checkbox" id="showFooter"> اسم القارئ / مصدر الحديث</label>
+          <label class="check"><input type="checkbox" id="showTranslation"> إظهار الترجمة</label>
+        </div>
+        <label>لغة ترجمة القرآن <select id="translation"></select></label>
+        <details class="adv">
+          <summary>⚙️ إعدادات متقدمة للشكل</summary>
+          <div class="grid2">
+          <label>حجم العناوين <input type="range" id="labelScale" min="0.6" max="1.6" step="0.05"></label>
+          <label>لون الترجمة <input type="color" id="subColor"></label>
+          <label class="check"><input type="checkbox" id="waveform"> موجة صوتية</label>
+          </div>
+        </details>
+      </div>
+
+      <div class="card">
+        <h2>🪝 الافتتاحية وعلامة الحساب</h2>
+        <label>جملة افتتاحية في أول الفيديو (بتشد المتفرج في أول ثانية)
+          <input type="text" id="intro" list="intro-list" placeholder="سيبها فاضية لو مش عايز افتتاحية">
+        </label>
+        <datalist id="intro-list">
+          <option value="آية تريح قلبك 🤍">
+          <option value="قبل ما تنام اسمع دي 🌙">
+          <option value="اسمعها للآخر 🤍">
+          <option value="لا تمرّ عليها دون أن تسمعها">
+          <option value="ابدأ يومك بأذكار الصباح ☀️">
+          <option value="شاركها لعلها تكون صدقة جارية لك 🤍">
+          <option value="دقيقة مع القرآن 🤍">
+        </datalist>
+        <div class="grid2">
+          <label>مدة الافتتاحية (ث) <input type="number" id="introSeconds" min="0.8" max="5" step="0.1"></label>
+          <span></span>
+          <label>علامة حسابك <input type="text" id="handle" dir="ltr" placeholder="@ayat.alaa"></label>
+          <label>مكانها
+            <select id="handlePos">
+              <option value="bottom">تحت</option>
+              <option value="top">فوق</option>
+            </select>
+          </label>
+        </div>
+        <p class="hint">العلامة بتظهر خفيفة طول الفيديو: بتحمي الفيديو من إن حد ينسبه لنفسه، وبتجيب لك متابعين لما حد يشاركه.</p>
+      </div>
+      <!-- القوالب -->
+      <div class="card">
+        <h2>🗂️ القوالب</h2>
+        <div class="row">
+          <select id="templates" class="grow"></select>
+          <button class="btn" id="tpl-apply" type="button">تطبيق</button>
+          <button class="btn" id="tpl-delete" type="button">حذف</button>
+        </div>
+        <div class="row">
+          <input type="text" id="tpl-name" class="grow" placeholder="اسم القالب الجديد">
+          <button class="btn" id="tpl-save" type="button">💾 حفظ الإعدادات الحالية</button>
+        </div>
+        <div class="btn-row">
+          <button class="btn ghost" id="tpl-export" type="button">تصدير القوالب (ملف)</button>
+          <label class="btn ghost file-btn">استيراد قوالب
+            <input type="file" id="tpl-import" accept="application/json,.json" hidden>
+          </label>
+        </div>
+      </div>
+      <div class="btn-row end"><button class="btn primary" type="button" data-next="export">التالي ←</button></div>
+    </div>
+    <div class="tab-panel" data-panel="export">
       <!-- ===== التصدير ===== -->
       <div class="card">
         <h2>⬇️ التصدير</h2>
@@ -119,188 +356,15 @@
           <label class="check"><input type="checkbox" id="pub-includeCredits"> ذكر المصادر</label>
         </details>
       </div>
-    </section>
-
-    <!-- ===== التحكم ===== -->
-    <section class="controls-col">
-      <!-- المحتوى -->
-      <div class="card">
-        <h2>📜 المحتوى</h2>
-        <div class="search-box">
-          <input type="search" id="ayah-search" placeholder="ابحث في القرآن بكلمة (مثلًا: الصبر، رحمة، patience)">
-          <div class="results" id="ayah-results" hidden></div>
-        </div>
-        <ol class="blocks" id="blocks"></ol>
-        <div class="btn-row">
-          <button class="btn" id="add-quran" type="button">＋ آيات</button>
-          <button class="btn" id="add-hadith" type="button">＋ حديث</button>
-          <button class="btn primary" id="add-zikr" type="button">📿 مكتبة الأذكار والأدعية</button>
-        </div>
-        <div class="btn-row">
-          <span class="muted">جاهز:</span>
-          <button class="btn ghost" data-preset="morning" type="button">🌅 آيات أذكار الصباح والمساء</button>
-          <button class="btn ghost" data-preset="ruqyah" type="button">🛡️ الرقية الشرعية (قرآن)</button>
-        </div>
-      </div>
-
-      <!-- وضع السلسلة -->
-      <div class="card">
-        <div class="row">
-          <h2 class="grow" style="margin:0">🧩 وضع السلسلة</h2>
-          <label class="check" style="margin:0"><input type="checkbox" id="ser-enabled"> تفعيل</label>
-        </div>
-        <p class="hint">اختياري: قسّم سورة لأجزاء قصيرة (شورتس / ريلز)، كل جزء عليه «الجزء ٣ من ١٢»، وفي آخره «تابع الجزء التالي». لو مقفول، البرنامج بيشتغل عادي من غير تقسيم.</p>
-        <div id="ser-body" hidden>
-        <div class="grid3">
-          <label class="span3">السورة <select id="ser-surah"></select></label>
-          <label>من آية <input type="number" id="ser-from" min="1"></label>
-          <label>إلى آية <input type="number" id="ser-to" min="1"></label>
-          <label>التقسيم
-            <select id="ser-mode">
-              <option value="duration">بالمدة</option>
-              <option value="count">عدد آيات ثابت</option>
-              <option value="manual">أعداد بإيدي</option>
-            </select>
-          </label>
-          <label class="ser-when" data-mode="duration">أقصى مدة للجزء (ث) <input type="number" id="ser-max" min="10" max="180" step="1"></label>
-          <label class="ser-when" data-mode="count">آيات في كل جزء <input type="number" id="ser-count" min="1" max="50"></label>
-          <label class="ser-when span2" data-mode="manual">الأعداد بالترتيب <input type="text" id="ser-sizes" placeholder="5, 7, 6"></label>
-        </div>
-        <div class="grid2">
-          <label class="check"><input type="checkbox" id="ser-basmala"> البسملة في أول جزء</label>
-          <label class="check"><input type="checkbox" id="ser-end"> شاشة «تابع الجزء التالي»</label>
-          <label>مدة الشاشة الأخيرة (ث) <input type="number" id="ser-endsec" min="1" max="8" step="0.5"></label>
-        </div>
-        <div class="btn-row">
-          <button class="btn primary" id="ser-split" type="button">✂️ قسّم</button>
-          <button class="btn" id="ser-full" type="button">📖 حمّل النطاق كله في المحرر (للفيديو الطويل)</button>
-        </div>
-        <ol class="parts" id="ser-parts"></ol>
-        <div class="btn-row" id="ser-actions" hidden>
-          <button class="btn primary" id="ser-export-all" type="button">🎬 صدّر كل الأجزاء فيديو</button>
-          <button class="btn" id="ser-info" type="button">📝 أوصاف كل الأجزاء + فصول الفيديو الطويل</button>
-        </div>
-        <p class="hint" id="ser-hint" hidden>المتصفح ممكن يسألك «السماح بتنزيل ملفات متعددة» — اضغط سماح (Allow).</p>
-        </div>
-      </div>
-
-      <!-- القارئ -->
-      <div class="card">
-        <h2>🎙️ القارئ</h2>
-        <div class="row">
-          <select id="reciter" class="grow"></select>
-          <button class="btn icon" id="fav" type="button" title="مفضّل">☆</button>
-          <button class="btn icon" id="test-reciter" type="button" title="اسمع عينة">🔊</button>
-        </div>
-        <label class="check"><input type="checkbox" id="show-all-reciters"> عرض كل القراء</label>
-        <details>
-          <summary>قارئ مش موجود في القائمة؟</summary>
-          <p class="hint">اكتب اسم الفولدر بتاعه من موقع everyayah.com/data (مثلًا: <code>Alafasy_64kbps</code>).</p>
-          <div class="row">
-            <input type="text" id="custom-folder" class="grow" dir="ltr" placeholder="Folder_Name_128kbps">
-            <button class="btn" id="use-custom" type="button">استخدم</button>
-          </div>
-        </details>
-      </div>
-
-      <!-- الشكل -->
-      <div class="card">
-        <h2>🎨 الشكل</h2>
-        <div class="grid2">
-          <label>المقاس
-            <select id="aspect"></select>
-          </label>
-          <label>الخلفية
-            <select id="bgType">
-              <option value="gradient">تدرّج لوني</option>
-              <option value="color">لون واحد</option>
-              <option value="media">صورة أو فيديو</option>
-            </select>
-          </label>
-          <label class="when-color">اللون 1 <input type="color" id="color1"></label>
-          <label class="when-gradient">اللون 2 <input type="color" id="color2"></label>
-        </div>
-        <div class="when-media media-box">
-          <div class="btn-row">
-            <label class="btn file-btn">📁 ارفع صورة أو فيديو
-              <input type="file" id="bg-file" accept="image/*,video/*" hidden>
-            </label>
-            <button class="btn" id="open-stock" type="button">🔎 خلفيات مجانية (Pexels / Pixabay)</button>
-          </div>
-          <div class="muted" id="bg-name">مفيش خلفية مختارة</div>
-          <p class="hint">نصيحة: ولّد خلفيات (طبيعة، سماء، بحر — من غير أشخاص) في Higgsfield واحفظها، وارفعها هنا. الفيديو الأقصر والأقل دقة بيتحوّل أسرع.</p>
-        </div>
-        <label>تعتيم الخلفية <input type="range" id="dim" min="0" max="0.8" step="0.05"></label>
-        <div class="grid2">
-          <label>حجم الخط <input type="range" id="textSize" min="40" max="130" step="2"></label>
-          <label>حجم العناوين <input type="range" id="labelScale" min="0.6" max="1.6" step="0.05"></label>
-          <label>لون النص <input type="color" id="textColor"></label>
-          <label>لون العناوين <input type="color" id="accent"></label>
-          <label>لون الترجمة <input type="color" id="subColor"></label>
-          <label>المسافة بين الآيات (ث) <input type="number" id="gap" min="0" max="5" step="0.05"></label>
-        </div>
-        <div class="grid2">
-          <label class="span2">ظهور الآية
-            <select id="wordMode">
-              <option value="full">الآية كاملة مرة واحدة</option>
-              <option value="reveal">الكلمات بتظهر مع التلاوة</option>
-              <option value="highlight">الآية ظاهرة باهتة والكلمة الحالية بتنوّر</option>
-            </select>
-          </label>
-          <label class="check span2"><input type="checkbox" id="trimSilence"> قص السكتات الزايدة بين الآيات (تلاوة متصلة) — ومعاها خلّي «المسافة بين الآيات» 0 أو 0.2</label>
-          <label class="check"><input type="checkbox" id="showLabel"> اسم السورة ورقم الآية</label>
-          <label class="check"><input type="checkbox" id="showFooter"> اسم القارئ / مصدر الحديث</label>
-          <label class="check"><input type="checkbox" id="showTranslation"> إظهار الترجمة</label>
-          <label class="check"><input type="checkbox" id="waveform"> موجة صوتية</label>
-        </div>
-        <label>لغة ترجمة القرآن <select id="translation"></select></label>
-        <details>
-          <summary>صوت خلفية هادي (مطر، طبيعة…)</summary>
-          <p class="hint">مفيد مع الأحاديث اللي من غير صوت. الصوت بيتكرر طول الفيديو.</p>
-          <h3>🔎 بحث في Freesound</h3>
-          <div class="chips" id="snd-presets"></div>
-          <div class="row">
-            <input type="search" id="snd-q" class="grow" placeholder="أو اكتب بالإنجليزي: rain, waves, wind…">
-            <button class="btn primary" id="snd-go" type="button">بحث</button>
-          </div>
-          <label class="check"><input type="checkbox" id="snd-cc0" checked> رخصة CC0 بس (حر تمامًا ومن غير ذكر اسم)</label>
-          <ol class="snd-results" id="snd-results"></ol>
-          <div class="btn-row">
-            <a class="btn ghost" id="snd-pixabay" href="https://pixabay.com/sound-effects/" target="_blank" rel="noopener">🎵 نفس البحث في Pixabay</a>
-            <a class="btn ghost" href="https://studio.youtube.com/channel/UC/music" target="_blank" rel="noopener">🎵 مكتبة يوتيوب</a>
-          </div>
-          <p class="hint">من Pixabay أو يوتيوب: نزّل الملف، وبعدين اختاره من «🎧 اختار ملف». في يوتيوب اختار <b>Sound effects</b> بس.</p>
-          <div class="row">
-            <label class="btn file-btn">🎧 اختار ملف
-              <input type="file" id="ambient-file" accept="audio/*" hidden>
-            </label>
-            <span class="muted" id="ambient-name">مفيش</span>
-          </div>
-          <label>مستوى الصوت <input type="range" id="ambient-vol" min="0" max="0.6" step="0.02" value="0.15"></label>
-        </details>
-      </div>
-
-      <!-- القوالب -->
-      <div class="card">
-        <h2>🗂️ القوالب</h2>
-        <div class="row">
-          <select id="templates" class="grow"></select>
-          <button class="btn" id="tpl-apply" type="button">تطبيق</button>
-          <button class="btn" id="tpl-delete" type="button">حذف</button>
-        </div>
-        <div class="row">
-          <input type="text" id="tpl-name" class="grow" placeholder="اسم القالب الجديد">
-          <button class="btn" id="tpl-save" type="button">💾 حفظ الإعدادات الحالية</button>
-        </div>
-        <div class="btn-row">
-          <button class="btn ghost" id="tpl-export" type="button">تصدير القوالب (ملف)</button>
-          <label class="btn ghost file-btn">استيراد قوالب
-            <input type="file" id="tpl-import" accept="application/json,.json" hidden>
-          </label>
-        </div>
-      </div>
+    </div>
     </section>
   </main>
+
+  <nav class="mobile-bar" id="mobile-bar">
+    <button type="button" id="mb-play">▶<span>معاينة</span></button>
+    <button type="button" id="mb-export">🎬<span>تصدير</span></button>
+    <button type="button" id="mb-share">📤<span>مشاركة</span></button>
+  </nav>
 
   <footer class="foot">
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
@@ -319,6 +383,8 @@
         <input type="text" id="set-pixabay" dir="ltr" autocomplete="off">
       </label>
       <p class="hint">من <a href="https://pixabay.com/api/docs/" target="_blank" rel="noopener">pixabay.com/api/docs</a> بعد تسجيل الدخول، المفتاح بيظهر في الصفحة.</p>
+      <details>
+        <summary>🌐 رابط الوسيط (اختياري — لو التحميل مش شغال)</summary>
       <label>رابط الوسيط (اختياري)
         <input type="url" id="set-proxy" dir="ltr" placeholder="https://quran-proxy.yourname.workers.dev">
       </label>
@@ -327,6 +393,7 @@
       </label>
       <p class="hint">اعمل حساب في freesound.org، وبعدين افتح <a href="https://freesound.org/apiv2/apply" target="_blank" rel="noopener">freesound.org/apiv2/apply</a>، واملا الفورم، وانسخ الـ <b>Client secret/Api key</b>.</p>
       <p class="hint">لو ملفات القراء مش بتتحمل، اعمل وسيط مجاني على Cloudflare Workers بالكود اللي في <code>tools/cors-proxy-worker.js</code> (الشرح في README).</p>
+      </details>
       <details>
         <summary>🤖 ElevenLabs (قراءة الأحاديث بصوتك — اختياري)</summary>
         <label>مفتاح API

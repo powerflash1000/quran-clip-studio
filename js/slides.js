@@ -192,6 +192,16 @@ export function drawOverlay(ctx, W, H, seg, style) {
     ctx.font = `${fs}px ${TEXT_FONT}`;
     drawLines(ctx, [seg.footer], W / 2, bottom + 30 * unit, fs, 1.3, 'rtl');
   }
+  // علامة الحساب (@اسم_حسابك) — خفيفة وظاهرة في كل الفيديو
+  if (style.handle) {
+    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = style.textColor;
+    const hs = Math.round(28 * unit);
+    ctx.font = `${hs}px ${TEXT_FONT}, sans-serif`;
+    const y = style.handlePos === 'top' ? top - 40 * unit - 130 * unit : bottom + 90 * unit;
+    drawLines(ctx, [style.handle], W / 2, y, hs, 1.2, 'ltr');
+    ctx.globalAlpha = 1;
+  }
   ctx.restore();
 }
 

@@ -123,6 +123,11 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
     }
   }
 
+  // الافتتاحية (Hook): جملة تشد في أول ثانية ونص
+  if (st.intro && st.intro.trim() && segs.length) {
+    segs.unshift({ kind: 'title', text: st.intro.trim(), sub: '', label: '', footer: '', silence: Number(st.introSeconds) || 1.6 });
+  }
+
   if (series) {
     const badge = `الجزء ${Q.arabicNum(series.index)} من ${Q.arabicNum(series.total)}`;
     for (const s of segs) s.badge = badge;
@@ -399,7 +404,7 @@ async function doExport(kind) {
       const blob = await exportVideo(project, p => status(stage, p), onLoad, s => { stage = s; status(s, 0); });
       download(blob, `${baseName()}.mp4`);
       setLastExport(blob, `${baseName()}.mp4`, 'video/mp4');
-      status(`✅ الفيديو جاهز (${fmtDur(d)})`);
+      status(`✅ الفيديو جاهز (${fmtDur(d)})${project.usedFast ? ' — تصدير سريع ⚡' : ''}`);
     } else if (kind === 'filmora') {
       status('تجهيز حزمة Filmora…', null);
       const zip = await exportFilmoraPackage(project);
@@ -1008,7 +1013,7 @@ function setupReciters() {
 }
 
 // ===== الشكل =====
-const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'wordMode', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation'];
+const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation'];
 
 function applyStyleToInputs() {
   const st = state.style;
@@ -1661,6 +1666,69 @@ function setupSeries() {
   };
 }
 
+// ===== التنظيم: الخطوات وشريط الموبايل =====
+function showTab(name, scroll = true) {
+  document.querySelectorAll('#steps [data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+  document.querySelectorAll('.tab-panel').forEach(p => { p.hidden = p.dataset.panel !== name; });
+  save('tab', name);
+  if (scroll) $('#steps').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function setupLayout() {
+  $('#steps').onclick = e => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); };
+  document.querySelectorAll('[data-next]').forEach(b => { b.onclick = () => showTab(b.dataset.next); });
+  showTab(load('tab', 'content'), false);
+  $('#mb-play').onclick = () => { window.scrollTo({ top: 0, behavior: 'smooth' }); player ? stop() : play(); };
+  $('#mb-export').onclick = () => { showTab('export'); };
+  $('#mb-share').onclick = () => { showTab('export'); if (!$('#pub-share').disabled) $('#pub-share').click(); };
+}
+
+// ===== حفظ المشروع وفتحه =====
+async function blobToDataUrl(blob) {
+  return new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(blob); });
+}
+
+function setupProject() {
+  $('#proj-save').onclick = async () => {
+    const audios = {};
+    for (const [id, au] of hadithAudio) {
+      if (!state.blocks.some(b => b.id === id)) continue;
+      audios[id] = { name: au.name, data: await blobToDataUrl(bufferToWavBlob(au.buffer)) };
+    }
+    const proj = { app: 'quran-clip-studio', version: 1, savedAt: new Date().toISOString(), blocks: state.blocks, style: state.style, series: state.series, audios };
+    const first = state.blocks[0];
+    const name = first?.type === 'quran' ? `${Q.surah(first.surah).tr}_${first.from}-${first.to}` : baseName();
+    download(new Blob([JSON.stringify(proj)], { type: 'application/json' }), `مشروع_${name}.json`);
+    status('✅ المشروع اتحفظ. افتحه بعدين من «📂 فتح». (الخلفية وصوت الخلفية مش بيتحفظوا — اختارهم تاني)');
+  };
+  $('#proj-open').onchange = async () => {
+    const file = $('#proj-open').files[0];
+    $('#proj-open').value = '';
+    if (!file) return;
+    try {
+      const proj = JSON.parse(await file.text());
+      if (proj.app !== 'quran-clip-studio' || !Array.isArray(proj.blocks)) throw new Error('ده مش ملف مشروع من البرنامج');
+      stop();
+      state.blocks = proj.blocks;
+      state.style = { ...T.DEFAULT_STYLE, ...proj.style, bgType: proj.style?.bgType === 'media' && !state.media ? 'gradient' : proj.style?.bgType };
+      if (proj.series) { Object.assign(state.series, proj.series); save('series', state.series); }
+      hadithAudio.clear();
+      for (const [id, au] of Object.entries(proj.audios || {})) {
+        const blob = await (await fetch(au.data)).blob();
+        setHadithAudio({ id }, await decode(await blob.arrayBuffer()), au.name, blob);
+      }
+      applyStyleToInputs();
+      renderBlocks();
+      refreshPublish(true);
+      persist();
+      showTab('content');
+      status(`✅ اتفتح المشروع (${proj.blocks.length} مقطع)`);
+    } catch (e) {
+      showError(new Error('تعذر فتح المشروع: ' + e.message));
+    }
+  };
+}
+
 // ===== البداية =====
 async function init() {
   status('تحميل نص المصحف…');
@@ -1690,6 +1758,8 @@ async function init() {
   document.querySelectorAll('[data-export]').forEach(b => { b.onclick = () => doExport(b.dataset.export); });
   setupPublish();
   setupSeries();
+  setupLayout();
+  setupProject();
   idleLoop();
 }
 
