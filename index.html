@@ -230,6 +230,13 @@
           <label>المسافة بين الآيات (ث) <input type="number" id="gap" min="0" max="5" step="0.05"></label>
         </div>
         <div class="grid2">
+          <label class="span2">ظهور الآية
+            <select id="wordMode">
+              <option value="full">الآية كاملة مرة واحدة</option>
+              <option value="reveal">الكلمات بتظهر مع التلاوة</option>
+              <option value="highlight">الآية ظاهرة باهتة والكلمة الحالية بتنوّر</option>
+            </select>
+          </label>
           <label class="check span2"><input type="checkbox" id="trimSilence"> قص السكتات الزايدة بين الآيات (تلاوة متصلة) — ومعاها خلّي «المسافة بين الآيات» 0 أو 0.2</label>
           <label class="check"><input type="checkbox" id="showLabel"> اسم السورة ورقم الآية</label>
           <label class="check"><input type="checkbox" id="showFooter"> اسم القارئ / مصدر الحديث</label>

@@ -20,6 +20,7 @@ export const DEFAULT_STYLE = {
   waveform: false,
   gap: 0.25,
   trimSilence: true,       // قص السكوت من أول وآخر ملف كل آية
+  wordMode: 'full',        // full | reveal (الكلمات بتظهر مع التلاوة) | highlight (تظليل الكلمة الحالية)
   quality: '1080',
 };
 

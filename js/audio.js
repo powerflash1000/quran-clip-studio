@@ -129,6 +129,7 @@ export function trimSilence(buffer, { threshold = 0.02, pad = 0.2 } = {}) {
   end = Math.min(buffer.length - 1, end + p);
   const out = new AudioBuffer({ length: end - start + 1, numberOfChannels: buffer.numberOfChannels, sampleRate: buffer.sampleRate });
   ch.forEach((d, c) => out.copyToChannel(d.subarray(start, end + 1), c));
+  out.trimStart = start / buffer.sampleRate; // بنحتاجه عشان نزق توقيت الكلمات
   return out;
 }
 

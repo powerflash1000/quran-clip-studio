@@ -9,6 +9,7 @@ import * as T from './templates.js';
 import { getSettings, setSettings, load, save } from './storage.js';
 import * as EL from './elevenlabs.js';
 import * as SND from './sounds.js';
+import * as WT from './words.js';
 import { fetchFirst } from './net.js';
 import { splitRange, chaptersText, chaptersWarnings } from './series.js';
 import { PLATFORMS, generate, getPublishSettings, setPublishSettings, canShareFile, shareFile } from './publish.js';
@@ -66,6 +67,7 @@ function status(msg, p = null, isError = false) {
 async function buildSegments(withAudio, onProgress, blocks = state.blocks, series = state.activeSeries) {
   const st = state.style;
   const reciter = findReciter(st.reciter);
+  const wordSync = st.wordMode && st.wordMode !== 'full';
   const segs = [];
   const jobs = [];
 
@@ -75,12 +77,12 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
       const from = clamp(b.from, 1, s.count), to = clamp(Math.max(b.to, from), from, s.count);
       for (let r = 0; r < Math.max(1, b.repeatRange); r++) {
         if (b.basmala && b.surah !== 1 && b.surah !== 9) {
-          segs.push({ kind: 'basmala', text: Q.BASMALA, sub: '', label: `سورة ${s.ar}`, footer: `بصوت القارئ ${reciter.name}`, audioUrls: ayahAudioUrls(reciter, 1, 1, 1) });
+          segs.push({ kind: 'basmala', qs: 1, qa: 1, text: Q.BASMALA, sub: '', label: `سورة ${s.ar}`, footer: `بصوت القارئ ${reciter.name}`, audioUrls: ayahAudioUrls(reciter, 1, 1, 1) });
         }
         for (let a = from; a <= to; a++) {
           for (let k = 0; k < Math.max(1, b.repeatAyah); k++) {
             segs.push({
-              kind: 'ayah', s: b.surah, a,
+              kind: 'ayah', s: b.surah, a, qs: b.surah, qa: a,
               text: `${Q.ayahText(b.surah, a)}\u00A0${Q.arabicNum(a)}`,
               sub: '',
               label: `سورة ${s.ar} • الآية ${Q.arabicNum(a)}`,
@@ -141,9 +143,23 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
       while (queue.length) {
         const s = queue.shift();
         try {
-          s.audio = await loadAudio(s.audioUrls);
+          // ظهور الكلمات مع التلاوة: لو القارئ له توقيت على Quran.com بنستخدم ملف الصوت بتاعهم عشان التوقيت يطابق
+          let qc = null;
+          if (wordSync && reciter.qurancom && s.qs) {
+            try {
+              qc = (await WT.quranComChapter(reciter.qurancom, s.qs)).get(s.qa) || null;
+              if (qc) s.audio = await loadAudio([qc.url]);
+            } catch { qc = null; }
+          }
+          if (!qc) s.audio = await loadAudio(s.audioUrls);
           // ملفات التلاوة فيها سكوت في أولها وآخرها؛ بنقصه عشان الآيات تبان متصلة
           if (st.trimSilence && s.kind !== 'title') s.audio = trimSilence(s.audio, { threshold: 0.008, pad: 0.06 });
+          if (wordSync) {
+            const n = WT.words(s.text).length;
+            const exact = qc && WT.timesFromSegments(qc.segments, n, s.audio.trimStart || 0);
+            s.wordTimes = exact || WT.approxTimes(s.text, s.audio.duration);
+            s.wordExact = !!exact;
+          }
         } catch (e) {
           const err = new Error(`تعذر تحميل تلاوة ${s.label}.\nجرّب قارئ تاني، أو اضبط «رابط الوسيط» من الإعدادات.`);
           err.cause = e;
@@ -155,6 +171,13 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
     };
     for (let i = 0; i < 6; i++) jobs.push(worker());
     await Promise.all(jobs);
+    // الأحاديث (بصوت أو من غير): تقسيم تقريبي على مدتها
+    if (wordSync) {
+      for (const s of segs) {
+        if (s.kind !== 'hadith' || s.wordTimes) continue;
+        s.wordTimes = WT.approxTimes(s.text, s.audio ? s.audio.duration : (s.silence || 3));
+      }
+    }
   }
   return segs;
 }
@@ -254,7 +277,9 @@ async function play() {
         $('#seg-slider').value = i;
         $('#seg-info').textContent = segInfo(i, player.segs.length);
       }
-      drawFrame(player.segs[i], analyser);
+      const seg = player.segs[i];
+      const shown = seg.wordTimes ? { ...seg, wordCount: WT.shownAt(seg.wordTimes, t - seg.start) } : seg;
+      drawFrame(shown, analyser);
       player.raf = requestAnimationFrame(tick);
     };
     tick();
@@ -757,7 +782,7 @@ function setupReciters() {
 }
 
 // ===== الشكل =====
-const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation'];
+const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'wordMode', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation'];
 
 function applyStyleToInputs() {
   const st = state.style;

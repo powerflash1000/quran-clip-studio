@@ -68,6 +68,36 @@ export async function renderStill(W, H, seg, style, media) {
   return canvasToPng(c);
 }
 
+// لكل مقطع: صورة واحدة، أو صورة لكل كلمة لو خاصية «الكلمات مع التلاوة» شغالة
+// كل صورة بتفضل ظاهرة لحد الصورة اللي بعدها
+export function overlayFrames(segments, duration) {
+  const frames = [];
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    const from = i === 0 ? 0 : seg.start;
+    const to = i + 1 < segments.length ? segments[i + 1].start : duration;
+    const wt = seg.wordTimes;
+    if (!wt?.length) { frames.push({ seg, count: null, from, to }); continue; }
+    // نقط التغيير: [عدد الكلمات الظاهرة, من]
+    const pts = [[0, from]];
+    for (let k = 1; k <= wt.length; k++) pts.push([k, Math.max(from, Math.min(to, seg.start + wt[k - 1]))]);
+    // لو نقطتين قريبين جدًا، التانية بتغطي على الأولى (عشان مجموع المدد يفضل مظبوط)
+    const kept = [];
+    for (let j = 0; j < pts.length; j++) {
+      const nextStart = j + 1 < pts.length ? pts[j + 1][1] : to;
+      if (nextStart - pts[j][1] >= 0.02 || j === pts.length - 1) kept.push(pts[j]);
+    }
+    kept[0][1] = from;
+    kept.forEach(([count, start], j) => {
+      const end = j + 1 < kept.length ? kept[j + 1][1] : to;
+      if (end > start) frames.push({ seg, count, from: start, to: end });
+    });
+    const last = frames[frames.length - 1];
+    if (last && last.seg === seg) { last.to = to; last.count = Math.max(last.count, wt.length); }
+  }
+  return frames;
+}
+
 // ===== الفيديو =====
 // project: { segments, timeline, style, media, W, H, quality }
 export async function exportVideo(project, onProgress, onLoad, onStage) {
@@ -97,15 +127,16 @@ export async function exportVideo(project, onProgress, onLoad, onStage) {
 
     // كل مقطع ليه صورة شفافة بتفضل ظاهرة لحد بداية المقطع اللي بعده
     let list = '';
-    for (let i = 0; i < segments.length; i++) {
-      const seg = segments[i];
-      const from = i === 0 ? 0 : seg.start;
-      const to = i + 1 < segments.length ? segments[i + 1].start : timeline.duration;
+    const frames = overlayFrames(segments, timeline.duration);
+    for (let i = 0; i < frames.length; i++) {
+      const f = frames[i];
       const name = `ov${i}.png`;
+      const seg = f.count == null ? f.seg : { ...f.seg, wordCount: f.count };
       await write(name, await renderOverlayPng(W, H, seg, style));
-      list += `file '${name}'\nduration ${(to - from).toFixed(3)}\n`;
+      list += `file '${name}'\nduration ${(f.to - f.from).toFixed(3)}\n`;
+      onStage?.(`رسم النصوص… ${i + 1}/${frames.length}`);
     }
-    if (segments.length) list += `file 'ov${segments.length - 1}.png'\n`;
+    if (frames.length) list += `file 'ov${frames.length - 1}.png'\n`;
     await write('list.txt', new TextEncoder().encode(list));
 
     const bgInput = isVideoBg

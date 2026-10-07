@@ -73,6 +73,37 @@ function fit(ctx, text, font, size, minSize, maxWidth, maxHeight, lineH) {
   }
 }
 
+// رسم كلمة بكلمة في أماكنها الثابتة (عشان النص ميتحركش وهو بيظهر)
+// shown = عدد الكلمات اللي اتقرت؛ mode: 'reveal' (الباقي مخفي) أو 'highlight' (الباقي باهت والحالية ملوّنة)
+function drawWords(ctx, lines, cx, y, size, lineH, shown, mode, style) {
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  const space = ctx.measureText(' ').width;
+  let idx = 0;
+  lines.forEach((line, li) => {
+    const words = line.split(' ');
+    const widths = words.map(w => ctx.measureText(w).width);
+    const total = widths.reduce((a, b) => a + b, 0) + space * (words.length - 1);
+    let x = cx + total / 2;
+    const yy = y + size * lineH * (li + 0.5);
+    words.forEach((w, k) => {
+      if (idx < shown) {
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = mode === 'highlight' && idx === shown - 1 ? style.accent : style.textColor;
+        ctx.fillText(w, x, yy);
+      } else if (mode === 'highlight') {
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = style.textColor;
+        ctx.fillText(w, x, yy);
+      }
+      x -= widths[k] + space;
+      idx++;
+    });
+  });
+  ctx.globalAlpha = 1;
+}
+
 function drawLines(ctx, lines, x, y, size, lineH, dir) {
   ctx.direction = dir;
   ctx.textAlign = 'center';
@@ -141,7 +172,11 @@ export function drawOverlay(ctx, W, H, seg, style) {
 
   ctx.fillStyle = style.textColor;
   ctx.font = mainFont(main.size);
-  drawLines(ctx, main.lines, W / 2, y, main.size, lineH, 'rtl');
+  if (seg.wordCount != null && style.wordMode && style.wordMode !== 'full') {
+    drawWords(ctx, main.lines, W / 2, y, main.size, lineH, seg.wordCount, style.wordMode, style);
+  } else {
+    drawLines(ctx, main.lines, W / 2, y, main.size, lineH, 'rtl');
+  }
   y += main.height + gapMS;
 
   if (sub) {
