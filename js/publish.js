@@ -59,6 +59,7 @@ export async function generate(blocks, style, translationOf, series = null) {
   const reciter = findReciter(style.reciter);
   const quran = blocks.filter(b => b.type === 'quran');
   const hadith = blocks.filter(b => b.type === 'hadith');
+  const zikr = blocks.filter(b => b.type === 'zikr');
 
   // ===== العنوان =====
   let title;
@@ -70,6 +71,9 @@ export async function generate(blocks, style, translationOf, series = null) {
   } else if (hadith.length) {
     const h = hadith[0];
     title = `حديث شريف | ${collection(h.col).name} ${N(h.number)}`;
+  } else if (zikr.length) {
+    const first = zikr[0].text.replace(/\s+/g, ' ').split(' ').slice(0, 7).join(' ');
+    title = `${zikr[0].cat} | ${first}…`;
   } else {
     title = 'تلاوة قرآنية';
   }
@@ -93,6 +97,9 @@ export async function generate(blocks, style, translationOf, series = null) {
         if (trs.length) body.push(trs.join(' '));
       }
       info.push(`📖 سورة ${s.ar} • ${rangeLabel(b)}`);
+    } else if (b.type === 'zikr') {
+      if (ps.includeText && b.text) body.push(b.text);
+      info.push(`📿 ${b.cat}${b.count > 1 ? ` — يُقال ${N(b.count)} ${b.count <= 10 ? 'مرات' : 'مرة'}` : ''}${b.ref ? ` (${b.ref})` : ''}`);
     } else {
       const col = collection(b.col);
       const g = assessGrade(b.col, b.grades);
@@ -102,7 +109,7 @@ export async function generate(blocks, style, translationOf, series = null) {
   }
   if (quran.length) info.push(`🎙️ بصوت القارئ: ${reciterShort(reciter)}`);
   // إفصاح مطلوب على يوتيوب وغيره لو فيه صوت مولّد بالذكاء الاصطناعي
-  if (hadith.some(b => b.audioMode === 'ai')) info.push('🔊 صوت قراءة الحديث مولّد بتقنية الذكاء الاصطناعي (نسخة من صوتي)');
+  if ([...hadith, ...zikr].some(b => b.audioMode === 'ai')) info.push('🔊 صوت قراءة الحديث مولّد بتقنية الذكاء الاصطناعي (نسخة من صوتي)');
   if (series) {
     info.push(series.index < series.total
       ? `📌 الجزء ${N(series.index)} من ${N(series.total)} — تابع باقي الأجزاء في قائمة التشغيل`
@@ -113,6 +120,7 @@ export async function generate(blocks, style, translationOf, series = null) {
   if (ps.includeCredits) {
     if (quran.length) credits.push('نص المصحف: مجمع الملك فهد (QuranEnc) • التلاوة: EveryAyah.com');
     if (hadith.length) credits.push('نص الحديث: hadith-api (fawazahmed0)');
+    if (zikr.length) credits.push('الأذكار: حصن المسلم');
   }
 
   // ===== الهاشتاجات =====
@@ -122,12 +130,16 @@ export async function generate(blocks, style, translationOf, series = null) {
     for (const b of quran) base.push(tag('سورة ' + Q.surah(b.surah).ar));
     base.push(tag(reciterShort(reciter)));
   }
+  if (zikr.length) {
+    base.push('#أذكار', '#دعاء', '#ذكر_الله', '#حصن_المسلم');
+    for (const b of zikr) base.push(tag(b.cat));
+  }
   if (hadith.length) {
     base.push('#حديث', '#السنة_النبوية');
     for (const b of hadith) base.push(tag(collection(b.col).name));
   }
   const user = ps.extraHashtags.split(/[\s,،]+/).filter(Boolean).map(h => (h.startsWith('#') ? h : '#' + h));
-  const latin = quran.length ? ['#quran', '#islam'] : ['#hadith', '#islam'];
+  const latin = quran.length ? ['#quran', '#islam'] : zikr.length && !hadith.length ? ['#dua', '#islam'] : ['#hadith', '#islam'];
 
   const out = {};
   for (const [id, p] of Object.entries(PLATFORMS)) {

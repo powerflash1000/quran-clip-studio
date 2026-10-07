@@ -241,3 +241,4 @@ dialog:has(.dlg.wide) { width: min(980px, calc(100vw - 32px)); }
 .snd-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: ltr; text-align: start; font-size: .9rem; }
 .snd-meta { font-size: .78rem; white-space: nowrap; }
 @media (max-width: 520px) { .snd-meta { display: none; } }
+.badge.zk { background: #6b4fa0; color: #fff; }

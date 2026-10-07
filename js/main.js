@@ -92,6 +92,19 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
           }
         }
       }
+    } else if (b.type === 'zikr') {
+      const au = hadithAudio.get(b.id);
+      const useAudio = b.audioMode !== 'none' && au?.buffer;
+      const n = Number(b.count) || 1;
+      segs.push({
+        kind: 'zikr',
+        text: b.text || '(اختار الذكر أو اكتب النص)',
+        sub: '',
+        label: b.cat || 'ذكر',
+        footer: [b.showCount && n > 1 ? `يُقال ${Q.arabicNum(n)} ${n <= 10 ? 'مرات' : 'مرة'}` : '', b.ref].filter(Boolean).join(' • '),
+        audio: useAudio ? au.buffer : null,
+        silence: Number(b.seconds) || 8,
+      });
     } else {
       const col = collection(b.col);
       const g = assessGrade(b.col, b.grades);
@@ -174,7 +187,7 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
     // الأحاديث (بصوت أو من غير): تقسيم تقريبي على مدتها
     if (wordSync) {
       for (const s of segs) {
-        if (s.kind !== 'hadith' || s.wordTimes) continue;
+        if ((s.kind !== 'hadith' && s.kind !== 'zikr') || s.wordTimes) continue;
         s.wordTimes = WT.approxTimes(s.text, s.audio ? s.audio.duration : (s.silence || 3));
       }
     }
@@ -317,6 +330,7 @@ function baseName() {
   const ser = state.activeSeries;
   if (b.type === 'quran' && ser) return `quran_${b.surah}_part${String(ser.index).padStart(2, '0')}_${b.from}-${b.to}_${state.style.reciter}`;
   if (b.type === 'quran') return `quran_${b.surah}_${b.from}-${b.to}_${state.style.reciter}`;
+  if (b.type === 'zikr') return `zikr_${b.index + 1}`;
   return `hadith_${b.col}_${b.number}`;
 }
 
@@ -424,7 +438,7 @@ function surahOptions(sel) {
 function renderBlocks(keepSeries = false) {
   if (!keepSeries && state.activeSeries) { state.activeSeries = null; markParts(); }
   blocksEl.innerHTML = '';
-  state.blocks.forEach((b, i) => blocksEl.appendChild(b.type === 'quran' ? quranBlockEl(b, i) : hadithBlockEl(b, i)));
+  state.blocks.forEach((b, i) => blocksEl.appendChild(b.type === 'quran' ? quranBlockEl(b, i) : b.type === 'zikr' ? zikrBlockEl(b, i) : hadithBlockEl(b, i)));
   persist();
   refreshPreview();
 }
@@ -578,6 +592,16 @@ function hadithBlockEl(b, i) {
   act('full').onclick = () => { if (b.fullText) { b.text = b.fullText; f('text').value = b.text; persist(); refreshPreview(); } };
   f('showEnglish').onchange = () => { b.showEnglish = f('showEnglish').checked; persist(); refreshPreview(); };
   f('seconds').oninput = () => { b.seconds = clamp(f('seconds').value, 2, 120); persist(); };
+  wireAudioControls(li, b, sync);
+  sync();
+  return li;
+}
+
+// أزرار الصوت المشتركة (حديث أو ذكر): من غير صوت / تسجيل / ملف / ElevenLabs
+function wireAudioControls(li, b, sync) {
+  const f = name => li.querySelector(`[data-f=${name}]`);
+  const el = name => li.querySelector(`[data-el=${name}]`);
+  const act = name => li.querySelector(`[data-act=${name}]`);
   li.querySelectorAll('[data-f=audioMode]').forEach(r => r.onchange = () => { b.audioMode = r.value; persist(); });
 
   // التسجيل بشاشة قراءة
@@ -596,7 +620,7 @@ function hadithBlockEl(b, i) {
       return;
     }
     const text = EL.prepareText(b.text || '');
-    if (text.length < 3) { alert('اكتب نص الحديث الأول أو اضغط «جلب الحديث».'); return; }
+    if (text.length < 3) { alert('اكتب النص الأول.'); return; }
     if (!confirm(`هيتبعت ${text.length} حرف لـ ElevenLabs، وده هيتخصم من رصيدك هناك (تقريبًا حرف = كريديت).\n\nبعد التوليد لازم تسمع الصوت كله وتتأكد من النطق والتشكيل.\nتكمل؟`)) return;
     const btn = act('ai');
     btn.disabled = true; btn.textContent = '⏳ بيولّد…';
@@ -630,8 +654,6 @@ function hadithBlockEl(b, i) {
     }
   };
 
-  sync();
-  return li;
 }
 
 function setHadithAudio(b, buffer, name, blob) {
@@ -643,6 +665,96 @@ function setHadithAudio(b, buffer, name, blob) {
 function estimateSeconds(text) {
   const words = (text || '').split(/\s+/).filter(Boolean).length;
   return Math.round(Math.min(30, Math.max(5, words * 0.45 + 2)) * 2) / 2;
+}
+
+// ===== الأذكار والأدعية (حصن المسلم) =====
+let AZKAR = null;
+async function loadAzkar() {
+  try { AZKAR = await (await fetch('data/azkar.json')).json(); } catch { AZKAR = { categories: [] }; }
+}
+
+function newZikrBlock(cat = 'أذكار الصباح', index = 0) {
+  const b = { id: uid(), type: 'zikr', cat, index, text: '', count: 1, ref: '', desc: '', showCount: true, audioMode: 'none', seconds: 8 };
+  fillZikr(b);
+  return b;
+}
+
+function fillZikr(b) {
+  const c = AZKAR?.categories.find(x => x.name === b.cat);
+  const it = c?.items[b.index];
+  if (!it) return;
+  b.text = it.t;
+  b.count = it.n;
+  b.ref = it.r;
+  b.desc = it.d;
+  b.seconds = estimateSeconds(it.t);
+}
+
+function zikrBlockEl(b, i) {
+  const li = $('#tpl-zikr').content.firstElementChild.cloneNode(true);
+  blockCommon(li, b, i);
+  const f = name => li.querySelector(`[data-f=${name}]`);
+  const el = name => li.querySelector(`[data-el=${name}]`);
+  const cats = AZKAR?.categories || [];
+  f('cat').innerHTML = cats.map(c => `<option>${escapeHtml(c.name)}</option>`).join('');
+  f('cat').value = b.cat;
+  const fillItems = () => {
+    const c = cats.find(x => x.name === b.cat);
+    f('item').innerHTML = (c?.items || []).map((it, k) => {
+      const first = it.t.replace(/\s+/g, ' ').slice(0, 45);
+      return `<option value="${k}">${k + 1}. ${escapeHtml(first)}${it.t.length > 45 ? '…' : ''}${it.n > 1 ? ` (×${it.n})` : ''}</option>`;
+    }).join('');
+    f('item').value = b.index;
+  };
+  const sync = () => {
+    li.querySelector('.block-title').textContent = b.cat;
+    el('meta').textContent = [b.ref && `📖 ${b.ref}`, b.count > 1 && `🔁 ${b.count} مرات`, b.desc && `💡 ${b.desc}`].filter(Boolean).join('  •  ');
+    const au = hadithAudio.get(b.id);
+    el('audio-name').textContent = au ? `${au.name} (${au.buffer.duration.toFixed(1)} ث)` : '';
+    el('audio-preview').hidden = !au?.url;
+    if (au?.url && el('audio-preview').src !== au.url) el('audio-preview').src = au.url;
+  };
+  fillItems();
+  f('text').value = b.text;
+  f('showCount').checked = b.showCount;
+  f('seconds').value = b.seconds;
+  li.querySelectorAll('[data-f=audioMode]').forEach(r => { r.name = 'am-' + b.id; r.checked = r.value === b.audioMode; });
+  f('cat').onchange = () => { b.cat = f('cat').value; b.index = 0; fillZikr(b); fillItems(); f('text').value = b.text; f('seconds').value = b.seconds; sync(); persist(); refreshPreview(); };
+  f('item').onchange = () => { b.index = Number(f('item').value); fillZikr(b); f('text').value = b.text; f('seconds').value = b.seconds; sync(); persist(); refreshPreview(); };
+  f('text').oninput = () => { b.text = f('text').value; persist(); refreshPreview(); };
+  f('showCount').onchange = () => { b.showCount = f('showCount').checked; persist(); refreshPreview(); };
+  f('seconds').oninput = () => { b.seconds = clamp(f('seconds').value, 2, 120); persist(); };
+  wireAudioControls(li, b, sync);
+  sync();
+  return li;
+}
+
+// قوايم جاهزة من القرآن بصوت القارئ اللي مختاره
+const PRESETS = {
+  // الآيات اللي في أذكار الصباح والمساء: آية الكرسي، والمعوذات ٣ مرات
+  morning: [[2, 255, 255, 1], [112, 1, 4, 3], [113, 1, 5, 3], [114, 1, 6, 3]],
+  // آيات الرقية الشرعية المشهورة
+  ruqyah: [
+    [1, 1, 7], [2, 1, 5], [2, 255, 257], [2, 285, 286], [3, 18, 19], [7, 117, 122], [10, 79, 82],
+    [20, 65, 69], [23, 115, 118], [37, 1, 10], [46, 29, 32], [55, 33, 36], [59, 21, 24],
+    [72, 1, 9], [112, 1, 4], [113, 1, 5], [114, 1, 6],
+  ],
+};
+
+function applyPreset(name) {
+  const list = PRESETS[name];
+  if (!list) return;
+  if (state.blocks.length && !confirm('هيتم استبدال المحتوى الحالي بالقايمة الجاهزة. تكمل؟')) return;
+  state.blocks = list.map(([s, from, to, rep]) => {
+    const b = newQuranBlock(s, from, to);
+    b.repeatRange = rep || 1;
+    b.basmala = from === 1 && s !== 1 && s !== 9;
+    return b;
+  });
+  renderBlocks();
+  refreshPublish(true);
+  const total = list.reduce((n, [, a, z, r]) => n + (z - a + 1) * (r || 1), 0);
+  status(`✅ اتضاف ${list.length} مقطع (${total} آية). الرقية والسور الطويلة هتطلع أطول من ٣ دقايق — الأنسب لها «حزمة Filmora» أو تصدير صوت MP3.`);
 }
 
 // ===== شاشة القراءة والتسجيل =====
@@ -1456,7 +1568,7 @@ function setupSeries() {
 // ===== البداية =====
 async function init() {
   status('تحميل نص المصحف…');
-  await Promise.all([Q.loadQuran(), ensureFonts()]);
+  await Promise.all([Q.loadQuran(), ensureFonts(), loadAzkar()]);
   status('');
   setupStyle();
   setupReciters();
@@ -1468,6 +1580,8 @@ async function init() {
 
   $('#add-quran').onclick = () => { state.blocks.push(newQuranBlock(1, 1, 1)); renderBlocks(); };
   $('#add-hadith').onclick = () => { state.blocks.push(newHadithBlock()); renderBlocks(); };
+  $('#add-zikr').onclick = () => { state.blocks.push(newZikrBlock()); renderBlocks(); };
+  document.querySelectorAll('[data-preset]').forEach(btn => { btn.onclick = () => applyPreset(btn.dataset.preset); });
   $('#btn-play').onclick = play;
   $('#btn-stop').onclick = stop;
   $('#seg-slider').oninput = () => {

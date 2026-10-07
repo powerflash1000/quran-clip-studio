@@ -134,6 +134,12 @@
         <div class="btn-row">
           <button class="btn" id="add-quran" type="button">＋ آيات</button>
           <button class="btn" id="add-hadith" type="button">＋ حديث</button>
+          <button class="btn" id="add-zikr" type="button">＋ ذكر / دعاء</button>
+        </div>
+        <div class="btn-row">
+          <span class="muted">جاهز:</span>
+          <button class="btn ghost" data-preset="morning" type="button">🌅 آيات أذكار الصباح والمساء</button>
+          <button class="btn ghost" data-preset="ruqyah" type="button">🛡️ الرقية الشرعية (قرآن)</button>
         </div>
       </div>
 
@@ -441,6 +447,43 @@
       <label class="check"><input type="checkbox" data-f="showEnglish"> إظهار الترجمة الإنجليزية</label>
       <fieldset>
         <legend>صوت الحديث</legend>
+        <label class="check"><input type="radio" value="none" data-f="audioMode"> من غير صوت (النص يظهر لمدة)</label>
+        <label class="inline">المدة بالثواني <input type="number" data-f="seconds" min="2" max="120" step="0.5"></label>
+        <label class="check"><input type="radio" value="record" data-f="audioMode"> سجّل بصوتك</label>
+        <label class="check"><input type="radio" value="upload" data-f="audioMode"> ارفع ملف صوت</label>
+        <label class="check"><input type="radio" value="ai" data-f="audioMode"> 🤖 اقرا بصوتي (ElevenLabs)</label>
+        <div class="btn-row">
+          <button class="btn primary" data-act="record" type="button">🎙️ سجّل بصوتك (شاشة قراءة)</button>
+          <label class="btn file-btn">📁 ملف صوت<input type="file" accept="audio/*" data-f="audioFile" hidden></label>
+          <button class="btn" data-act="ai" type="button">🤖 ولّد بصوتي</button>
+          <span class="muted" data-el="audio-name"></span>
+        </div>
+        <audio controls data-el="audio-preview" hidden></audio>
+      </fieldset>
+    </li>
+  </template>
+
+  <template id="tpl-zikr">
+    <li class="block zikr">
+      <div class="block-head">
+        <span class="badge zk">ذكر / دعاء</span>
+        <span class="block-title"></span>
+        <span class="spacer"></span>
+        <button class="btn icon" data-act="up" type="button">▲</button>
+        <button class="btn icon" data-act="down" type="button">▼</button>
+        <button class="btn icon danger" data-act="remove" type="button">✕</button>
+      </div>
+      <div class="grid2">
+        <label>التصنيف <select data-f="cat"></select></label>
+        <label>الذكر <select data-f="item"></select></label>
+      </div>
+      <label>النص اللي هيظهر (تقدر تعدّله)
+        <textarea data-f="text" rows="4"></textarea>
+      </label>
+      <div class="muted" data-el="meta"></div>
+      <label class="check"><input type="checkbox" data-f="showCount"> اكتب عدد المرات على الشاشة (مثلًا: ٣ مرات)</label>
+      <fieldset>
+        <legend>صوت الذكر</legend>
         <label class="check"><input type="radio" value="none" data-f="audioMode"> من غير صوت (النص يظهر لمدة)</label>
         <label class="inline">المدة بالثواني <input type="number" data-f="seconds" min="2" max="120" step="0.5"></label>
         <label class="check"><input type="radio" value="record" data-f="audioMode"> سجّل بصوتك</label>
