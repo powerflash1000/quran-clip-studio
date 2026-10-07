@@ -24,7 +24,7 @@ export const DEFAULT_STYLE = {
   quality: '1080',
   intro: '',               // جملة افتتاحية في أول الفيديو (فاضية = من غير)
   introSeconds: 1.6,
-  handle: '@tilawat.alaa', // @اسم_حسابك على الفيديو (فاضي = من غير علامة)
+  handle: '@tilawat.alaaa',// @اسم_حسابك على الفيديو (فاضي = من غير علامة)
   handlePos: 'bottom',
 };
 
