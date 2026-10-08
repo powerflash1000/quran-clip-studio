@@ -12,6 +12,7 @@ import * as SND from './sounds.js';
 import * as WT from './words.js';
 import { fetchFirst } from './net.js';
 import { splitRange, chaptersText, chaptersWarnings } from './series.js';
+import { parseRefs, embedFor } from './automation.js';
 import { PLATFORMS, generate, getPublishSettings, setPublishSettings, canShareFile, shareFile } from './publish.js';
 
 const $ = s => document.querySelector(s);
@@ -1758,6 +1759,258 @@ function setupProject() {
   };
 }
 
+// ===== طابور التصدير =====
+const queue = { items: load('queue', []), running: false, stopAfter: false };
+const saveQueue = () => save('queue', queue.items.map(({ error, ...it }) => it));
+const QUEUE_PLATFORMS = ['tiktok', 'instagram', 'facebook'];
+
+function quranRefBlock(r, basmala) {
+  const b = newQuranBlock(r.surah, r.from, r.to);
+  b.basmala = basmala && r.from === 1 && r.surah !== 1 && r.surah !== 9;
+  return b;
+}
+
+const refLabel = r => `${Q.surah(r.surah).ar} ${r.from === r.to ? Q.arabicNum(r.from) : `${Q.arabicNum(r.from)}–${Q.arabicNum(r.to)}`}`;
+
+function blocksLabel(blocks) {
+  const names = blocks.map(b => b.type === 'quran' ? refLabel(b)
+    : b.type === 'zikr' ? 'ذكر' : `حديث ${collection(b.col)?.name || b.col} ${b.number}`);
+  return names.length > 2 ? `${names.slice(0, 2).join(' + ')} + ${names.length - 2} كمان` : names.join(' + ');
+}
+
+function renderQueue() {
+  const ol = $('#q-list');
+  ol.innerHTML = '';
+  queue.items.forEach((it, i) => {
+    const li = document.createElement('li');
+    li.className = 'part' + (it.done ? ' done' : '') + (it.error ? ' err' : '') + (it.running ? ' running' : '');
+    li.innerHTML = `<span class="pname"></span><span class="pinfo"></span>
+      <button class="btn icon" type="button" data-a="open" title="افتح في المحرر">👁</button>
+      <button class="btn icon" type="button" data-a="del" title="شيل من الطابور">✕</button>`;
+    li.querySelector('.pname').textContent = `${Q.arabicNum(i + 1)}. ${it.label}`;
+    li.querySelector('.pinfo').textContent = it.error ? `⚠️ ${it.error}` : it.running ? '⏳ بيتصدّر…' : it.done ? '✅ خلص' : '';
+    li.querySelector('[data-a=open]').onclick = () => {
+      if (queue.running) return;
+      stop();
+      state.blocks = structuredClone(it.blocks);
+      renderBlocks();
+      refreshPublish(true);
+      showTab('content');
+    };
+    li.querySelector('[data-a=del]').onclick = () => {
+      if (queue.running) return;
+      queue.items.splice(i, 1);
+      saveQueue();
+      renderQueue();
+    };
+    ol.appendChild(li);
+  });
+  const pending = queue.items.filter(it => !it.done).length;
+  $('#q-run').textContent = queue.running ? '⏳ شغّال…' : `▶ ابدأ الطابور${pending ? ` (${Q.arabicNum(pending)})` : ''}`;
+  $('#q-run').disabled = queue.running || !pending;
+  $('#q-stop').hidden = !queue.running;
+}
+
+function renderQueueTemplates() {
+  const sel = $('#q-template'), cur = sel.value;
+  sel.innerHTML = '<option value="">الشكل الحالي (الخطوة ٣)</option>' +
+    Object.keys(T.listTemplates()).map(n => `<option>${escapeHtml(n)}</option>`).join('');
+  sel.value = cur && T.listTemplates()[cur] ? cur : '';
+}
+
+async function runQueue() {
+  if (state.busy || queue.running) return;
+  const todo = queue.items.filter(it => !it.done);
+  if (!todo.length) return;
+  const kind = $('#q-kind').value;
+  const tplName = $('#q-template').value;
+  stop();
+  const saved = { blocks: state.blocks, style: state.style, activeSeries: state.activeSeries };
+  if (tplName) {
+    const tpl = T.listTemplates()[tplName];
+    state.style = { ...T.DEFAULT_STYLE, ...tpl, bgType: tpl.bgType === 'media' && !state.media ? 'gradient' : tpl.bgType };
+  }
+  queue.running = true;
+  queue.stopAfter = false;
+  setBusy(true);
+  const onLoad = p => status('تحميل محرك التحويل (مرة واحدة بس)…', p);
+  const captions = [];
+  let n = 0;
+  try {
+    for (const it of todo) {
+      if (queue.stopAfter) break;
+      n++;
+      const tag = `المقطع ${Q.arabicNum(n)} من ${Q.arabicNum(todo.length)}`;
+      it.running = true;
+      it.error = '';
+      renderQueue();
+      try {
+        state.blocks = structuredClone(it.blocks);
+        state.activeSeries = null;
+        const project = await buildProject();
+        const d = project.timeline.duration;
+        const num = String(queue.items.indexOf(it) + 1).padStart(2, '0');
+        const name = `${num}_${baseName()}`;
+        if (kind !== 'mp3') {
+          if (d > MAX_VIDEO_SECONDS) throw new Error(`مدته ${fmtDur(d)}، أطول من ٣ دقايق — صدّره MP3 أو حزمة Filmora`);
+          let stage = '';
+          const blob = await exportVideo(project, p => status(`${tag}: ${stage}`, p), onLoad, s => { stage = s; status(`${tag}: ${s}`, 0); });
+          download(blob, `${name}.mp4`);
+          setLastExport(blob, `${name}.mp4`, 'video/mp4');
+        }
+        if (kind !== 'mp4') {
+          const blob = await exportAudio('mp3', project.timeline, p => status(`${tag}: MP3…`, p), onLoad);
+          download(blob, `${name}.mp3`);
+        }
+        const g = await generate(it.blocks, state.style, Q.translation, null);
+        captions.push({ name, label: it.label, dur: fmtDur(d), g });
+        it.done = true;
+      } catch (e) {
+        console.error(e);
+        it.error = e.message || String(e);
+      }
+      it.running = false;
+      saveQueue();
+      renderQueue();
+    }
+    if (captions.length) {
+      let txt = `طابور التصدير — ${new Date().toLocaleString('ar-EG')}\nانسخ العنوان والوصف لكل فيديو وانت بتجدوله.\n\n`;
+      for (const c of captions) {
+        txt += `==================== ${c.name} — ${c.label} (${c.dur}) ====================\n`;
+        for (const p of QUEUE_PLATFORMS) {
+          const d = c.g[p];
+          if (!d) continue;
+          txt += `\n--- ${PLATFORMS[p].name} ---\n`;
+          if (PLATFORMS[p].title && d.title) txt += `${d.title}\n\n`;
+          txt += `${d.caption}\n`;
+        }
+        txt += '\n';
+      }
+      download(new Blob(['﻿' + txt], { type: 'text/plain;charset=utf-8' }), 'queue_captions.txt');
+    }
+    const failed = todo.filter(it => it.error).length;
+    status(`✅ خلص ${Q.arabicNum(captions.length)} مقطع${failed ? ` — و ${Q.arabicNum(failed)} فيهم مشكلة (مكتوبة جنبهم)` : ''}${queue.stopAfter ? ' — اتوقف بطلبك' : ''}`, null, !!failed && !captions.length);
+  } finally {
+    Object.assign(state, saved);
+    queue.running = false;
+    setBusy(false);
+    renderBlocks(true);
+    renderQueue();
+  }
+}
+
+function setupQueue() {
+  renderQueueTemplates();
+  $('#q-template').onfocus = renderQueueTemplates;
+  $('#q-add').onclick = () => {
+    const { ok, bad } = parseRefs($('#q-input').value, Q.surahs());
+    for (const r of ok) queue.items.push({ id: uid(), label: refLabel(r), blocks: [quranRefBlock(r, $('#q-basmala').checked)], done: false });
+    $('#q-input').value = bad.join('\n');
+    saveQueue();
+    renderQueue();
+    if (bad.length) status(`اتضاف ${Q.arabicNum(ok.length)}. السطور اللي فضلت في الخانة مش مفهومة — اكتبها زي «يوسف 4-6» أو «12:4-6»`, null, true);
+    else if (ok.length) status(`✅ اتضاف ${Q.arabicNum(ok.length)} مقطع للطابور`);
+  };
+  $('#q-add-current').onclick = () => {
+    if (!state.blocks.length) return;
+    if (!confirmGrades()) return;
+    queue.items.push({ id: uid(), label: blocksLabel(state.blocks), blocks: structuredClone(state.blocks), done: false });
+    saveQueue();
+    renderQueue();
+    status('✅ المحتوى الحالي اتضاف للطابور');
+  };
+  $('#q-run').onclick = runQueue;
+  $('#q-stop').onclick = () => { queue.stopAfter = true; status('هيقف بعد المقطع الحالي…'); };
+  $('#q-clear-done').onclick = () => { if (queue.running) return; queue.items = queue.items.filter(it => !it.done); saveQueue(); renderQueue(); };
+  $('#q-clear').onclick = () => {
+    if (queue.running || !queue.items.length || !confirm('تفضّي الطابور كله؟')) return;
+    queue.items = [];
+    saveQueue();
+    renderQueue();
+  };
+  renderQueue();
+}
+
+// ===== الفيديو المرجعي =====
+const refs = { list: load('refs', []), current: null };
+const REF_ICONS = { tiktok: '🎵', instagram: '📸', facebook: '📘', youtube: '▶️' };
+
+function showRef(url) {
+  const e = embedFor(url);
+  const msg = $('#ref-msg');
+  $('#ref-player').hidden = true;
+  $('#ref-frame').removeAttribute('src');
+  refs.current = null;
+  if (!e) { msg.textContent = 'اللينك ده مش من تيك توك أو إنستجرام أو فيسبوك أو يوتيوب.'; return; }
+  $('#ref-open').href = e.url;
+  if (e.error) { msg.textContent = e.error; $('#ref-player').hidden = false; $('#ref-frame').hidden = true; return; }
+  $('#ref-frame').hidden = false;
+  $('#ref-frame').src = e.src;
+  $('#ref-player').hidden = false;
+  msg.textContent = `${e.name}: لو الفيديو ما ظهرش، يبقى صاحبه قافل التضمين أو الحساب خاص — افتح الأصلي.`;
+  refs.current = e;
+  const old = refs.list.find(r => r.url === e.url);
+  if (old) { $('#ref-note').value = old.note || ''; $('#ref-ayat').value = old.ayat || ''; }
+}
+
+function renderRefs() {
+  const box = $('#ref-saved');
+  box.innerHTML = refs.list.length ? '<h3>المراجع المحفوظة</h3>' : '';
+  refs.list.forEach((r, i) => {
+    const d = document.createElement('div');
+    d.className = 'ref-item';
+    d.innerHTML = `<span></span><span class="grow"></span><button class="btn icon" type="button" title="حذف">✕</button>`;
+    d.children[0].textContent = REF_ICONS[r.platform] || '🎞️';
+    d.children[1].textContent = r.note || r.ayat || r.url;
+    d.title = r.url;
+    d.onclick = e => {
+      if (e.target.closest('button')) return;
+      $('#ref-url').value = r.url;
+      showRef(r.url);
+    };
+    d.querySelector('button').onclick = () => { refs.list.splice(i, 1); save('refs', refs.list); renderRefs(); };
+    box.appendChild(d);
+  });
+}
+
+function setupReference() {
+  const dlg = $('#dlg-ref');
+  $('#btn-ref').onclick = () => { dlg.open ? dlg.close() : dlg.show(); if (dlg.open) $('#ref-url').focus(); };
+  $('#ref-close').onclick = () => { $('#ref-frame').removeAttribute('src'); dlg.close(); };
+  $('#ref-show').onclick = () => showRef($('#ref-url').value);
+  $('#ref-url').onkeydown = e => { if (e.key === 'Enter') showRef($('#ref-url').value); };
+  $('#ref-url').onpaste = () => setTimeout(() => showRef($('#ref-url').value), 0);
+  $('#ref-load').onclick = () => {
+    const { ok } = parseRefs($('#ref-ayat').value, Q.surahs());
+    if (!ok.length) { status('اكتب الآيات زي «يوسف 4-6» أو «12:4-6»', null, true); return; }
+    stop();
+    state.blocks = ok.map(r => quranRefBlock(r, true));
+    renderBlocks();
+    refreshPublish(true);
+    showTab('look');
+    status(`✅ اتحمّل ${ok.map(refLabel).join(' + ')}. ظبّط الشكل زي المرجع، وبعدين احفظه كقالب.`);
+  };
+  $('#ref-tpl').onclick = () => {
+    const def = $('#ref-note').value.trim().split(/[،,\n]/)[0].slice(0, 30) || 'زي المرجع';
+    const name = prompt('اسم القالب:', def);
+    if (!name) return;
+    if (T.isBuiltin(name)) { alert('الاسم ده محجوز لقالب جاهز، اختار اسم تاني'); return; }
+    T.saveTemplate(name, { ...state.style });
+    renderTemplates();
+    renderQueueTemplates();
+    status(`✅ القالب «${name}» اتحفظ — تقدر تختاره في «طابور التصدير»`);
+  };
+  $('#ref-save').onclick = () => {
+    if (!refs.current) { status('اعرض فيديو الأول', null, true); return; }
+    const entry = { url: refs.current.url, platform: refs.current.platform, note: $('#ref-note').value.trim(), ayat: $('#ref-ayat').value.trim() };
+    refs.list = [entry, ...refs.list.filter(r => r.url !== entry.url)].slice(0, 30);
+    save('refs', refs.list);
+    renderRefs();
+    status('✅ المرجع اتحفظ');
+  };
+  renderRefs();
+}
+
 // ===== البداية =====
 async function init() {
   status('تحميل نص المصحف…');
@@ -1789,6 +2042,8 @@ async function init() {
   setupSeries();
   setupLayout();
   setupProject();
+  setupQueue();
+  setupReference();
   idleLoop();
 }
 
