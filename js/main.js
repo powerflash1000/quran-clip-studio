@@ -1,7 +1,7 @@
 import * as Q from './quran.js';
 import { RECITERS, findReciter, customReciter, ayahAudioUrls } from './reciters.js';
 import { COLLECTIONS, collection, getHadith, searchHadith, extractMatn, assessGrade } from './hadith.js';
-import { loadAudio, decode, buildTimeline, startRecording, trimSilence, bufferToWavBlob } from './audio.js';
+import { loadAudio, decode, buildTimeline, startRecording, trimSilence, bufferToWavBlob, sliceBuffer, enhanceVoice, ENHANCE_PRESETS } from './audio.js';
 import { ASPECTS, ensureFonts, drawBackground, drawOverlay, drawWave } from './slides.js';
 import { exportAudio, exportVideo, exportFilmoraPackage, renderStill, makeSrt, download } from './exporter.js';
 import { searchPexels, searchPixabay, downloadStock } from './stock.js';
@@ -41,7 +41,7 @@ function newQuranBlock(surah = 1, from = 1, to = 1) {
   return { id: uid(), type: 'quran', surah, from, to, repeatAyah: 1, repeatRange: 1, basmala: false };
 }
 function newHadithBlock() {
-  return { id: uid(), type: 'hadith', col: 'bukhari', number: 1, text: '', fullText: '', english: '', grades: [], fetched: false, showEnglish: false, audioMode: 'none', seconds: 8 };
+  return { id: uid(), type: 'hadith', col: 'bukhari', number: 1, text: '', fullText: '', english: '', grades: [], fetched: false, showEnglish: false, audioMode: 'none', seconds: 8, enhance: 'clean' };
 }
 
 // الصوت المسجّل/المرفوع للأحاديث مش بيتحفظ في localStorage
@@ -76,20 +76,32 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
     if (b.type === 'quran') {
       const s = Q.surah(b.surah);
       const from = clamp(b.from, 1, s.count), to = clamp(Math.max(b.to, from), from, s.count);
+      // تلاوة مرفوعة من ملف (قارئ مش في القايمة): بنقسم المقطع على الآيات
+      const rec = b.rec && hadithAudio.get(b.id);
+      const recName = rec ? (b.rec.name || 'قارئ') : reciter.name;
+      const withBasmala = b.basmala && b.surah !== 1 && b.surah !== 9;
+      const pieces = rec && withAudio ? recPieces(b, rec.buffer, from, to, withBasmala) : null;
+      const footer = `بصوت القارئ ${recName}`;
       for (let r = 0; r < Math.max(1, b.repeatRange); r++) {
-        if (b.basmala && b.surah !== 1 && b.surah !== 9) {
-          segs.push({ kind: 'basmala', qs: 1, qa: 1, text: Q.BASMALA, sub: '', label: `سورة ${s.ar}`, footer: `بصوت القارئ ${reciter.name}`, audioUrls: ayahAudioUrls(reciter, 1, 1, 1) });
+        let u = 0;
+        if (withBasmala) {
+          segs.push(rec
+            ? { kind: 'basmala', text: Q.BASMALA, sub: '', label: `سورة ${s.ar}`, footer, audio: pieces?.[0] || null, silence: 3, custom: true, noGap: true }
+            : { kind: 'basmala', qs: 1, qa: 1, text: Q.BASMALA, sub: '', label: `سورة ${s.ar}`, footer, audioUrls: ayahAudioUrls(reciter, 1, 1, 1) });
+          u++;
         }
-        for (let a = from; a <= to; a++) {
+        for (let a = from; a <= to; a++, u++) {
           for (let k = 0; k < Math.max(1, b.repeatAyah); k++) {
-            segs.push({
+            const seg = {
               kind: 'ayah', s: b.surah, a, qs: b.surah, qa: a,
               text: `${Q.ayahText(b.surah, a)}\u00A0${Q.arabicNum(a)}`,
               sub: '',
               label: `سورة ${s.ar} • الآية ${Q.arabicNum(a)}`,
-              footer: `بصوت القارئ ${reciter.name}`,
-              audioUrls: ayahAudioUrls(reciter, b.surah, a, Q.globalAyah(b.surah, a)),
-            });
+              footer,
+            };
+            if (rec) Object.assign(seg, { audio: pieces?.[u] || null, silence: 4, custom: true, noGap: a < to || k < b.repeatAyah - 1 });
+            else seg.audioUrls = ayahAudioUrls(reciter, b.surah, a, Q.globalAyah(b.surah, a));
+            segs.push(seg);
           }
         }
       }
@@ -97,13 +109,14 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
       const au = hadithAudio.get(b.id);
       const useAudio = b.audioMode !== 'none' && au?.buffer;
       const n = Number(b.count) || 1;
+      const zAudio = useAudio ? await enhanceVoice(au.buffer, b.enhance) : null;
       segs.push({
         kind: 'zikr',
         text: b.text || '(اختار الذكر أو اكتب النص)',
         sub: '',
         label: b.cat || 'ذكر',
         footer: [b.showCount && n > 1 ? `يُقال ${Q.arabicNum(n)} ${n <= 10 ? 'مرات' : 'مرة'}` : '', b.ref].filter(Boolean).join(' • '),
-        audio: useAudio ? au.buffer : null,
+        audio: zAudio,
         silence: Number(b.seconds) || 8,
       });
     } else {
@@ -111,13 +124,14 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
       const g = assessGrade(b.col, b.grades);
       const au = hadithAudio.get(b.id);
       const useAudio = b.audioMode !== 'none' && au?.buffer;
+      const hAudio = useAudio ? await enhanceVoice(au.buffer, b.enhance) : null;
       segs.push({
         kind: 'hadith',
         text: b.text || '(اكتب نص الحديث أو اضغط «جلب الحديث»)',
         sub: b.showEnglish ? b.english : '',
         label: `${col.name} • ${Q.arabicNum(b.number)}`,
         footer: `${col.cite} • ${g.label}`,
-        audio: useAudio ? au.buffer : null,
+        audio: hAudio,
         silence: Number(b.seconds) || 8,
         hadithBlock: b,
       });
@@ -193,7 +207,7 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
     // الأحاديث (بصوت أو من غير): تقسيم تقريبي على مدتها
     if (wordSync) {
       for (const s of segs) {
-        if ((s.kind !== 'hadith' && s.kind !== 'zikr') || s.wordTimes) continue;
+        if ((s.kind !== 'hadith' && s.kind !== 'zikr' && !s.custom) || s.wordTimes) continue;
         s.wordTimes = WT.approxTimes(s.text, s.audio ? s.audio.duration : (s.silence || 3));
       }
     }
@@ -334,8 +348,9 @@ function baseName() {
   const b = state.blocks[0];
   if (!b) return 'clip';
   const ser = state.activeSeries;
-  if (b.type === 'quran' && ser) return `quran_${b.surah}_part${String(ser.index).padStart(2, '0')}_${b.from}-${b.to}_${state.style.reciter}`;
-  if (b.type === 'quran') return `quran_${b.surah}_${b.from}-${b.to}_${state.style.reciter}`;
+  const rc = b.rec && hadithAudio.get(b.id) ? 'custom' : state.style.reciter;
+  if (b.type === 'quran' && ser) return `quran_${b.surah}_part${String(ser.index).padStart(2, '0')}_${b.from}-${b.to}_${rc}`;
+  if (b.type === 'quran') return `quran_${b.surah}_${b.from}-${b.to}_${rc}`;
   if (b.type === 'zikr') return `zikr_${b.index + 1}`;
   return `hadith_${b.col}_${b.number}`;
 }
@@ -505,9 +520,124 @@ function quranBlockEl(b, i) {
   num('to', () => { if (b.to < b.from) { b.from = b.to; f('from').value = b.from; } });
   num('repeatAyah');
   num('repeatRange');
-  f('basmala').onchange = () => { b.basmala = f('basmala').checked; persist(); refreshPreview(); };
+  f('basmala').onchange = () => { b.basmala = f('basmala').checked; persist(); refreshPreview(); recSync(); };
+  const recSync = wireRecitation(li, b);
+  li.addEventListener('input', e => { if (['from', 'to'].includes(e.target.dataset.f)) recSync(); });
   sync();
   return li;
+}
+
+// ===== تلاوة من ملف (قارئ مش في القايمة) =====
+const stripMarks = t => t.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\s]/g, '');
+
+function recUnits(b, from = b.from, to = b.to, withBasmala = b.basmala && b.surah !== 1 && b.surah !== 9) {
+  const u = withBasmala ? [Q.BASMALA] : [];
+  for (let a = from; a <= to; a++) u.push(Q.ayahText(b.surah, a));
+  return u;
+}
+
+// بيقسم المقطع [start, end] على الآيات: بتوقيتاتك لو علّمتها، وإلا حسب طول كل آية
+function recPieces(b, buffer, from, to, withBasmala) {
+  const units = recUnits(b, from, to, withBasmala);
+  const start = Math.max(0, Number(b.rec.start) || 0);
+  const end = Math.min(buffer.duration, Number(b.rec.end) > start ? Number(b.rec.end) : buffer.duration);
+  const marks = (b.rec.marks || []).filter(t => t > start && t < end).sort((x, y) => x - y);
+  let cuts;
+  if (marks.length >= units.length - 1) {
+    cuts = [start, ...marks.slice(0, units.length - 1), end];
+  } else {
+    const w = units.map(t => stripMarks(t).length + 6);
+    const total = w.reduce((x, y) => x + y, 0);
+    cuts = [start];
+    for (const x of w) cuts.push(cuts[cuts.length - 1] + (end - start) * x / total);
+  }
+  return units.map((_, i) => sliceBuffer(buffer, cuts[i], cuts[i + 1]));
+}
+
+function wireRecitation(li, b) {
+  const f = name => li.querySelector(`[data-f=${name}]`);
+  const el = name => li.querySelector(`[data-el=${name}]`);
+  const act = name => li.querySelector(`[data-act=${name}]`);
+  const player = el('recPlayer');
+  const fmt = t => (Math.round(t * 10) / 10).toFixed(1);
+  const sync = () => {
+    const au = hadithAudio.get(b.id);
+    const has = !!(b.rec && au);
+    el('recBody').hidden = !has;
+    f('recName').value = b.rec?.name || '';
+    act('recClear').hidden = !b.rec;
+    li.querySelector('.custom-rec summary').textContent = has
+      ? `🎙️ تلاوة من ملف: ${b.rec.name || au.name}`
+      : b.rec ? `⚠️ ارفع ملف التلاوة تاني (${b.rec.file || ''}) — الملفات مش بتتحفظ لما الصفحة تتقفل`
+      : '🎙️ تلاوة من ملف (لقارئ مش في القايمة، زي الشيخ سيد سعيد)';
+    if (b.rec && !has) li.querySelector('.custom-rec').open = true;
+    if (!has) return;
+    if (player.src !== au.url) player.src = au.url;
+    f('recStart').value = fmt(b.rec.start || 0);
+    f('recEnd').value = fmt(b.rec.end || au.buffer.duration);
+    const need = recUnits(b).length - 1;
+    const n = (b.rec.marks || []).length;
+    el('recMarks').textContent = n
+      ? `علّمت ${Q.arabicNum(Math.min(n, need))} من ${Q.arabicNum(need)}${n >= need ? ' ✅' : ''}`
+      : 'من غير توقيتات: هيتقسم حسب طول الآيات';
+  };
+  const changed = () => { sync(); persist(); refreshPublish(true); refreshPreview(); };
+  f('recFile').onchange = async () => {
+    const file = f('recFile').files[0];
+    f('recFile').value = '';
+    if (!file) return;
+    try {
+      status('بيقرا ملف التلاوة…');
+      const buffer = await decode(await file.arrayBuffer());
+      setHadithAudio(b, buffer, file.name, file);
+      const guess = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').replace(/\d+/g, '').trim();
+      b.rec = { name: b.rec?.name || '', file: file.name, start: 0, end: buffer.duration, marks: [] };
+      if (!b.rec.name && /[\u0600-\u06FF]/.test(guess)) b.rec.name = guess;
+      status(`✅ اتحمّلت التلاوة (${fmtDur(buffer.duration)}). حدد البداية والنهاية.`);
+      changed();
+      if (!b.rec.name) f('recName').focus();
+    } catch {
+      showError(new Error('الملف ده مش ملف صوت مدعوم'));
+    }
+  };
+  f('recName').oninput = () => { if (!b.rec) return; b.rec.name = f('recName').value.trim(); persist(); refreshPublish(true); };
+  f('recName').onchange = changed;
+  const num = (k, name) => {
+    f(name).onchange = () => {
+      const au = hadithAudio.get(b.id);
+      if (!b.rec || !au) return;
+      b.rec[k] = Math.min(au.buffer.duration, Math.max(0, Number(f(name).value) || 0));
+      changed();
+    };
+  };
+  num('start', 'recStart');
+  num('end', 'recEnd');
+  act('recSetStart').onclick = () => { if (!b.rec) return; b.rec.start = player.currentTime; b.rec.marks = []; changed(); };
+  act('recSetEnd').onclick = () => { if (!b.rec) return; b.rec.end = player.currentTime; changed(); };
+  act('recPlayRange').onclick = () => {
+    if (!b.rec) return;
+    player.currentTime = b.rec.start || 0;
+    player.play().catch(() => {});
+    const end = b.rec.end;
+    const stopAt = () => { if (player.currentTime >= end) { player.pause(); player.removeEventListener('timeupdate', stopAt); } };
+    player.addEventListener('timeupdate', stopAt);
+  };
+  act('recMark').onclick = () => {
+    if (!b.rec) return;
+    if (player.paused) { player.currentTime = b.rec.start || 0; player.play().catch(() => {}); status('اشتغلت من البداية — اضغط «الآية اللي بعدها» أول ما كل آية تبدأ'); return; }
+    b.rec.marks = [...(b.rec.marks || []), player.currentTime].sort((x, y) => x - y);
+    sync(); persist();
+  };
+  act('recMarksClear').onclick = () => { if (!b.rec) return; b.rec.marks = []; changed(); };
+  act('recClear').onclick = () => {
+    player.pause();
+    delete b.rec;
+    hadithAudio.delete(b.id);
+    li.querySelector('.custom-rec').open = false;
+    changed();
+  };
+  sync();
+  return sync;
 }
 
 function hadithBlockEl(b, i) {
@@ -609,6 +739,26 @@ function wireAudioControls(li, b, sync) {
   const el = name => li.querySelector(`[data-el=${name}]`);
   const act = name => li.querySelector(`[data-act=${name}]`);
   li.querySelectorAll('[data-f=audioMode]').forEach(r => r.onchange = () => { b.audioMode = r.value; persist(); });
+  f('enhance').innerHTML = Object.entries(ENHANCE_PRESETS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  f('enhance').value = b.enhance || '';
+  f('enhance').onchange = () => { b.enhance = f('enhance').value; persist(); };
+  let enhPlayer = null;
+  act('enhancePreview').onclick = async () => {
+    const au = hadithAudio.get(b.id);
+    if (!au) { alert('سجّل أو ارفع صوت الأول'); return; }
+    if (enhPlayer) { enhPlayer.pause(); URL.revokeObjectURL(enhPlayer.src); enhPlayer = null; }
+    const btn = act('enhancePreview');
+    btn.disabled = true;
+    try {
+      const out = await enhanceVoice(au.buffer, b.enhance);
+      enhPlayer = new Audio(URL.createObjectURL(bufferToWavBlob(out)));
+      enhPlayer.play().catch(() => {});
+    } catch (e) {
+      showError(e);
+    } finally {
+      btn.disabled = false;
+    }
+  };
 
   // التسجيل بشاشة قراءة
   act('record').onclick = async () => {
@@ -680,7 +830,7 @@ async function loadAzkar() {
 }
 
 function newZikrBlock(cat = 'أذكار الصباح', index = 0) {
-  const b = { id: uid(), type: 'zikr', cat, index, text: '', count: 1, ref: '', desc: '', showCount: true, audioMode: 'none', seconds: 8 };
+  const b = { id: uid(), type: 'zikr', cat, index, text: '', count: 1, ref: '', desc: '', showCount: true, audioMode: 'none', seconds: 8, enhance: 'clean' };
   fillZikr(b);
   return b;
 }
@@ -1721,11 +1871,20 @@ async function blobToDataUrl(blob) {
 function setupProject() {
   $('#proj-save').onclick = async () => {
     const audios = {};
+    const blocks = structuredClone(state.blocks);
     for (const [id, au] of hadithAudio) {
-      if (!state.blocks.some(b => b.id === id)) continue;
-      audios[id] = { name: au.name, data: await blobToDataUrl(bufferToWavBlob(au.buffer)) };
+      const b = blocks.find(x => x.id === id);
+      if (!b) continue;
+      let buf = au.buffer;
+      // التلاوة المرفوعة: بنحفظ المقطع المختار بس مش السورة كلها
+      if (b.type === 'quran' && b.rec) {
+        const st = b.rec.start || 0, en = b.rec.end || buf.duration;
+        buf = sliceBuffer(buf, st, en);
+        b.rec = { ...b.rec, start: 0, end: buf.duration, marks: (b.rec.marks || []).map(t => t - st).filter(t => t > 0 && t < buf.duration) };
+      }
+      audios[id] = { name: au.name, data: await blobToDataUrl(bufferToWavBlob(buf)) };
     }
-    const proj = { app: 'quran-clip-studio', version: 1, savedAt: new Date().toISOString(), blocks: state.blocks, style: state.style, series: state.series, audios };
+    const proj = { app: 'quran-clip-studio', version: 1, savedAt: new Date().toISOString(), blocks, style: state.style, series: state.series, audios };
     const first = state.blocks[0];
     const name = first?.type === 'quran' ? `${Q.surah(first.surah).tr}_${first.from}-${first.to}` : baseName();
     download(new Blob([JSON.stringify(proj)], { type: 'application/json' }), `مشروع_${name}.json`);

@@ -510,6 +510,33 @@
         <label>تكرار المقطع كله <input type="number" data-f="repeatRange" min="1" max="20"></label>
         <label class="check span2"><input type="checkbox" data-f="basmala"> البسملة في الأول</label>
       </div>
+      <details class="adv custom-rec">
+        <summary>🎙️ تلاوة من ملف (لقارئ مش في القايمة، زي الشيخ سيد سعيد)</summary>
+        <p class="hint">نزّل السورة من mp3quran.net أو أي موقع، وارفعها هنا. شغّلها، ولما توصل لأول الآيات اضغط «البداية = دلوقتي»، وفي آخرها «النهاية = دلوقتي». ولو عايز الآيات تتغير على الشاشة في وقتها بالظبط، شغّل من البداية واضغط «⏱ الآية اللي بعدها» مع بداية كل آية.</p>
+        <div class="btn-row">
+          <label class="btn file-btn">📁 ارفع التلاوة<input type="file" accept="audio/*" data-f="recFile" hidden></label>
+          <input type="text" data-f="recName" class="grow" placeholder="اسم القارئ (مثلًا: سيد سعيد)">
+          <button class="btn ghost" data-act="recClear" type="button" title="ارجع لقارئ البرنامج">✕ شيل الملف</button>
+        </div>
+        <div data-el="recBody" hidden>
+          <audio controls data-el="recPlayer" preload="auto"></audio>
+          <div class="grid3">
+            <label>البداية (ث) <input type="number" data-f="recStart" min="0" step="0.1"></label>
+            <label>النهاية (ث) <input type="number" data-f="recEnd" min="0" step="0.1"></label>
+            <span></span>
+          </div>
+          <div class="btn-row">
+            <button class="btn" data-act="recSetStart" type="button">⏱ البداية = دلوقتي</button>
+            <button class="btn" data-act="recSetEnd" type="button">⏱ النهاية = دلوقتي</button>
+            <button class="btn" data-act="recPlayRange" type="button">▶ اسمع المقطع</button>
+          </div>
+          <div class="btn-row">
+            <button class="btn primary" data-act="recMark" type="button">⏱ الآية اللي بعدها</button>
+            <button class="btn ghost" data-act="recMarksClear" type="button">امسح التوقيتات</button>
+            <span class="muted" data-el="recMarks"></span>
+          </div>
+        </div>
+      </details>
     </li>
   </template>
 
@@ -557,6 +584,10 @@
           <span class="muted" data-el="audio-name"></span>
         </div>
         <audio controls data-el="audio-preview" hidden></audio>
+        <div class="btn-row">
+          <label class="inline">✨ تحسين الصوت <select data-f="enhance"></select></label>
+          <button class="btn ghost" data-act="enhancePreview" type="button">🔊 اسمع بعد التحسين</button>
+        </div>
       </fieldset>
     </li>
   </template>
@@ -647,6 +678,10 @@
           <span class="muted" data-el="audio-name"></span>
         </div>
         <audio controls data-el="audio-preview" hidden></audio>
+        <div class="btn-row">
+          <label class="inline">✨ تحسين الصوت <select data-f="enhance"></select></label>
+          <button class="btn ghost" data-act="enhancePreview" type="button">🔊 اسمع بعد التحسين</button>
+        </div>
       </fieldset>
     </li>
   </template>

@@ -56,8 +56,10 @@ function clip(text, max) {
 // series (اختياري): { index, total } لو المقطع جزء من سلسلة
 export async function generate(blocks, style, translationOf, series = null) {
   const ps = getPublishSettings();
-  const reciter = findReciter(style.reciter);
   const quran = blocks.filter(b => b.type === 'quran');
+  // تلاوة مرفوعة من ملف: اسم القارئ اللي كتبه المستخدم
+  const custom = quran.find(b => b.rec?.name);
+  const reciter = custom ? { name: custom.rec.name } : findReciter(style.reciter);
   const hadith = blocks.filter(b => b.type === 'hadith');
   const zikr = blocks.filter(b => b.type === 'zikr');
 
