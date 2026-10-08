@@ -196,7 +196,7 @@
             <label class="btn file-btn">📁 ارفع صورة أو فيديو
               <input type="file" id="bg-file" accept="image/*,video/*" hidden>
             </label>
-            <button class="btn" id="open-stock" type="button">🔎 خلفيات مجانية (Pexels / Pixabay)</button>
+            <button class="btn" id="open-stock" type="button">🔎 خلفيات مجانية</button>
           </div>
           <div class="muted" id="bg-name">مفيش خلفية مختارة</div>
           <p class="hint">نصيحة: ولّد خلفيات (طبيعة، سماء، بحر — من غير أشخاص) في Higgsfield واحفظها، وارفعها هنا. الفيديو الأقصر والأقل دقة بيتحوّل أسرع.</p>
@@ -409,7 +409,7 @@
       <label>مفتاح Pexels (مجاني)
         <input type="text" id="set-pexels" dir="ltr" autocomplete="off">
       </label>
-      <p class="hint">من <a href="https://www.pexels.com/api/" target="_blank" rel="noopener">pexels.com/api</a> ← اعمل حساب ← Your API Key.</p>
+      <p class="hint">Pexels وقفت إصدار مفاتيح جديدة حاليًا — لو معندكش مفتاح سيبها فاضية واستخدم Pixabay أو Wikimedia أو Openverse.</p>
       <label>مفتاح Pixabay (مجاني)
         <input type="text" id="set-pixabay" dir="ltr" autocomplete="off">
       </label>
@@ -456,17 +456,15 @@
       </div>
       <div class="row wrap">
         <input type="search" id="stock-q" class="grow" value="nature sky" placeholder="مثلًا: sky, ocean, desert, clouds, mosque">
-        <select id="stock-provider">
-          <option value="pexels">Pexels</option>
-          <option value="pixabay">Pixabay</option>
-        </select>
+        <select id="stock-provider"></select>
         <select id="stock-kind">
           <option value="video">فيديو</option>
           <option value="image">صورة</option>
         </select>
         <button class="btn primary" id="stock-go" type="button">بحث</button>
       </div>
-      <p class="hint">ابحث بالإنجليزي للحصول على نتايج أكتر. اختار مشاهد من غير أشخاص.</p>
+      <p class="hint">ابحث بالإنجليزي للحصول على نتايج أكتر. اختار مشاهد من غير أشخاص. نتايج Wikimedia و Openverse بيظهر عليها اسم صاحبها ورخصتها؛ لو الرخصة فيها <b>BY</b> اكتب اسمه في الوصف (البرنامج بيحطه لك في رسالة الحالة).</p>
+      <p class="hint">ومن غير أي مفتاح: افتح <a href="https://www.pexels.com/search/videos/nature/?orientation=portrait" target="_blank" rel="noopener">Pexels</a> أو <a href="https://mixkit.co/free-stock-video/" target="_blank" rel="noopener">Mixkit</a> أو <a href="https://pixabay.com/videos/" target="_blank" rel="noopener">Pixabay</a> في المتصفح، نزّل الفيديو، وارفعه من «اختار ملف» — كلهم مجانيين ومن غير ذكر المصدر.</p>
       <div class="stock-grid" id="stock-results"></div>
     </div>
   </dialog>
@@ -608,9 +606,43 @@
         <a class="btn ghost" id="ref-open" href="#" target="_blank" rel="noopener">↗ افتح الأصلي</a>
       </div>
       <details class="adv" open>
-        <summary>📝 لاحظ وانت بتتفرج</summary>
-        <p class="hint">أول ٢ ثانية بتقول إيه؟ أنهي آية وأنهي قارئ؟ الكلام بيظهر كله ولا كلمة كلمة؟ الخلفية إيه؟ المدة قد إيه؟</p>
-        <textarea id="ref-note" rows="3" placeholder="مثلًا: افتتاحية «اسمعها بقلبك»، يوسف 4، كلمة كلمة، خلفية سما بالليل، ٢٥ ثانية"></textarea>
+        <summary>📋 وصفة الريل (املاها وانت بتتفرج)</summary>
+        <label>الافتتاحية (أول ثانيتين)
+          <input type="text" id="rc-intro" placeholder="مثلًا: اسمعها بقلبك 🤍">
+        </label>
+        <div class="grid2">
+          <label>ظهور الآيات
+            <select id="rc-wordMode">
+              <option value="">زي ما هو</option>
+              <option value="full">الآية كلها مرة واحدة</option>
+              <option value="reveal">كلمة كلمة مع التلاوة</option>
+              <option value="highlight">تظليل الكلمة الحالية</option>
+            </select>
+          </label>
+          <label>حجم الخط
+            <select id="rc-size">
+              <option value="">زي ما هو</option>
+              <option value="62">صغير</option>
+              <option value="78">متوسط</option>
+              <option value="94">كبير</option>
+            </select>
+          </label>
+          <label>القارئ <select id="rc-reciter"></select></label>
+          <label>المدة (ث) <input type="number" id="rc-dur" min="5" max="180" placeholder="مثلًا 30"></label>
+        </div>
+        <label>الخلفية (كلمة إنجليزي)
+          <div class="row" style="margin:0">
+            <input type="text" id="rc-bg" class="grow" placeholder="مثلًا: night sky, ocean, desert">
+            <button class="btn" id="rc-bg-go" type="button">🔎 دوّر</button>
+          </div>
+        </label>
+        <div class="row wrap">
+          <label class="btn file-btn">🎨 ألوان من سكرين شوت<input type="file" accept="image/*" id="rc-shot" hidden></label>
+          <span class="swatches" id="rc-swatches"></span>
+        </div>
+        <textarea id="ref-note" rows="2" placeholder="ملاحظات تانية…"></textarea>
+        <label class="check"><input type="checkbox" id="rc-save-tpl" checked> واحفظها قالب كمان</label>
+        <button class="btn primary" id="rc-apply" type="button">✨ طبّق الوصفة</button>
       </details>
       <h3>اعمل زيه</h3>
       <div class="row">
@@ -618,9 +650,16 @@
         <button class="btn" id="ref-load" type="button">حمّل في المحرر</button>
       </div>
       <div class="btn-row">
-        <button class="btn" id="ref-tpl" type="button" title="خلي الشكل زي المرجع من الخطوة ٣، وبعدين احفظه">💾 احفظ الشكل الحالي كقالب</button>
         <button class="btn" id="ref-save" type="button">⭐ احفظ المرجع</button>
       </div>
+      <details class="adv">
+        <summary>📈 سجل تجاربي</summary>
+        <p class="hint">أي فيديو تصدّره والمرجع مفتوح بيتسجل هنا لوحده. بعد يومين اكتب مشاهداته، والجدول يترتب بالأعلى، عشان تعرف أنهي وصفة بتنجح معاك.</p>
+        <div class="log" id="ref-log"></div>
+        <div class="btn-row">
+          <button class="btn ghost" id="log-csv" type="button">⬇ نزّل الجدول (CSV)</button>
+        </div>
+      </details>
       <div id="ref-saved" class="ref-saved"></div>
     </div>
   </dialog>

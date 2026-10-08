@@ -4,7 +4,7 @@ import { COLLECTIONS, collection, getHadith, searchHadith, extractMatn, assessGr
 import { loadAudio, decode, buildTimeline, startRecording, trimSilence, bufferToWavBlob, sliceBuffer, enhanceVoice, ENHANCE_PRESETS } from './audio.js';
 import { ASPECTS, ensureFonts, drawBackground, drawOverlay, drawWave } from './slides.js';
 import { exportAudio, exportVideo, exportFilmoraPackage, renderStill, makeSrt, download } from './exporter.js';
-import { searchPexels, searchPixabay, downloadStock } from './stock.js';
+import { PROVIDERS, downloadStock } from './stock.js';
 import * as T from './templates.js';
 import { getSettings, setSettings, load, save } from './storage.js';
 import * as EL from './elevenlabs.js';
@@ -420,6 +420,7 @@ async function doExport(kind) {
       const blob = await exportVideo(project, p => status(stage, p), onLoad, s => { stage = s; status(s, 0); });
       download(blob, `${baseName()}.mp4`);
       setLastExport(blob, `${baseName()}.mp4`, 'video/mp4');
+      logExperiment(`${baseName()}.mp4`, d);
       status(`✅ الفيديو جاهز (${fmtDur(d)})${project.usedFast ? ' — تصدير سريع ⚡' : ''}`);
     } else if (kind === 'filmora') {
       status('تجهيز حزمة Filmora…', null);
@@ -1320,13 +1321,18 @@ function setupSoundSearch() {
 // ===== الخلفيات المجانية =====
 function setupStock() {
   const dlg = $('#dlg-stock');
+  const prov = $('#stock-provider');
+  prov.innerHTML = Object.entries(PROVIDERS).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('');
+  const st = getSettings();
+  prov.value = load('stockProvider', null) || (st.pixabayKey ? 'pixabay' : st.pexelsKey ? 'pexels' : 'commons');
+  prov.onchange = () => save('stockProvider', prov.value);
   $('#open-stock').onclick = () => dlg.showModal();
   $('#stock-close').onclick = () => dlg.close();
   const go = async () => {
     const box = $('#stock-results');
     box.textContent = 'جاري البحث…';
     try {
-      const fn = $('#stock-provider').value === 'pexels' ? searchPexels : searchPixabay;
+      const fn = PROVIDERS[prov.value].fn;
       const items = await fn($('#stock-q').value.trim() || 'nature', $('#stock-kind').value, state.style.aspect);
       box.innerHTML = items.length ? '' : 'مفيش نتايج';
       for (const it of items) {
@@ -1334,12 +1340,13 @@ function setupStock() {
         d.className = 'stock-item';
         d.innerHTML = `<img alt="" loading="lazy"><span class="tag"></span>`;
         d.querySelector('img').src = it.thumb;
-        d.querySelector('.tag').textContent = `${it.kind === 'video' ? '🎞️' : '🖼️'} ${it.credit || ''}`;
+        d.querySelector('.tag').textContent = `${it.kind === 'video' ? '🎞️' : '🖼️'} ${it.credit || ''}${it.license ? ' · ' + it.license : ''}`;
         d.onclick = async () => {
           d.style.opacity = .5;
           try {
             setMedia(await downloadStock(it));
             dlg.close();
+            if (it.license && /BY/i.test(it.license)) status(`الخلفية برخصة ${it.license}: اكتب في الوصف «الخلفية: ${it.credit || 'صاحبها'} — Wikimedia/Openverse (${it.license})»`);
           } catch (e) {
             alert('تعذر تحميل الملف: ' + e.message);
           }
@@ -2016,6 +2023,7 @@ async function runQueue() {
           const blob = await exportVideo(project, p => status(`${tag}: ${stage}`, p), onLoad, s => { stage = s; status(`${tag}: ${s}`, 0); });
           download(blob, `${name}.mp4`);
           setLastExport(blob, `${name}.mp4`, 'video/mp4');
+          logExperiment(`${name}.mp4`, d);
         }
         if (kind !== 'mp4') {
           const blob = await exportAudio('mp3', project.timeline, p => status(`${tag}: MP3…`, p), onLoad);
@@ -2109,7 +2117,7 @@ function showRef(url) {
   msg.textContent = `${e.name}: لو الفيديو ما ظهرش، يبقى صاحبه قافل التضمين أو الحساب خاص — افتح الأصلي.`;
   refs.current = e;
   const old = refs.list.find(r => r.url === e.url);
-  if (old) { $('#ref-note').value = old.note || ''; $('#ref-ayat').value = old.ayat || ''; }
+  if (old) { $('#ref-note').value = old.note || ''; $('#ref-ayat').value = old.ayat || ''; fillRecipe(old.recipe || {}); }
 }
 
 function renderRefs() {
@@ -2120,7 +2128,7 @@ function renderRefs() {
     d.className = 'ref-item';
     d.innerHTML = `<span></span><span class="grow"></span><button class="btn icon" type="button" title="حذف">✕</button>`;
     d.children[0].textContent = REF_ICONS[r.platform] || '🎞️';
-    d.children[1].textContent = r.note || r.ayat || r.url;
+    d.children[1].textContent = r.recipe?.intro || r.note || r.ayat || r.url;
     d.title = r.url;
     d.onclick = e => {
       if (e.target.closest('button')) return;
@@ -2134,8 +2142,9 @@ function renderRefs() {
 
 function setupReference() {
   const dlg = $('#dlg-ref');
-  $('#btn-ref').onclick = () => { dlg.open ? dlg.close() : dlg.show(); if (dlg.open) $('#ref-url').focus(); };
-  $('#ref-close').onclick = () => { $('#ref-frame').removeAttribute('src'); dlg.close(); };
+  const toggle = open => { open ? dlg.show() : dlg.close(); document.body.classList.toggle('ref-open', dlg.open); };
+  $('#btn-ref').onclick = () => { toggle(!dlg.open); if (dlg.open) $('#ref-url').focus(); };
+  $('#ref-close').onclick = () => { $('#ref-frame').removeAttribute('src'); toggle(false); };
   $('#ref-show').onclick = () => showRef($('#ref-url').value);
   $('#ref-url').onkeydown = e => { if (e.key === 'Enter') showRef($('#ref-url').value); };
   $('#ref-url').onpaste = () => setTimeout(() => showRef($('#ref-url').value), 0);
@@ -2149,25 +2158,169 @@ function setupReference() {
     showTab('look');
     status(`✅ اتحمّل ${ok.map(refLabel).join(' + ')}. ظبّط الشكل زي المرجع، وبعدين احفظه كقالب.`);
   };
-  $('#ref-tpl').onclick = () => {
-    const def = $('#ref-note').value.trim().split(/[،,\n]/)[0].slice(0, 30) || 'زي المرجع';
-    const name = prompt('اسم القالب:', def);
-    if (!name) return;
-    if (T.isBuiltin(name)) { alert('الاسم ده محجوز لقالب جاهز، اختار اسم تاني'); return; }
-    T.saveTemplate(name, { ...state.style });
-    renderTemplates();
-    renderQueueTemplates();
-    status(`✅ القالب «${name}» اتحفظ — تقدر تختاره في «طابور التصدير»`);
-  };
   $('#ref-save').onclick = () => {
     if (!refs.current) { status('اعرض فيديو الأول', null, true); return; }
-    const entry = { url: refs.current.url, platform: refs.current.platform, note: $('#ref-note').value.trim(), ayat: $('#ref-ayat').value.trim() };
+    const entry = { url: refs.current.url, platform: refs.current.platform, note: $('#ref-note').value.trim(), ayat: $('#ref-ayat').value.trim(), recipe: readRecipe() };
     refs.list = [entry, ...refs.list.filter(r => r.url !== entry.url)].slice(0, 30);
     save('refs', refs.list);
     renderRefs();
     status('✅ المرجع اتحفظ');
   };
   renderRefs();
+  setupRecipe();
+}
+
+// ===== وصفة الريل =====
+const RC = { intro: 'rc-intro', wordMode: 'rc-wordMode', textSize: 'rc-size', reciter: 'rc-reciter', duration: 'rc-dur', bg: 'rc-bg' };
+let recipeColors = null; // { color1, color2, textColor, accent }
+
+function readRecipe() {
+  const r = {};
+  for (const [k, id] of Object.entries(RC)) { const v = $('#' + id).value.trim(); if (v) r[k] = v; }
+  if (recipeColors) r.colors = recipeColors;
+  return r;
+}
+
+function fillRecipe(r) {
+  for (const [k, id] of Object.entries(RC)) $('#' + id).value = r[k] || '';
+  recipeColors = r.colors || null;
+  renderSwatches();
+}
+
+function renderSwatches() {
+  const box = $('#rc-swatches');
+  box.innerHTML = '';
+  if (!recipeColors) return;
+  for (const [k, c] of Object.entries(recipeColors)) {
+    const sw = document.createElement('span');
+    sw.className = 'swatch';
+    sw.style.background = c;
+    sw.title = { color1: 'الخلفية ١', color2: 'الخلفية ٢', textColor: 'النص', accent: 'التمييز' }[k] + ' ' + c;
+    box.appendChild(sw);
+  }
+}
+
+// ألوان أساسية من صورة: بنصغرها ونجمع الألوان المتقاربة
+async function paletteFromImage(file) {
+  const img = await createImageBitmap(file);
+  const c = document.createElement('canvas');
+  c.width = 48; c.height = 85;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.drawImage(img, 0, 0, c.width, c.height);
+  const d = x.getImageData(0, 0, c.width, c.height).data;
+  const bins = new Map();
+  for (let i = 0; i < d.length; i += 4) {
+    const key = (d[i] >> 4) << 8 | (d[i + 1] >> 4) << 4 | (d[i + 2] >> 4);
+    const b = bins.get(key) || { n: 0, r: 0, g: 0, b: 0 };
+    b.n++; b.r += d[i]; b.g += d[i + 1]; b.b += d[i + 2];
+    bins.set(key, b);
+  }
+  const cols = [...bins.values()].map(b => ({ n: b.n, r: b.r / b.n, g: b.g / b.n, b: b.b / b.n }))
+    .map(c => ({ ...c, l: 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b, sat: Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b) }))
+    .sort((a, b) => b.n - a.n);
+  const hex = c => '#' + [c.r, c.g, c.b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+  const dist = (a, b) => Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
+  const top = [];
+  for (const c of cols) { if (top.every(t => dist(t, c) > 40)) top.push(c); if (top.length >= 8) break; }
+  const dark = [...top].sort((a, b) => a.l - b.l);
+  const bg1 = dark[0], bg2 = dark.find(c => c !== bg1 && c.l < 140) || dark[1] || bg1;
+  const light = [...top].sort((a, b) => b.l - a.l)[0];
+  const textColor = light && light.l > 170 ? hex(light) : '#ffffff';
+  const acc = [...top].filter(c => c.l > 90).sort((a, b) => b.sat * b.n - a.sat * a.n)[0];
+  return { color1: hex(bg1), color2: hex(bg2), textColor, accent: acc ? hex(acc) : '#f4d58d' };
+}
+
+function setupRecipe() {
+  $('#rc-reciter').innerHTML = '<option value="">زي ما هو</option>' + $('#reciter').innerHTML;
+  $('#rc-shot').onchange = async () => {
+    const file = $('#rc-shot').files[0];
+    $('#rc-shot').value = '';
+    if (!file) return;
+    try {
+      recipeColors = await paletteFromImage(file);
+      renderSwatches();
+      status('✅ اتسحبت الألوان من الصورة — هتتطبق مع «طبّق الوصفة»');
+    } catch (e) { showError(new Error('تعذر قراءة الصورة')); }
+  };
+  $('#rc-bg-go').onclick = () => {
+    const q = $('#rc-bg').value.trim();
+    if (!q) { $('#rc-bg').focus(); return; }
+    $('#stock-q').value = q;
+    $('#open-stock').click();
+    $('#stock-go').click();
+  };
+  $('#rc-apply').onclick = () => {
+    const r = readRecipe();
+    const st = state.style;
+    if (r.intro != null) st.intro = r.intro;
+    if (r.wordMode) st.wordMode = r.wordMode;
+    if (r.textSize) st.textSize = Number(r.textSize);
+    if (r.reciter) st.reciter = r.reciter;
+    if (r.colors) {
+      Object.assign(st, r.colors);
+      if (st.bgType === 'color' || (st.bgType === 'media' && !state.media)) st.bgType = 'gradient';
+    }
+    applyStyleToInputs();
+    persist();
+    refreshPreview();
+    refreshPublish(true);
+    let msg = '✅ الوصفة اتطبقت';
+    if ($('#rc-save-tpl').checked) {
+      const def = (r.intro || $('#ref-note').value.trim().split(/[،,\n]/)[0] || 'زي المرجع').slice(0, 30);
+      const name = prompt('اسم القالب:', def);
+      if (name && !T.isBuiltin(name)) {
+        T.saveTemplate(name, { ...state.style });
+        renderTemplates();
+        renderQueueTemplates();
+        msg += ` واتحفظت قالب «${name}»`;
+      }
+    }
+    if (r.duration) msg += ` — هدفك ${r.duration} ثانية، اختار آيات على قدها`;
+    status(msg);
+  };
+  renderLog();
+  $('#log-csv').onclick = () => {
+    const rows = [['التاريخ', 'الفيديو', 'المدة', 'المرجع', 'الافتتاحية', 'ظهور الآيات', 'القارئ', 'المشاهدات', 'اللايكات']];
+    for (const e of expLog) rows.push([e.date, e.file, e.dur, e.ref, e.recipe?.intro || '', e.recipe?.wordMode || '', e.recipe?.reciter || '', e.views ?? '', e.likes ?? '']);
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    download(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }), 'تجاربي.csv');
+  };
+}
+
+// ===== سجل التجارب =====
+const expLog = load('expLog', []);
+
+function logExperiment(file, dur) {
+  if (!refs.current || !$('#dlg-ref').open) return;
+  expLog.unshift({
+    id: uid(), date: new Date().toISOString().slice(0, 10), file, dur: fmtDur(dur),
+    ref: refs.current.url, recipe: { ...readRecipe(), wordMode: state.style.wordMode, reciter: state.style.reciter, intro: state.style.intro },
+  });
+  save('expLog', expLog.slice(0, 200));
+  renderLog();
+}
+
+function renderLog() {
+  const box = $('#ref-log');
+  box.innerHTML = expLog.length ? '' : '<p class="muted">لسه مفيش تجارب.</p>';
+  const sorted = [...expLog].sort((a, b) => (Number(b.views) || -1) - (Number(a.views) || -1));
+  const WM = { full: 'كاملة', reveal: 'كلمة كلمة', highlight: 'تظليل' };
+  for (const e of sorted) {
+    const d = document.createElement('div');
+    d.className = 'log-row';
+    d.innerHTML = `<div class="grow"><b></b><div class="muted"></div></div>
+      <label>👁 <input type="number" min="0" data-k="views"></label>
+      <label>❤ <input type="number" min="0" data-k="likes"></label>
+      <button class="btn icon" type="button" title="حذف">✕</button>`;
+    d.querySelector('b').textContent = e.file;
+    d.querySelector('.muted').textContent = [e.date, e.dur, e.recipe?.intro && `«${e.recipe.intro}»`, WM[e.recipe?.wordMode], findReciter(e.recipe?.reciter || '')?.name].filter(Boolean).join(' · ');
+    d.querySelectorAll('input').forEach(inp => {
+      inp.value = e[inp.dataset.k] ?? '';
+      inp.onchange = () => { e[inp.dataset.k] = inp.value === '' ? null : Number(inp.value); save('expLog', expLog); renderLog(); };
+    });
+    d.querySelector('button').onclick = () => { expLog.splice(expLog.indexOf(e), 1); save('expLog', expLog); renderLog(); };
+    box.appendChild(d);
+  }
 }
 
 // ===== البداية =====

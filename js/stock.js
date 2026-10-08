@@ -59,6 +59,62 @@ export async function downloadStock(item) {
   const res = await fetch(item.url);
   if (!res.ok) throw new Error('تعذر تحميل الملف: ' + res.status);
   const blob = await res.blob();
-  const ext = item.kind === 'video' ? 'mp4' : 'jpg';
+  const ext = item.ext || (item.kind === 'video' ? 'mp4' : 'jpg');
   return new File([blob], `${item.id}.${ext}`, { type: blob.type || (item.kind === 'video' ? 'video/mp4' : 'image/jpeg') });
 }
+
+// ===== مصادر من غير مفتاح =====
+
+// Wikimedia Commons: صور وفيديوهات برخص حرة (بعضها محتاج ذكر صاحبها — الرخصة بتظهر على كل نتيجة)
+const stripTags = s => (s || '').replace(/<[^>]+>/g, '').trim();
+
+export async function searchCommons(query, kind, aspect) {
+  const type = kind === 'video' ? 'filetype:video' : 'filetype:bitmap';
+  const w = kind === 'video' ? 320 : 1080;
+  const url = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*'
+    + `&generator=search&gsrnamespace=6&gsrlimit=40&gsrsearch=${encodeURIComponent(`${type} ${query}`)}`
+    + `&prop=imageinfo&iiprop=url|size|mime|extmetadata&iiurlwidth=${w}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Wikimedia: ' + res.status);
+  const j = await res.json();
+  const pages = Object.values(j.query?.pages || {}).sort((a, b) => (a.index || 0) - (b.index || 0));
+  const out = [];
+  for (const p of pages) {
+    const ii = p.imageinfo?.[0];
+    if (!ii) continue;
+    const m = ii.extmetadata || {};
+    const credit = stripTags(m.Artist?.value).slice(0, 40);
+    const license = stripTags(m.LicenseShortName?.value);
+    if (kind === 'video') {
+      if (!/^video\//.test(ii.mime) || ii.size > 80e6 || (ii.duration && ii.duration > 120)) continue;
+      out.push({ id: 'wm' + p.pageid, kind: 'video', thumb: ii.thumburl, url: ii.url, width: ii.width, height: ii.height, credit, license, page: ii.descriptionurl, ext: ii.url.split('.').pop() });
+    } else {
+      if (!/^image\/(jpeg|png|webp)/.test(ii.mime)) continue;
+      if (aspect === '9:16' && ii.width > ii.height * 1.2) continue;
+      out.push({ id: 'wm' + p.pageid, kind: 'image', thumb: ii.thumburl, url: ii.thumburl || ii.url, credit, license, page: ii.descriptionurl });
+    }
+  }
+  return out.slice(0, 24);
+}
+
+// Openverse (صور بس): ملايين الصور برخص حرة مسموح استخدامها تجاريًا
+export async function searchOpenverse(query, kind, aspect) {
+  if (kind === 'video') throw new Error('Openverse فيه صور بس — اختار «صورة» أو مصدر تاني للفيديو');
+  const ar = aspect === '9:16' ? '&aspect_ratio=tall' : aspect === '16:9' ? '&aspect_ratio=wide' : '';
+  const res = await fetch(`https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&license_type=commercial,modification&page_size=24&mature=false${ar}`);
+  if (!res.ok) throw new Error('Openverse: ' + res.status);
+  const j = await res.json();
+  return (j.results || []).map(r => ({
+    id: 'ov' + r.id.slice(0, 8), kind: 'image',
+    thumb: r.thumbnail || `https://api.openverse.org/v1/images/${r.id}/thumb/`,
+    url: `https://api.openverse.org/v1/images/${r.id}/thumb/?full_size=true&compressed=false`,
+    credit: r.creator || '', license: `${(r.license || '').toUpperCase()} ${r.license_version || ''}`.trim(), page: r.foreign_landing_url,
+  }));
+}
+
+export const PROVIDERS = {
+  pixabay: { name: 'Pixabay (مفتاح مجاني)', fn: searchPixabay },
+  commons: { name: 'Wikimedia (من غير مفتاح)', fn: searchCommons },
+  openverse: { name: 'Openverse — صور (من غير مفتاح)', fn: searchOpenverse },
+  pexels: { name: 'Pexels (لو عندك مفتاح قديم)', fn: searchPexels },
+};
