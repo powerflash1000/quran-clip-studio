@@ -4,6 +4,7 @@ import { Muxer, ArrayBufferTarget } from '../vendor/mp4-muxer/mp4-muxer.mjs';
 import { drawBackground, drawOverlay } from './slides.js';
 import { overlayFrames, FPS } from './exporter.js';
 import { SAMPLE_RATE } from './audio.js';
+import { bgSchedule, pickBg, loadVideoSource, seekVideo } from './bglist.js';
 
 const AVC_CODECS = ['avc1.640028', 'avc1.4d0028', 'avc1.640032', 'avc1.42e028'];
 
@@ -78,6 +79,19 @@ export async function fastExportVideo(project, cfg, onProgress, onStage) {
   onStage?.('تجهيز الخلفية…');
   const bg = newCanvas(W, H);
   drawBackground(bg.getContext('2d'), W, H, style, media?.kind === 'image' ? media : null);
+  // خلفيات متعددة أو فيديو: بنرسم الخلفية لكل إطار
+  const list = project.mediaList?.length ? project.mediaList : media ? [media] : [];
+  const dynamic = list.length > 1 || list.some(m => m.kind === 'video');
+  let sched = null, sources = null;
+  if (dynamic) {
+    sched = bgSchedule(segments, timeline.duration, list.length, style);
+    sources = await Promise.all(list.map(async m => m.kind === 'video' ? { kind: 'video', el: await loadVideoSource(m.url) } : m));
+  }
+  const fade = dynamic && style.bgFade !== false ? 0.6 : 0;
+  const drawItemAt = async (c, m, local) => {
+    if (m.kind === 'video') await seekVideo(m.el, local);
+    drawBackground(c, W, H, style, m);
+  };
 
   const frames = overlayFrames(segments, timeline.duration);
   const target = new ArrayBufferTarget();
@@ -141,7 +155,14 @@ export async function fastExportVideo(project, cfg, onProgress, onStage) {
       octx.clearRect(0, 0, W, H);
       if (f) drawOverlay(octx, W, H, f.count == null ? f.seg : { ...f.seg, wordCount: f.count }, style);
     }
-    ctx.drawImage(bg, 0, 0);
+    if (!dynamic) ctx.drawImage(bg, 0, 0);
+    else {
+      const p = pickBg(sched, t, fade);
+      if (p.prev) await drawItemAt(ctx, sources[p.prev.k], t - p.prev.from);
+      ctx.globalAlpha = p.alpha;
+      await drawItemAt(ctx, sources[p.cur.k], t - p.cur.from);
+      ctx.globalAlpha = 1;
+    }
     ctx.drawImage(ov, 0, 0);
     if (waveform) drawWaveAt(ctx, W, H, timeline, t, style.accent);
 

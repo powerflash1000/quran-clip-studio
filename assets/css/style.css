@@ -309,3 +309,9 @@ details.adv { border-top: 1px dashed var(--line); padding-top: .4rem; }
 .log-row input { width: 4.5rem; margin: 0; padding: .2rem .3rem; }
 /* الشاشات الواسعة: المحرر بيوسع مكان للنافذة الجانبية بدل ما تغطيه */
 @media (min-width: 1100px) { body.ref-open { padding-left: 410px; } }
+.bg-list { list-style: none; padding: 0; margin: .4rem 0; display: grid; gap: .3rem; }
+.bg-item { display: flex; align-items: center; gap: .4rem; padding: .25rem .4rem; border: 1px solid var(--line); border-radius: 10px; background: var(--field); font-size: .85rem; }
+.bg-item .grow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bg-thumb { width: 34px; height: 54px; object-fit: cover; border-radius: 6px; background: #000; flex: none; }
+.stock-item.picked { border-color: var(--good); }
+.stock-item.picked::after { content: '✓'; position: absolute; top: 6px; inset-inline-start: 6px; background: var(--good); color: #fff; border-radius: 50%; width: 24px; height: 24px; display: grid; place-items: center; font-weight: 700; }

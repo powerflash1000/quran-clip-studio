@@ -3,6 +3,7 @@ import { getFFmpeg, run, cleanup } from './ffmpeg.js';
 import { drawBackground, drawOverlay, canvasToPng } from './slides.js';
 import { makeZip } from './zip.js';
 import { fastConfig, fastExportVideo } from './fastexport.js';
+import { bgSchedule } from './bglist.js';
 
 export const FPS = 25;
 
@@ -106,8 +107,8 @@ export async function exportVideo(project, onProgress, onLoad, onStage) {
   let { W, H } = project;
   if (project.quality === '720') { const k = 720 / Math.min(W, H); W = Math.round(W * k / 2) * 2; H = Math.round(H * k / 2) * 2; }
 
-  // الطريقة السريعة (WebCodecs) لما الجهاز يدعمها والخلفية مش فيديو
-  if (!project.forceFfmpeg && media?.kind !== 'video') {
+  // الطريقة السريعة (WebCodecs) لما الجهاز يدعمها
+  if (!project.forceFfmpeg) {
     try {
       const cfg = await fastConfig(W, H, !!project.silent);
       if (cfg) {
@@ -133,8 +134,26 @@ export async function exportVideo(project, onProgress, onLoad, onStage) {
     await write('audio.wav', encodeWav(timeline));
 
     onStage?.('رسم الخلفية والنصوص…');
-    const isVideoBg = media?.kind === 'video';
-    if (isVideoBg) {
+    const bgList = project.mediaList || [];
+    const multi = bgList.length > 1;
+    const isVideoBg = multi || media?.kind === 'video';
+    let bgInput, bgChain = null;
+    if (multi) {
+      // كل جزء من الجدول = مدخل لوحده، وبنلزقهم ورا بعض (من غير انتقال ناعم)
+      const sched = bgSchedule(segments, timeline.duration, bgList.length, style);
+      for (let i = 0; i < bgList.length; i++) {
+        const m = bgList[i];
+        await write(`bg${i}.` + (m.kind === 'video' ? (m.file.name?.split('.').pop() || 'mp4').toLowerCase() : 'png'),
+          m.kind === 'video' ? m.file : await renderBackgroundPng(W, H, style, m));
+      }
+      const name = i => files.find(f => f.startsWith(`bg${i}.`));
+      bgInput = sched.flatMap(c => bgList[c.k].kind === 'video'
+        ? ['-stream_loop', '-1', '-t', (c.to - c.from).toFixed(3), '-i', name(c.k)]
+        : ['-loop', '1', '-framerate', String(FPS), '-t', (c.to - c.from).toFixed(3), '-i', name(c.k)]);
+      bgChain = sched.map((c, i) => `[${i}:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,fps=${FPS},trim=duration=${(c.to - c.from).toFixed(3)},setpts=PTS-STARTPTS[b${i}];`).join('')
+        + sched.map((_, i) => `[b${i}]`).join('') + `concat=n=${sched.length}:v=1:a=0[bg];`;
+      project._bgInputs = sched.length;
+    } else if (isVideoBg) {
       const ext = (media.file.name?.split('.').pop() || 'mp4').toLowerCase();
       await write('bg.' + ext, media.file);
     } else {
@@ -155,20 +174,24 @@ export async function exportVideo(project, onProgress, onLoad, onStage) {
     if (frames.length) list += `file 'ov${frames.length - 1}.png'\n`;
     await write('list.txt', new TextEncoder().encode(list));
 
-    const bgInput = isVideoBg
-      ? ['-stream_loop', '-1', '-i', files.find(f => f.startsWith('bg.'))]
-      : ['-loop', '1', '-framerate', String(FPS), '-i', 'bg.png'];
+    if (!multi) {
+      bgInput = isVideoBg
+        ? ['-stream_loop', '-1', '-i', files.find(f => f.startsWith('bg.'))]
+        : ['-loop', '1', '-framerate', String(FPS), '-i', 'bg.png'];
+    }
+    const nb = multi ? project._bgInputs : 1;
+    const ovIn = nb, auIn = nb + 1;
 
     let filter =
-      `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,fps=${FPS}[bg];` +
-      `[1:v]fps=${FPS},format=rgba,scale=${W}:${H}[ov];` +
+      (bgChain || `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,fps=${FPS}[bg];`) +
+      `[${ovIn}:v]fps=${FPS},format=rgba,scale=${W}:${H}[ov];` +
       `[bg][ov]overlay=0:0:format=auto[v1]`;
     let last = 'v1';
     if (style.waveform && !project.silent) {
       const wh = Math.round(H * 0.1);
       const y = Math.round(H * (H > W ? 0.86 : 0.93) - wh / 2);
       const color = style.accent.replace('#', '0x');
-      filter += `;[2:a]showwaves=s=${W}x${wh}:mode=cline:rate=${FPS}:colors=${color}@0.8,format=rgba[w];[v1][w]overlay=0:${y}[v2]`;
+      filter += `;[${auIn}:a]showwaves=s=${W}x${wh}:mode=cline:rate=${FPS}:colors=${color}@0.8,format=rgba[w];[v1][w]overlay=0:${y}[v2]`;
       last = 'v2';
     }
     filter += `;[${last}]format=yuv420p[v]`;
@@ -179,7 +202,7 @@ export async function exportVideo(project, onProgress, onLoad, onStage) {
       '-f', 'concat', '-safe', '0', '-i', 'list.txt',
       '-i', 'audio.wav',
       '-filter_complex', filter,
-      '-map', '[v]', ...(project.silent ? [] : ['-map', '2:a']),
+      '-map', '[v]', ...(project.silent ? [] : ['-map', `${auIn}:a`]),
       '-t', timeline.duration.toFixed(3),
       '-r', String(FPS),
       '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '22',
@@ -205,8 +228,12 @@ export async function exportFilmoraPackage(project, extras = {}) {
   files.push({ name: 'subtitles_arabic.srt', data: '﻿' + makeSrt(segments, 'text') });
   if (segments.some(s => s.sub)) files.push({ name: 'subtitles_translation.srt', data: '﻿' + makeSrt(segments, 'sub') });
 
-  if (media?.kind === 'video') files.push({ name: 'background/' + (media.file.name || 'background.mp4'), data: media.file });
-  else if (media?.kind === 'image') files.push({ name: 'background/' + (media.file.name || 'background.png'), data: media.file });
+  const list = project.mediaList?.length ? project.mediaList : media ? [media] : [];
+  list.forEach((m, i) => files.push({ name: `background/${String(i + 1).padStart(2, '0')}_${m.file.name || 'background'}`, data: m.file }));
+  if (list.length > 1) {
+    const sched = bgSchedule(segments, timeline.duration, list.length, style);
+    files.push({ name: 'background/timing.csv', data: '\ufeffالخلفية,من,إلى\n' + sched.map(c => `${String(c.k + 1).padStart(2, '0')}_${list[c.k].file.name},${c.from.toFixed(2)},${c.to.toFixed(2)}`).join('\n') });
+  }
   files.push({ name: 'background/background_' + W + 'x' + H + '.png', data: await renderBackgroundPng(W, H, style, media) });
 
   let timing = 'ملف,من,إلى,النص\n';

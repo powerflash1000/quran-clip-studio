@@ -26,6 +26,9 @@ export const DEFAULT_STYLE = {
   introSeconds: 1.6,
   handle: '@tilawat.alaaa',// @اسم_حسابك على الفيديو (فاضي = من غير علامة)
   handlePos: 'bottom',
+  bgSwitch: 'ayah',         // ayah | seconds — لو فيه أكتر من خلفية
+  bgEvery: 6,
+  bgFade: true,
 };
 
 const BUILTIN = {

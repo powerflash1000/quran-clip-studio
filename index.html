@@ -199,6 +199,23 @@
             <button class="btn" id="open-stock" type="button">🔎 خلفيات مجانية</button>
           </div>
           <div class="muted" id="bg-name">مفيش خلفية مختارة</div>
+          <ol class="bg-list" id="bg-list"></ol>
+          <div class="btn-row">
+            <label class="btn file-btn">➕ ضيف خلفية تانية
+              <input type="file" id="bg-add" accept="image/*,video/*" multiple hidden>
+            </label>
+            <button class="btn" id="bg-add-stock" type="button">➕ من الخلفيات المجانية</button>
+          </div>
+          <div class="grid2" id="bg-switch-row" hidden>
+            <label>تبديل الخلفيات
+              <select id="bgSwitch">
+                <option value="ayah">مع كل آية</option>
+                <option value="seconds">كل كام ثانية</option>
+              </select>
+            </label>
+            <label id="bgEvery-wrap">كل (ث) <input type="number" id="bgEvery" min="1" max="60" step="0.5"></label>
+            <label class="check span2"><input type="checkbox" id="bgFade"> انتقال ناعم بين الخلفيات</label>
+          </div>
           <p class="hint">نصيحة: ولّد خلفيات (طبيعة، سماء، بحر — من غير أشخاص) في Higgsfield واحفظها، وارفعها هنا. الفيديو الأقصر والأقل دقة بيتحوّل أسرع.</p>
         </div>
         <label>تعتيم الخلفية <input type="range" id="dim" min="0" max="0.8" step="0.05"></label>
@@ -631,6 +648,16 @@
           </label>
           <label>القارئ <select id="rc-reciter"></select></label>
           <label>المدة (ث) <input type="number" id="rc-dur" min="5" max="180" placeholder="مثلًا 30"></label>
+          <label class="span2">تبديل الخلفية
+            <select id="rc-bgSwitch">
+              <option value="">زي ما هو</option>
+              <option value="ayah">خلفية جديدة مع كل آية</option>
+              <option value="3">كل ٣ ثواني</option>
+              <option value="4">كل ٤ ثواني</option>
+              <option value="6">كل ٦ ثواني</option>
+              <option value="8">كل ٨ ثواني</option>
+            </select>
+          </label>
         </div>
         <label>الخلفية (كلمة إنجليزي)
           <div class="row" style="margin:0">

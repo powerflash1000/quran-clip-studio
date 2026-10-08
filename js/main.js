@@ -11,6 +11,7 @@ import * as EL from './elevenlabs.js';
 import * as SND from './sounds.js';
 import * as WT from './words.js';
 import { fetchFirst } from './net.js';
+import { bgSchedule, pickBg } from './bglist.js';
 import { splitRange, chaptersText, chaptersWarnings } from './series.js';
 import { parseRefs, embedFor } from './automation.js';
 import { PLATFORMS, generate, getPublishSettings, setPublishSettings, canShareFile, shareFile } from './publish.js';
@@ -24,7 +25,8 @@ const SHORTS_SAFE_SECONDS = 60;
 const state = {
   style: T.lastStyle(),
   blocks: load('blocks', null) || [newQuranBlock(1, 1, 7)],
-  media: null,        // { kind, file, el, url }
+  media: null,        // { kind, file, el, url } = أول خلفية
+  mediaList: [],      // كل الخلفيات بالترتيب
   ambient: null,      // { name, buffer }
   ambientVolume: 0.15,
   favorites: load('favorites', []),
@@ -227,7 +229,8 @@ async function buildProject(blocks = state.blocks, series = state.activeSeries) 
     ambientVolume: state.ambient ? state.ambientVolume : 0,
   });
   const { w, h } = ASPECTS[state.style.aspect];
-  return { segments, timeline, style: state.style, media: state.style.bgType === 'media' ? state.media : null, W: w, H: h, quality: $('#quality').value };
+  const isMedia = state.style.bgType === 'media';
+  return { segments, timeline, style: state.style, media: isMedia ? state.media : null, mediaList: isMedia ? [...state.mediaList] : [], W: w, H: h, quality: $('#quality').value };
 }
 
 // ===== المعاينة =====
@@ -245,11 +248,29 @@ function bgMedia() {
   return state.style.bgType === 'media' ? state.media : null;
 }
 
-function drawFrame(seg, analyser) {
+// الخلفية اللي المفروض تظهر دلوقتي في المعاينة (لو فيه أكتر من خلفية)
+function previewBg(t) {
+  const list = state.style.bgType === 'media' ? state.mediaList : [];
+  if (list.length <= 1) return { cur: bgMedia(), prev: null, alpha: 1 };
+  if (player && t != null) {
+    const sched = player.bgSched || (player.bgSched = bgSchedule(player.segs, player.duration, list.length, state.style));
+    const p = pickBg(sched, t, state.style.bgFade !== false ? 0.6 : 0);
+    return { cur: list[p.cur.k], prev: p.prev && list[p.prev.k], alpha: p.alpha };
+  }
+  const segs = previewSegs.map((s, i) => ({ ...s, start: i }));
+  const sched = bgSchedule(segs, segs.length, list.length, state.style.bgSwitch === 'seconds' ? { bgSwitch: 'ayah' } : state.style);
+  return { cur: list[pickBg(sched, state.segIndex + 0.01).cur.k], prev: null, alpha: 1 };
+}
+
+function drawFrame(seg, analyser, t = null) {
   sizeCanvas();
   const W = canvas.width, H = canvas.height;
   ctx.clearRect(0, 0, W, H);
-  drawBackground(ctx, W, H, state.style, bgMedia());
+  const pb = previewBg(t);
+  if (pb.prev) drawBackground(ctx, W, H, state.style, pb.prev);
+  ctx.globalAlpha = pb.alpha;
+  drawBackground(ctx, W, H, state.style, pb.cur);
+  ctx.globalAlpha = 1;
   drawOverlay(ctx, W, H, seg, state.style);
   if (analyser && state.style.waveform) drawWave(ctx, W, H, analyser, state.style.accent);
 }
@@ -274,7 +295,7 @@ function refreshPreview() {
 
 // الفيديو كخلفية بيتحرك في المعاينة
 function idleLoop() {
-  if (!player && bgMedia()?.kind === 'video') drawFrame(previewSegs[state.segIndex]);
+  if (!player && state.style.bgType === 'media' && state.mediaList.some(m => m.kind === 'video')) drawFrame(previewSegs[state.segIndex]);
   requestAnimationFrame(idleLoop);
 }
 
@@ -296,8 +317,8 @@ async function play() {
     src.connect(analyser).connect(ac.destination);
     const startAt = ac.currentTime + 0.05;
     src.start(startAt);
-    if (bgMedia()?.kind === 'video') { bgMedia().el.currentTime = 0; bgMedia().el.play().catch(() => {}); }
-    player = { ac, src, analyser, segs: project.segments, startAt };
+    for (const m of state.mediaList) if (m.kind === 'video') { m.el.currentTime = 0; m.el.play().catch(() => {}); }
+    player = { ac, src, analyser, segs: project.segments, startAt, duration: project.timeline.duration };
     src.onended = () => stop();
     $('#btn-stop').disabled = false;
     const tick = () => {
@@ -312,7 +333,7 @@ async function play() {
       }
       const seg = player.segs[i];
       const shown = seg.wordTimes ? { ...seg, wordCount: WT.shownAt(seg.wordTimes, t - seg.start) } : seg;
-      drawFrame(shown, analyser);
+      drawFrame(shown, analyser, t);
       player.raf = requestAnimationFrame(tick);
     };
     tick();
@@ -1165,7 +1186,7 @@ function setupReciters() {
 }
 
 // ===== الشكل =====
-const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation'];
+const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade'];
 
 function applyStyleToInputs() {
   const st = state.style;
@@ -1177,6 +1198,7 @@ function applyStyleToInputs() {
   $('#quality').value = st.quality || '1080';
   updateBgVisibility();
   renderReciters();
+  $('#bgEvery-wrap').hidden = st.bgSwitch !== 'seconds';
 }
 
 function updateBgVisibility() {
@@ -1196,6 +1218,7 @@ function setupStyle() {
       const v = el.type === 'checkbox' ? el.checked : el.type === 'range' || el.type === 'number' ? Number(el.value) : el.value;
       state.style[k] = v;
       if (k === 'bgType') updateBgVisibility();
+      if (k === 'bgSwitch') $('#bgEvery-wrap').hidden = v !== 'seconds';
       persist();
       refreshPreview();
     });
@@ -1206,7 +1229,13 @@ function setupStyle() {
   $('#bg-file').onchange = () => {
     const file = $('#bg-file').files[0];
     if (file) setMedia(file);
+    $('#bg-file').value = '';
   };
+  $('#bg-add').onchange = () => {
+    for (const f of $('#bg-add').files) setMedia(f, true);
+    $('#bg-add').value = '';
+  };
+  $('#bg-add-stock').onclick = () => { stockAppend = true; $('#dlg-stock').showModal(); };
 
   $('#ambient-file').onchange = async () => {
     const file = $('#ambient-file').files[0];
@@ -1221,24 +1250,67 @@ function setupStyle() {
   setupSoundSearch();
 }
 
-function setMedia(file) {
-  if (state.media?.url) URL.revokeObjectURL(state.media.url);
+function makeMediaItem(file) {
   const url = URL.createObjectURL(file);
   const isVideo = file.type.startsWith('video/');
   const el = isVideo ? document.createElement('video') : new Image();
   if (isVideo) {
     el.muted = true; el.loop = true; el.playsInline = true;
-    el.onloadeddata = () => { el.play().catch(() => {}); refreshPreview(); };
+    el.onloadeddata = () => { el.play().catch(() => {}); refreshPreview(); renderBgList(); };
   } else {
-    el.onload = () => refreshPreview();
+    el.onload = () => { refreshPreview(); renderBgList(); };
   }
   el.src = url;
-  state.media = { kind: isVideo ? 'video' : 'image', file, el, url };
+  return { id: uid(), kind: isVideo ? 'video' : 'image', file, el, url };
+}
+
+// append = true: ضيفها جنب الخلفيات الموجودة بدل ما تستبدلهم
+function setMedia(file, append = false) {
+  const item = makeMediaItem(file);
+  if (append && state.mediaList.length) state.mediaList.push(item);
+  else {
+    for (const m of state.mediaList) URL.revokeObjectURL(m.url);
+    state.mediaList = [item];
+  }
+  state.media = state.mediaList[0];
   state.style.bgType = 'media';
   $('#bgType').value = 'media';
   updateBgVisibility();
-  $('#bg-name').textContent = `${isVideo ? '🎞️' : '🖼️'} ${file.name} (${(file.size / 1048576).toFixed(1)} MB)`;
+  renderBgList();
   persist();
+  refreshPreview();
+}
+
+function renderBgList() {
+  const list = state.mediaList;
+  const ol = $('#bg-list');
+  ol.innerHTML = '';
+  $('#bg-name').hidden = list.length > 1;
+  $('#bg-switch-row').hidden = list.length < 2;
+  if (list.length === 1) {
+    const m = list[0];
+    $('#bg-name').textContent = `${m.kind === 'video' ? '🎞️' : '🖼️'} ${m.file.name} (${(m.file.size / 1048576).toFixed(1)} MB)`;
+  } else if (!list.length) $('#bg-name').textContent = 'مفيش خلفية مختارة';
+  if (list.length < 2) return;
+  list.forEach((m, i) => {
+    const li = document.createElement('li');
+    li.className = 'bg-item';
+    const th = m.kind === 'video' ? document.createElement('video') : document.createElement('img');
+    th.src = m.url;
+    if (m.kind === 'video') { th.muted = true; th.preload = 'metadata'; }
+    th.className = 'bg-thumb';
+    li.appendChild(th);
+    const name = document.createElement('span');
+    name.className = 'grow';
+    name.textContent = `${Q.arabicNum(i + 1)}. ${m.kind === 'video' ? '🎞️' : '🖼️'} ${m.file.name}`;
+    li.appendChild(name);
+    const mk = (txt, title, fn, dis) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn icon'; b.textContent = txt; b.title = title; b.disabled = !!dis; b.onclick = fn; li.appendChild(b); };
+    const swap = j => { [list[i], list[j]] = [list[j], list[i]]; state.media = list[0]; renderBgList(); refreshPreview(); };
+    mk('▲', 'لفوق', () => swap(i - 1), i === 0);
+    mk('▼', 'لتحت', () => swap(i + 1), i === list.length - 1);
+    mk('✕', 'شيلها', () => { URL.revokeObjectURL(m.url); list.splice(i, 1); state.media = list[0] || null; renderBgList(); refreshPreview(); });
+    ol.appendChild(li);
+  });
 }
 
 function setAmbient(name, buffer) {
@@ -1319,6 +1391,7 @@ function setupSoundSearch() {
 }
 
 // ===== الخلفيات المجانية =====
+let stockAppend = false;
 function setupStock() {
   const dlg = $('#dlg-stock');
   const prov = $('#stock-provider');
@@ -1326,7 +1399,7 @@ function setupStock() {
   const st = getSettings();
   prov.value = load('stockProvider', null) || (st.pixabayKey ? 'pixabay' : st.pexelsKey ? 'pexels' : 'commons');
   prov.onchange = () => save('stockProvider', prov.value);
-  $('#open-stock').onclick = () => dlg.showModal();
+  $('#open-stock').onclick = () => { stockAppend = false; dlg.showModal(); };
   $('#stock-close').onclick = () => dlg.close();
   const go = async () => {
     const box = $('#stock-results');
@@ -1344,8 +1417,9 @@ function setupStock() {
         d.onclick = async () => {
           d.style.opacity = .5;
           try {
-            setMedia(await downloadStock(it));
-            dlg.close();
+            setMedia(await downloadStock(it), stockAppend);
+            if (stockAppend) { d.classList.add('picked'); status(`✅ اتضافت — عندك ${Q.arabicNum(state.mediaList.length)} خلفيات. اختار كمان أو اقفل.`); }
+            else dlg.close();
             if (it.license && /BY/i.test(it.license)) status(`الخلفية برخصة ${it.license}: اكتب في الوصف «الخلفية: ${it.credit || 'صاحبها'} — Wikimedia/Openverse (${it.license})»`);
           } catch (e) {
             alert('تعذر تحميل الملف: ' + e.message);
@@ -2177,7 +2251,7 @@ function setupReference() {
 }
 
 // ===== وصفة الريل =====
-const RC = { intro: 'rc-intro', wordMode: 'rc-wordMode', textSize: 'rc-size', reciter: 'rc-reciter', duration: 'rc-dur', bg: 'rc-bg' };
+const RC = { intro: 'rc-intro', wordMode: 'rc-wordMode', textSize: 'rc-size', reciter: 'rc-reciter', duration: 'rc-dur', bg: 'rc-bg', bgSwitch: 'rc-bgSwitch' };
 let recipeColors = null; // { color1, color2, textColor, accent }
 
 function readRecipe() {
@@ -2252,8 +2326,11 @@ function setupRecipe() {
     const q = $('#rc-bg').value.trim();
     if (!q) { $('#rc-bg').focus(); return; }
     $('#stock-q').value = q;
-    $('#open-stock').click();
+    // لو فيه خلفية بالفعل، اللي هتختاره هيتضاف جنبها (ريل بأكتر من خلفية)
+    stockAppend = state.style.bgType === 'media' && state.mediaList.length > 0;
+    $('#dlg-stock').showModal();
     $('#stock-go').click();
+    if (stockAppend) status('اللي هتختاره هيتضاف للخلفيات الموجودة. اختار كذا واحدة ورا بعض.');
   };
   $('#rc-apply').onclick = () => {
     const r = readRecipe();
@@ -2262,6 +2339,8 @@ function setupRecipe() {
     if (r.wordMode) st.wordMode = r.wordMode;
     if (r.textSize) st.textSize = Number(r.textSize);
     if (r.reciter) st.reciter = r.reciter;
+    if (r.bgSwitch === 'ayah') st.bgSwitch = 'ayah';
+    else if (r.bgSwitch) { st.bgSwitch = 'seconds'; st.bgEvery = Number(r.bgSwitch); }
     if (r.colors) {
       Object.assign(st, r.colors);
       if (st.bgType === 'color' || (st.bgType === 'media' && !state.media)) st.bgType = 'gradient';
