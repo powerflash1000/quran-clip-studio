@@ -1671,13 +1671,42 @@ function showTab(name, scroll = true) {
   document.querySelectorAll('#steps [data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
   document.querySelectorAll('.tab-panel').forEach(p => { p.hidden = p.dataset.panel !== name; });
   save('tab', name);
+  if (location.hash !== '#' + name) history.replaceState(null, '', '#' + name);
   if (scroll) $('#steps').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+
+const TABS = ['content', 'audio', 'look', 'export'];
 
 function setupLayout() {
   $('#steps').onclick = e => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); };
   document.querySelectorAll('[data-next]').forEach(b => { b.onclick = () => showTab(b.dataset.next); });
-  showTab(load('tab', 'content'), false);
+  // رابط مباشر لأي خطوة: …/#content أو #audio أو #look أو #export
+  const fromHash = () => TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : null;
+  showTab(fromHash() || load('tab', 'content'), false);
+  window.addEventListener('hashchange', () => { const t = fromHash(); if (t) showTab(t); });
+  // اختصارات: Alt + 1 / 2 / 3 / 4
+  document.addEventListener('keydown', e => {
+    if (!e.altKey) return;
+    const i = ['1', '2', '3', '4'].indexOf(e.key);
+    if (i !== -1) { e.preventDefault(); showTab(TABS[i]); }
+  });
+  // زرار «السابق» جنب «التالي»
+  document.querySelectorAll('[data-next]').forEach(b => {
+    const panel = b.closest('.tab-panel').dataset.panel;
+    const prev = TABS[TABS.indexOf(panel) - 1];
+    if (!prev) return;
+    const back = document.createElement('button');
+    back.type = 'button'; back.className = 'btn'; back.textContent = '→ السابق';
+    back.onclick = () => showTab(prev);
+    b.before(back);
+  });
+  const last = document.querySelector('.tab-panel[data-panel=export]');
+  const row = document.createElement('div');
+  row.className = 'btn-row end';
+  row.innerHTML = '<button class="btn" type="button">→ السابق</button><button class="btn" type="button">↺ ابدأ فيديو جديد من الخطوة ١</button>';
+  row.children[0].onclick = () => showTab('look');
+  row.children[1].onclick = () => showTab('content');
+  last.appendChild(row);
   $('#mb-play').onclick = () => { window.scrollTo({ top: 0, behavior: 'smooth' }); player ? stop() : play(); };
   $('#mb-export').onclick = () => { showTab('export'); };
   $('#mb-share').onclick = () => { showTab('export'); if (!$('#pub-share').disabled) $('#pub-share').click(); };
