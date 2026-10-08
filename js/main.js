@@ -2017,7 +2017,13 @@ async function runQueue() {
         const d = project.timeline.duration;
         const num = String(queue.items.indexOf(it) + 1).padStart(2, '0');
         const name = `${num}_${baseName()}`;
-        if (kind !== 'mp3') {
+        const wantMp4 = ['mp4', 'both', 'mp4+filmora'].includes(kind);
+        const wantMp3 = ['mp3', 'both'].includes(kind);
+        if (kind.includes('filmora')) {
+          status(`${tag}: حزمة Filmora…`, null);
+          download(await exportFilmoraPackage(project), `${name}_filmora.zip`);
+        }
+        if (wantMp4) {
           if (d > MAX_VIDEO_SECONDS) throw new Error(`مدته ${fmtDur(d)}، أطول من ٣ دقايق — صدّره MP3 أو حزمة Filmora`);
           let stage = '';
           const blob = await exportVideo(project, p => status(`${tag}: ${stage}`, p), onLoad, s => { stage = s; status(`${tag}: ${s}`, 0); });
@@ -2025,7 +2031,7 @@ async function runQueue() {
           setLastExport(blob, `${name}.mp4`, 'video/mp4');
           logExperiment(`${name}.mp4`, d);
         }
-        if (kind !== 'mp4') {
+        if (wantMp3) {
           const blob = await exportAudio('mp3', project.timeline, p => status(`${tag}: MP3…`, p), onLoad);
           download(blob, `${name}.mp3`);
         }
@@ -2100,7 +2106,7 @@ function setupQueue() {
 
 // ===== الفيديو المرجعي =====
 const refs = { list: load('refs', []), current: null };
-const REF_ICONS = { tiktok: '🎵', instagram: '📸', facebook: '📘', youtube: '▶️' };
+const REF_ICONS = { tiktok: '🎵', instagram: '📸', facebook: '📘', youtube: '▶️', pinterest: '📌' };
 
 function showRef(url) {
   const e = embedFor(url);
@@ -2108,7 +2114,7 @@ function showRef(url) {
   $('#ref-player').hidden = true;
   $('#ref-frame').removeAttribute('src');
   refs.current = null;
-  if (!e) { msg.textContent = 'اللينك ده مش من تيك توك أو إنستجرام أو فيسبوك أو يوتيوب.'; return; }
+  if (!e) { msg.textContent = 'اللينك ده مش من تيك توك أو إنستجرام أو فيسبوك أو يوتيوب أو Pinterest.'; return; }
   $('#ref-open').href = e.url;
   if (e.error) { msg.textContent = e.error; $('#ref-player').hidden = false; $('#ref-frame').hidden = true; return; }
   $('#ref-frame').hidden = false;

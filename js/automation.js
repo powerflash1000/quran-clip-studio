@@ -75,6 +75,12 @@ export function embedFor(link) {
   if (h === 'facebook.com' || h === 'fb.watch') {
     return { platform: 'facebook', name: 'فيسبوك', src: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(u.href)}&show_text=false`, url: u.href };
   }
+  // Pinterest: التضمين الرسمي للـ Pin (للإلهام بس — الصور هناك ملك أصحابها)
+  if (h.endsWith('pinterest.com') || h.startsWith('pinterest.') || h === 'pin.it') {
+    const m = u.pathname.match(/\/pin\/(?:[\w-]*--)?(\d+)/);
+    if (m) return { platform: 'pinterest', name: 'Pinterest', src: `https://assets.pinterest.com/ext/embed.html?id=${m[1]}`, url: u.href };
+    return { platform: 'pinterest', name: 'Pinterest', url: u.href, error: 'افتح الـ Pin في المتصفح وانسخ اللينك اللي فيه /pin/ ورقم.' };
+  }
   let yt = null;
   if (h === 'youtu.be') yt = u.pathname.slice(1);
   else if (h.endsWith('youtube.com')) yt = u.searchParams.get('v') || u.pathname.match(/\/(?:shorts|embed)\/([\w-]+)/)?.[1];
