@@ -84,7 +84,7 @@ export async function fastExportVideo(project, cfg, onProgress, onStage) {
   const dynamic = list.length > 1 || list.some(m => m.kind === 'video');
   let sched = null, sources = null;
   if (dynamic) {
-    sched = bgSchedule(segments, timeline.duration, list.length, style);
+    sched = bgSchedule(segments, timeline.duration, list.length, style, list.map(m => m.secs));
     sources = await Promise.all(list.map(async m => m.kind === 'video' ? { kind: 'video', el: await loadVideoSource(m.url) } : m));
   }
   const fade = dynamic && style.bgFade !== false ? 0.6 : 0;

@@ -140,7 +140,7 @@ export async function exportVideo(project, onProgress, onLoad, onStage) {
     let bgInput, bgChain = null;
     if (multi) {
       // كل جزء من الجدول = مدخل لوحده، وبنلزقهم ورا بعض (من غير انتقال ناعم)
-      const sched = bgSchedule(segments, timeline.duration, bgList.length, style);
+      const sched = bgSchedule(segments, timeline.duration, bgList.length, style, bgList.map(m => m.secs));
       for (let i = 0; i < bgList.length; i++) {
         const m = bgList[i];
         await write(`bg${i}.` + (m.kind === 'video' ? (m.file.name?.split('.').pop() || 'mp4').toLowerCase() : 'png'),
@@ -231,7 +231,7 @@ export async function exportFilmoraPackage(project, extras = {}) {
   const list = project.mediaList?.length ? project.mediaList : media ? [media] : [];
   list.forEach((m, i) => files.push({ name: `background/${String(i + 1).padStart(2, '0')}_${m.file.name || 'background'}`, data: m.file }));
   if (list.length > 1) {
-    const sched = bgSchedule(segments, timeline.duration, list.length, style);
+    const sched = bgSchedule(segments, timeline.duration, list.length, style, list.map(m => m.secs));
     files.push({ name: 'background/timing.csv', data: '\ufeffالخلفية,من,إلى\n' + sched.map(c => `${String(c.k + 1).padStart(2, '0')}_${list[c.k].file.name},${c.from.toFixed(2)},${c.to.toFixed(2)}`).join('\n') });
   }
   files.push({ name: 'background/background_' + W + 'x' + H + '.png', data: await renderBackgroundPng(W, H, style, media) });

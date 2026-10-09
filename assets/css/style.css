@@ -339,3 +339,9 @@ details.adv { border-top: 1px dashed var(--line); padding-top: .4rem; }
 .bar-row .v { text-align: left; direction: ltr; color: var(--muted); }
 .insights { border-inline-start: 3px solid var(--primary); padding: .3rem .7rem; margin: .5rem 0; }
 .insights li { margin: .2rem 0; }
+.dur-badge { font-size: .85rem; font-weight: 600; color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: .05rem .6rem; margin-inline-start: .4rem; vertical-align: middle; }
+.dur-badge.over { color: #b07400; border-color: #e0a100; }
+.dur-note { font-size: .85rem; color: #b07400; margin: -.2rem 0 .4rem; }
+.block-dur { font-size: .8rem; color: var(--muted); margin-inline-start: .4rem; white-space: nowrap; }
+.bg-secs { width: 4.2rem; margin: 0; padding: .2rem .3rem; }
+.bg-when { font-size: .75rem; color: var(--accent); white-space: nowrap; direction: ltr; }

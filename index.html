@@ -61,7 +61,8 @@
     <div class="tab-panel" data-panel="content">
       <!-- المحتوى -->
       <div class="card">
-        <h2>📜 المحتوى</h2>
+        <h2>📜 المحتوى <span class="dur-badge" id="dur-total"></span></h2>
+        <div class="dur-note" id="dur-note" hidden></div>
         <div class="search-box">
           <input type="search" id="ayah-search" placeholder="ابحث في القرآن بكلمة (مثلًا: الصبر، رحمة، patience)">
           <div class="results" id="ayah-results" hidden></div>
@@ -202,6 +203,7 @@
           </div>
           <div class="muted" id="bg-name">مفيش خلفية مختارة</div>
           <ol class="bg-list" id="bg-list"></ol>
+          <div class="muted" id="bg-timing" hidden></div>
           <div class="btn-row">
             <label class="btn file-btn">➕ ضيف خلفية تانية
               <input type="file" id="bg-add" accept="image/*,video/*" multiple hidden>
@@ -212,10 +214,11 @@
             <label>تبديل الخلفيات
               <select id="bgSwitch">
                 <option value="ayah">مع كل آية</option>
-                <option value="seconds">كل كام ثانية</option>
+                <option value="seconds">كل كام ثانية (نفس المدة للكل)</option>
+                <option value="custom">مدة لكل خلفية (تحددها بإيدك)</option>
               </select>
             </label>
-            <label id="bgEvery-wrap">كل (ث) <input type="number" id="bgEvery" min="1" max="60" step="0.5"></label>
+            <label id="bgEvery-wrap"><span id="bgEvery-lbl">كل (ث)</span> <input type="number" id="bgEvery" min="0.5" max="60" step="0.5"></label>
             <label class="check span2"><input type="checkbox" id="bgFade"> انتقال ناعم بين الخلفيات</label>
           </div>
           <p class="hint">نصيحة: ولّد خلفيات (طبيعة، سماء، بحر — من غير أشخاص) في Higgsfield واحفظها، وارفعها هنا. الفيديو الأقصر والأقل دقة بيتحوّل أسرع.</p>
@@ -518,7 +521,7 @@
     <li class="block quran">
       <div class="block-head">
         <span class="badge">آيات</span>
-        <span class="block-title"></span>
+        <span class="block-title"></span><span class="block-dur" data-el="dur"></span>
         <span class="spacer"></span>
         <button class="btn icon" data-act="up" type="button" title="لفوق">▲</button>
         <button class="btn icon" data-act="down" type="button" title="لتحت">▼</button>
@@ -566,7 +569,7 @@
     <li class="block hadith">
       <div class="block-head">
         <span class="badge alt">حديث</span>
-        <span class="block-title"></span>
+        <span class="block-title"></span><span class="block-dur" data-el="dur"></span>
         <span class="grade"></span>
         <span class="spacer"></span>
         <button class="btn icon" data-act="up" type="button">▲</button>
@@ -771,7 +774,7 @@
     <li class="block zikr">
       <div class="block-head">
         <span class="badge zk">ذكر / دعاء</span>
-        <span class="block-title"></span>
+        <span class="block-title"></span><span class="block-dur" data-el="dur"></span>
         <span class="spacer"></span>
         <button class="btn icon" data-act="up" type="button">▲</button>
         <button class="btn icon" data-act="down" type="button">▼</button>

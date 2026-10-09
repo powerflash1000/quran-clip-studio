@@ -76,7 +76,8 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
   const segs = [];
   const jobs = [];
 
-  for (const b of blocks) {
+  for (const [bi, b] of blocks.entries()) {
+    const n0 = segs.length;
     if (b.type === 'quran') {
       const s = Q.surah(b.surah);
       const from = clamp(b.from, 1, s.count), to = clamp(Math.max(b.to, from), from, s.count);
@@ -140,6 +141,7 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
         hadithBlock: b,
       });
     }
+    for (let j = n0; j < segs.length; j++) segs[j].bi = bi;
   }
 
   // الافتتاحية (Hook): جملة تشد في أول ثانية ونص
@@ -255,12 +257,19 @@ function previewBg(t) {
   const list = state.style.bgType === 'media' ? state.mediaList : [];
   if (list.length <= 1) return { cur: bgMedia(), prev: null, alpha: 1 };
   if (player && t != null) {
-    const sched = player.bgSched || (player.bgSched = bgSchedule(player.segs, player.duration, list.length, state.style));
+    const sched = player.bgSched || (player.bgSched = bgSchedule(player.segs, player.duration, list.length, state.style, list.map(m => m.secs)));
     const p = pickBg(sched, t, state.style.bgFade !== false ? 0.6 : 0);
     return { cur: list[p.cur.k], prev: p.prev && list[p.prev.k], alpha: p.alpha };
   }
+  // لو المدة اتحسبت: نستخدم التوقيت الحقيقي لنص المقطع الحالي
+  const dc = durCache;
+  if (dc && dc.segs.length === previewSegs.length && dc.segs[state.segIndex]) {
+    const sg = dc.segs[state.segIndex];
+    const sched = bgSchedule(dc.segs, dc.duration, list.length, state.style, list.map(m => m.secs));
+    return { cur: list[pickBg(sched, (sg.start + sg.end) / 2).cur.k], prev: null, alpha: 1 };
+  }
   const segs = previewSegs.map((s, i) => ({ ...s, start: i }));
-  const sched = bgSchedule(segs, segs.length, list.length, state.style.bgSwitch === 'seconds' ? { bgSwitch: 'ayah' } : state.style);
+  const sched = bgSchedule(segs, segs.length, list.length, state.style.bgSwitch !== 'ayah' ? { bgSwitch: 'ayah' } : state.style);
   return { cur: list[pickBg(sched, state.segIndex + 0.01).cur.k], prev: null, alpha: 1 };
 }
 
@@ -293,6 +302,7 @@ function refreshPreview() {
     drawFrame(previewSegs[state.segIndex]);
     refreshPublish();
     if (typeof updateDupWarn === 'function') updateDupWarn();
+    scheduleDuration();
   }, 120);
 }
 
@@ -471,7 +481,70 @@ function stretchProject(project, target) {
 }
 
 const segInfo = (i, n) => `${i + 1} من ${n}`;
-const fmtDur = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+const fmtDur = s => { const r = Math.round(s); return `${Math.floor(r / 60)}:${String(r % 60).padStart(2, '0')}`; };
+
+// ===== مدة المحتوى (بتتحسب في الخلفية بعد أي تعديل) =====
+let durCache = null; // { duration, segs: [{kind,s,a,start,end,bi}], perBlock: Map(id -> sec) }
+let durVer = 0, durTimer = null;
+
+function fillBlockDurs() {
+  const lis = blocksEl.children;
+  state.blocks.forEach((b, i) => {
+    const el = lis[i]?.querySelector('[data-el=dur]');
+    if (!el) return;
+    const d = durCache?.perBlock.get(b.id);
+    el.textContent = d != null ? `⏱ ${fmtDur(d)}` : '';
+  });
+}
+
+function renderDuration(pending = false) {
+  const el = $('#dur-total'), note = $('#dur-note');
+  if (!el) return;
+  if (pending && !durCache) { el.textContent = '⏱ …'; return; }
+  if (!durCache) { el.textContent = ''; note.hidden = true; return; }
+  const d = durCache.duration;
+  el.textContent = `⏱ ${fmtDur(d)}${pending ? ' …' : ''}`;
+  el.title = 'المدة الكلية للفيديو (مع الافتتاحية والفواصل)';
+  el.classList.toggle('over', d > 60);
+  const msgs = [];
+  if (d > MAX_VIDEO_SECONDS) msgs.push(`المدة ${fmtDur(d)} — أطول من ٣ دقايق: التصدير في المتصفح هيبقى تقيل. استخدم «حزمة Filmora» أو «وضع السلسلة».`);
+  else if (d > 90) msgs.push(`المدة ${fmtDur(d)} — للريلز اليومية الأحسن ٢٠–٦٠ ثانية. (ولو هدفك برنامج أرباح تيك توك، الفيديو لازم يبقى أطول من دقيقة.)`);
+  note.hidden = !msgs.length;
+  note.textContent = msgs.join(' ');
+  fillBlockDurs();
+  if (state.mediaList.length > 1) renderBgList();
+}
+
+function scheduleDuration() {
+  clearTimeout(durTimer);
+  const v = ++durVer;
+  renderDuration(true);
+  durTimer = setTimeout(async () => {
+    if (state.busy) { durTimer = setTimeout(() => { if (v === durVer) scheduleDuration(); }, 3000); return; }
+    try {
+      const segs = await buildSegments(true, null);
+      if (v !== durVer) return;
+      const gap = Number(state.style.gap) || 0;
+      const tl = buildTimeline(segs, { gap });
+      const perBlock = new Map();
+      segs.forEach((sg, j) => {
+        if (sg.bi == null) return;
+        const id = state.blocks[sg.bi]?.id;
+        if (!id) return;
+        const next = segs[j + 1];
+        const span = (next ? next.start : sg.end) - sg.start;
+        perBlock.set(id, (perBlock.get(id) || 0) + span);
+      });
+      durCache = { duration: tl.duration, segs: segs.map(sg => ({ kind: sg.kind, s: sg.s, a: sg.a, start: sg.start, end: sg.end, bi: sg.bi })), perBlock };
+      renderDuration();
+    } catch (e) {
+      if (v !== durVer) return;
+      durCache = null;
+      $('#dur-total').textContent = '⏱ ؟';
+      $('#dur-total').title = 'مش قادر أحسب المدة — التلاوات مش بتتحمّل (جرّب قارئ تاني أو اضبط الوسيط)';
+    }
+  }, 1200);
+}
 
 // ===== واجهة المحتوى (الكتل) =====
 const blocksEl = $('#blocks');
@@ -485,6 +558,7 @@ function renderBlocks(keepSeries = false) {
   if (!keepSeries && state.activeSeries) { state.activeSeries = null; markParts(); }
   blocksEl.innerHTML = '';
   state.blocks.forEach((b, i) => blocksEl.appendChild(b.type === 'quran' ? quranBlockEl(b, i) : b.type === 'zikr' ? zikrBlockEl(b, i) : hadithBlockEl(b, i)));
+  fillBlockDurs();
   persist();
   refreshPreview();
 }
@@ -1201,7 +1275,8 @@ function applyStyleToInputs() {
   $('#quality').value = st.quality || '1080';
   updateBgVisibility();
   renderReciters();
-  $('#bgEvery-wrap').hidden = st.bgSwitch !== 'seconds';
+  $('#bgEvery-wrap').hidden = st.bgSwitch === 'ayah';
+  $('#bgEvery-lbl').textContent = st.bgSwitch === 'custom' ? 'المدة الافتراضية (ث)' : 'كل (ث)';
 }
 
 function updateBgVisibility() {
@@ -1221,7 +1296,8 @@ function setupStyle() {
       const v = el.type === 'checkbox' ? el.checked : el.type === 'range' || el.type === 'number' ? Number(el.value) : el.value;
       state.style[k] = v;
       if (k === 'bgType') updateBgVisibility();
-      if (k === 'bgSwitch') $('#bgEvery-wrap').hidden = v !== 'seconds';
+      if (k === 'bgSwitch') { $('#bgEvery-wrap').hidden = v === 'ayah'; $('#bgEvery-lbl').textContent = v === 'custom' ? 'المدة الافتراضية (ث)' : 'كل (ث)'; }
+      if (['bgSwitch', 'bgEvery'].includes(k)) renderBgList();
       persist();
       refreshPreview();
     });
@@ -1294,6 +1370,20 @@ function renderBgList() {
     const m = list[0];
     $('#bg-name').textContent = `${m.kind === 'video' ? '🎞️' : '🖼️'} ${m.file.name} (${(m.file.size / 1048576).toFixed(1)} MB)`;
   } else if (!list.length) $('#bg-name').textContent = 'مفيش خلفية مختارة';
+  const custom = state.style.bgSwitch === 'custom';
+  const tm = $('#bg-timing');
+  tm.hidden = list.length < 2;
+  let sched = null;
+  if (list.length > 1 && durCache) sched = bgSchedule(durCache.segs, durCache.duration, list.length, state.style, list.map(m => m.secs));
+  if (list.length > 1) {
+    if (custom) {
+      const def = Number(state.style.bgEvery) || 6;
+      const sum = list.reduce((a, m) => a + (Number(m.secs) || def), 0);
+      tm.textContent = durCache
+        ? `مجموع الخلفيات ${fmtDur(sum)} — الفيديو ${fmtDur(durCache.duration)}${sum < durCache.duration - 0.5 ? ' (هترجع تلف من الأول)' : sum > durCache.duration + 0.5 ? ' (اللي بعد آخر الفيديو مش هيظهر)' : ' ✅ مظبوط'}`
+        : `مجموع الخلفيات ${fmtDur(sum)}`;
+    } else tm.textContent = durCache ? `الفيديو ${fmtDur(durCache.duration)} — التوقيت جنب كل خلفية` : '';
+  }
   if (list.length < 2) return;
   list.forEach((m, i) => {
     const li = document.createElement('li');
@@ -1309,6 +1399,24 @@ function renderBgList() {
     li.appendChild(name);
     const mk = (txt, title, fn, dis) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn icon'; b.textContent = txt; b.title = title; b.disabled = !!dis; b.onclick = fn; li.appendChild(b); };
     const swap = j => { [list[i], list[j]] = [list[j], list[i]]; state.media = list[0]; renderBgList(); refreshPreview(); };
+    if (custom) {
+      const inp = document.createElement('input');
+      inp.type = 'number'; inp.min = '0.5'; inp.max = '120'; inp.step = '0.5';
+      inp.className = 'bg-secs';
+      inp.placeholder = String(state.style.bgEvery || 6);
+      inp.title = 'المدة بالثواني';
+      inp.value = m.secs ?? '';
+      inp.onchange = () => { m.secs = inp.value === '' ? null : Math.max(0.5, Number(inp.value)); renderBgList(); refreshPreview(); };
+      li.appendChild(inp);
+      const u = document.createElement('span'); u.className = 'muted'; u.textContent = 'ث'; li.appendChild(u);
+    }
+    if (sched) {
+      const mine = sched.filter(c => c.k === i && c.to - c.from >= 0.5);
+      const r = document.createElement('span');
+      r.className = 'bg-when';
+      r.textContent = mine.length ? mine.slice(0, 2).map(c => `${fmtDur(c.from)}–${fmtDur(c.to)}`).join('، ') + (mine.length > 2 ? '…' : '') : 'مش هتظهر';
+      li.appendChild(r);
+    }
     mk('▲', 'لفوق', () => swap(i - 1), i === 0);
     mk('▼', 'لتحت', () => swap(i + 1), i === list.length - 1);
     mk('✕', 'شيلها', () => { URL.revokeObjectURL(m.url); list.splice(i, 1); state.media = list[0] || null; renderBgList(); refreshPreview(); });

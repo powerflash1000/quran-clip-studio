@@ -2,9 +2,19 @@
 
 // بيرجع [{ k, from, to }]: k = رقم الخلفية في القايمة
 // style.bgSwitch: 'ayah' (مع كل آية/مقطع) | 'seconds' (كل bgEvery ثانية)
-export function bgSchedule(segments, duration, n, style) {
+// durs (اختياري): مدة كل خلفية بالثواني لوضع 'custom'
+export function bgSchedule(segments, duration, n, style, durs = []) {
   if (n <= 1) return [{ k: 0, from: 0, to: duration }];
   const out = [];
+  if (style.bgSwitch === 'custom') {
+    const def = Math.max(0.5, Number(style.bgEvery) || 6);
+    for (let t = 0, k = 0, guard = 0; t < duration - 0.01 && guard < 2000; k = (k + 1) % n, guard++) {
+      const d = Math.max(0.5, Number(durs[k]) || def);
+      out.push({ k, from: t, to: Math.min(duration, t + d) });
+      t += d;
+    }
+    return out;
+  }
   if (style.bgSwitch === 'seconds') {
     const every = Math.max(1, Number(style.bgEvery) || 6);
     for (let t = 0, k = 0; t < duration - 0.01; t += every, k++) out.push({ k: k % n, from: t, to: Math.min(duration, t + every) });
