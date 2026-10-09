@@ -315,3 +315,27 @@ details.adv { border-top: 1px dashed var(--line); padding-top: .4rem; }
 .bg-thumb { width: 34px; height: 54px; object-fit: cover; border-radius: 6px; background: #000; flex: none; }
 .stock-item.picked { border-color: var(--good); }
 .stock-item.picked::after { content: '✓'; position: absolute; top: 6px; inset-inline-start: 6px; background: var(--good); color: #fff; border-radius: 50%; width: 24px; height: 24px; display: grid; place-items: center; font-weight: 700; }
+/* ===== المخطط والأرقام ===== */
+.dup-warn { border: 1px solid #e0a100; background: color-mix(in srgb, #e0a100 14%, transparent); border-radius: 10px; padding: .5rem .7rem; margin: .4rem 0; font-size: .9rem; }
+.dup-warn.high { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.plan-grid { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 760px) { .plan-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.plan-list { display: grid; gap: .35rem; margin-bottom: .6rem; }
+.plan-item { border: 1px solid var(--line); border-radius: 10px; padding: .45rem .6rem; background: var(--field); font-size: .88rem; }
+.plan-item .when { color: var(--accent); font-size: .8rem; }
+.plan-item .btn-row { margin: .3rem 0 0; }
+.plan-item.post { display: flex; align-items: center; gap: .4rem; }
+.stats-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .5rem; margin: .6rem 0; }
+.stat { border: 1px solid var(--line); border-radius: 12px; padding: .5rem .7rem; background: var(--field); }
+.stat b { display: block; font-size: 1.35rem; }
+.stat span { color: var(--muted); font-size: .8rem; }
+.stats-grid { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 760px) { .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.bars { display: grid; gap: .3rem; }
+.bar-row { display: grid; grid-template-columns: 8.5rem 1fr 4.5rem; align-items: center; gap: .4rem; font-size: .82rem; }
+.bar-row .lbl2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-track { background: var(--field); border-radius: 6px; height: 12px; overflow: hidden; border: 1px solid var(--line); }
+.bar-fill { height: 100%; background: var(--primary); border-radius: 6px; }
+.bar-row .v { text-align: left; direction: ltr; color: var(--muted); }
+.insights { border-inline-start: 3px solid var(--primary); padding: .3rem .7rem; margin: .5rem 0; }
+.insights li { margin: .2rem 0; }

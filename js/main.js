@@ -13,7 +13,9 @@ import * as WT from './words.js';
 import { fetchFirst } from './net.js';
 import { bgSchedule, pickBg } from './bglist.js';
 import { splitRange, chaptersText, chaptersWarnings } from './series.js';
-import { parseRefs, embedFor } from './automation.js';
+import { parseRefs, embedFor, surahInText } from './automation.js';
+import * as PL from './planner.js';
+import * as ST from './stats.js';
 import { PLATFORMS, generate, getPublishSettings, setPublishSettings, canShareFile, shareFile } from './publish.js';
 
 const $ = s => document.querySelector(s);
@@ -290,6 +292,7 @@ function refreshPreview() {
     $('#seg-info').textContent = previewSegs.length ? segInfo(state.segIndex, previewSegs.length) : '';
     drawFrame(previewSegs[state.segIndex]);
     refreshPublish();
+    if (typeof updateDupWarn === 'function') updateDupWarn();
   }, 120);
 }
 
@@ -1540,7 +1543,7 @@ const PLATFORM_URLS = {
   instagram: 'https://www.instagram.com/',
   facebook: 'https://www.facebook.com/',
 };
-const pub = { platform: load('pubPlatform', 'shorts'), data: null, edited: false, lastFile: null };
+const pub = { platform: load('pubPlatform', 'tiktok'), data: null, edited: false, lastFile: null };
 
 function setLastExport(blob, name, type) {
   pub.lastFile = new File([blob], name, { type });
@@ -2046,6 +2049,7 @@ function renderQueue() {
     ol.appendChild(li);
   });
   const pending = queue.items.filter(it => !it.done).length;
+  if (posts) updateDupWarn();
   $('#q-run').textContent = queue.running ? '⏳ شغّال…' : `▶ ابدأ الطابور${pending ? ` (${Q.arabicNum(pending)})` : ''}`;
   $('#q-run').disabled = queue.running || !pending;
   $('#q-stop').hidden = !queue.running;
@@ -2408,6 +2412,244 @@ function renderLog() {
   }
 }
 
+// ===== مخطط النشر =====
+const posts = load('posts', []);
+const planCfg = { times: '14:00, 20:00, 22:30', perDay: 2, ...load('planCfg', {}) };
+const timeFmt = new Intl.DateTimeFormat('ar-EG', { hour: 'numeric', minute: '2-digit' });
+const shortDay = d => {
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  const x = new Date(d); x.setHours(0, 0, 0, 0);
+  const diff = Math.round((x - t) / 864e5);
+  return diff === 0 ? 'النهارده' : diff === 1 ? 'بكرة' : diff === -1 ? 'امبارح' : PL.dayText(d);
+};
+
+function warnText(w) {
+  const sn = w.surah ? `سورة ${Q.surah(w.surah).ar}` : '';
+  const ago = w.days === 0 ? 'النهارده' : `من ${Q.arabicNum(w.days)} يوم`;
+  if (w.kind === 'same') return `⚠️ نفس آيات ${sn} اتنشرت ${ago}. تيك توك ممكن يعتبرها مكررة ويوقف توزيعها — اختار آيات تانية أو استنى ١٤ يوم.`;
+  if (w.kind === 'surah') return `${sn} اتنشرت ${ago}. الأفضل تنوّع (أسبوع بين نفس السورة).`;
+  if (w.kind === 'other') return '⚠️ الذكر/الحديث ده اتنشر من أقل من ١٤ يوم.';
+  if (w.kind === 'spacing') return `آخر نشر كان ${w.hours < 1 ? 'من شوية' : `من ${Q.arabicNum(Math.round(w.hours * 10) / 10)} ساعة`} — سيب ٤ ساعات بين الفيديوهات.`;
+  return '';
+}
+
+function updateDupWarn() {
+  const el = $('#dup-warn');
+  if (!el) return;
+  const ws = PL.checkBlocks(state.blocks, posts);
+  el.hidden = !ws.length;
+  el.classList.toggle('high', ws.some(w => w.level === 'high'));
+  el.innerHTML = '';
+  for (const w of ws) { const p = document.createElement('div'); p.textContent = warnText(w); el.appendChild(p); }
+  // الطابور
+  const qw = $('#q-warn');
+  if (!qw) return;
+  const lines = [];
+  const pend = queue.items.filter(it => !it.done);
+  for (const it of pend) {
+    const w = PL.checkBlocks(it.blocks, posts).filter(x => x.kind !== 'spacing');
+    if (w.length) lines.push(`«${it.label}»: ${warnText(w[0])}`);
+  }
+  const seen = new Map();
+  for (const it of pend) for (const b of it.blocks) if (b.type === 'quran') seen.set(b.surah, (seen.get(b.surah) || 0) + 1);
+  const rep2 = [...seen].filter(([, n]) => n > 1).map(([sn]) => Q.surah(sn).ar);
+  if (rep2.length) lines.push(`الطابور فيه أكتر من مقطع من: ${rep2.join('، ')} — صدّرهم عادي، بس انشرهم على أيام مختلفة.`);
+  qw.hidden = !lines.length;
+  qw.innerHTML = '';
+  for (const l of lines) { const p = document.createElement('div'); p.textContent = l; qw.appendChild(p); }
+}
+
+function renderPlan() {
+  const now = new Date();
+  $('#plan-today').textContent = `النهارده ${PL.dayText(now)} — ${PL.hijriText(now)}`;
+  const occ = $('#plan-occasions');
+  occ.innerHTML = '';
+  const up = PL.upcoming(now, 14);
+  if (!up.length) occ.innerHTML = '<p class="muted">مفيش مواسم قريبة.</p>';
+  for (const day of up) {
+    for (const o of day.items) {
+      const d = document.createElement('div');
+      d.className = 'plan-item';
+      d.innerHTML = '<div class="when"></div><b></b><div class="muted"></div>';
+      d.querySelector('.when').textContent = `${shortDay(day.date)} • ${Q.arabicNum(day.hijri.d)}/${Q.arabicNum(day.hijri.m)} هـ`;
+      d.querySelector('b').textContent = o.title + (o.ref ? ` — ${o.ref}` : '');
+      d.querySelector('.muted').textContent = o.tip || '';
+      if (o.ref) {
+        const row = document.createElement('div');
+        row.className = 'btn-row';
+        row.innerHTML = '<button class="btn" type="button">حمّل في المحرر</button><button class="btn ghost" type="button">＋ للطابور</button>';
+        const refs = () => parseRefs(o.ref, Q.surahs()).ok;
+        row.children[0].onclick = () => {
+          stop();
+          state.blocks = refs().map(r => quranRefBlock(r, true));
+          renderBlocks(); refreshPublish(true);
+          $('#dlg-plan').close(); showTab('content');
+          status(`✅ اتحمّل ${o.ref} (${o.title})`);
+        };
+        row.children[1].onclick = () => {
+          for (const r of refs()) queue.items.push({ id: uid(), label: `${refLabel(r)} — ${o.title}`, blocks: [quranRefBlock(r, true)], done: false });
+          saveQueue(); renderQueue(); updateDupWarn();
+          status(`✅ ${o.ref} اتضاف للطابور`);
+        };
+        d.appendChild(row);
+      }
+      occ.appendChild(d);
+    }
+  }
+  const slots = PL.nextSlots(posts, planCfg.times.split(','), Number(planCfg.perDay) || 2, 6, now);
+  $('#plan-slots').innerHTML = '';
+  for (const t of slots) {
+    const d = document.createElement('div');
+    d.className = 'plan-item';
+    d.textContent = `🕘 ${shortDay(t)} — ${timeFmt.format(t)}`;
+    $('#plan-slots').appendChild(d);
+  }
+  const box = $('#plan-posts');
+  box.innerHTML = '';
+  const recent = posts.filter(p => now - Date.parse(p.at) < 30 * 864e5);
+  if (!recent.length) box.innerHTML = '<p class="muted">لسه مفيش. اضغط «✅ نشرته» في كارت النشر بعد ما تنشر.</p>';
+  for (const p of recent) {
+    const d = document.createElement('div');
+    d.className = 'plan-item post';
+    d.innerHTML = '<span class="grow"></span><button class="btn icon" type="button" title="حذف">✕</button>';
+    const at = new Date(p.at);
+    const what = p.keys.map(k => { const [sn, r] = k.split(':'); return `${Q.surah(Number(sn)).ar} ${r}`; }).join(' + ') || p.title || '—';
+    d.querySelector('span').textContent = `${shortDay(at)} ${timeFmt.format(at)} • ${PLATFORMS[p.platform]?.name || p.platform} • ${what}`;
+    d.querySelector('button').onclick = () => { posts.splice(posts.indexOf(p), 1); save('posts', posts); renderPlan(); updateDupWarn(); };
+    box.appendChild(d);
+  }
+}
+
+function setupPlanner() {
+  $('#btn-plan').onclick = () => { renderPlan(); $('#dlg-plan').showModal(); };
+  $('#plan-close').onclick = () => $('#dlg-plan').close();
+  $('#plan-times').value = planCfg.times;
+  $('#plan-perday').value = planCfg.perDay;
+  $('#plan-times').onchange = () => { planCfg.times = $('#plan-times').value; save('planCfg', planCfg); renderPlan(); };
+  $('#plan-perday').onchange = () => { planCfg.perDay = clamp($('#plan-perday').value, 1, 6); save('planCfg', planCfg); renderPlan(); };
+  $('#pub-posted').onclick = () => {
+    if (!state.blocks.length) return;
+    const d = pub.data?.[pub.platform] || {};
+    const before = PL.checkBlocks(state.blocks, posts).some(w => w.kind === 'spacing');
+    posts.unshift(PL.postFromBlocks(state.blocks, pub.platform, d.title || (d.caption || '').split('\n')[0].slice(0, 80)));
+    save('posts', posts.slice(0, 500));
+    updateDupWarn();
+    const next = PL.nextSlots(posts, planCfg.times.split(','), Number(planCfg.perDay) || 2, 1)[0];
+    status(`✅ اتسجّل إنه اتنشر على ${PLATFORMS[pub.platform].name}.${before ? ' (كان قريب من اللي قبله — المرة الجاية سيب ٤ ساعات)' : ''}${next ? ` الموعد الجاي المقترح: ${shortDay(next)} ${timeFmt.format(next)}` : ''}`);
+  };
+  // تذكير يوم الخميس/الجمعة
+  const today = PL.upcoming(new Date(), 2).flatMap(d => d.items.map(o => ({ ...o, date: d.date })));
+  const hint = today.find(o => !o.weekly || /الجمعة/.test(o.title));
+  if (hint) status(`📅 ${shortDay(hint.date)}: ${hint.title}${hint.ref ? ` — اقتراح: ${hint.ref}` : ''} (افتح «📅 المخطط»)`);
+  updateDupWarn();
+}
+
+// ===== لوحة الأرقام =====
+let statRows = (load('statsRows', []) || []).map(r => ({ ...r, date: r.date ? new Date(r.date) : null }));
+const RECITER_KEYS = [...new Set(RECITERS.map(r => r.name.replace(/\s*\(.*?\)\s*/g, '').trim()))].map(n => ({ n, keys: [n, n.split(' ').slice(-1)[0], ...(n.startsWith('عبد الباسط') ? ['عبد الباسط'] : [])] }));
+const normA = t => String(t || '').replace(/[ً-ٰٟ]/g, '').replace(/[أإآ]/g, 'ا');
+function reciterIn(title) {
+  const t = normA(title);
+  if (/سيد سعيد/.test(t)) return 'سيد سعيد';
+  for (const r of RECITER_KEYS) if (r.keys.some(k => normA(k).length >= 4 && t.includes(normA(k)))) return r.n;
+  return null;
+}
+const statHelpers = { findSurahIn: t => surahInText(t, Q.surahs())?.ar || null, reciterIn };
+
+function logRows() {
+  return expLog.filter(e => e.views != null).map(e => {
+    const m = /^(?:\d+_)?quran_(\d+)_/.exec(e.file || '');
+    const [mm, ss] = String(e.dur || '').split(':').map(Number);
+    return {
+      title: e.file, views: Number(e.views), likes: e.likes != null ? Number(e.likes) : null,
+      date: e.date ? new Date(e.date + 'T00:00:00') : null,
+      dur: Number.isFinite(mm) && Number.isFinite(ss) ? mm * 60 + ss : null,
+      surah: m ? Q.surah(Number(m[1]))?.ar : null,
+      reciter: e.recipe?.reciter ? findReciter(e.recipe.reciter).name.replace(/\s*\(.*?\)\s*/g, '').trim() : null,
+      hookFirst: !!e.recipe?.intro, wordMode: e.recipe?.wordMode,
+    };
+  });
+}
+
+function renderStats() {
+  const body = $('#stats-body');
+  const fromCsv = statRows.length > 0;
+  const rows = fromCsv ? statRows : logRows();
+  $('#stats-src').textContent = fromCsv ? `من التقرير: ${Q.arabicNum(statRows.length)} فيديو` : `من «سجل تجاربي»: ${Q.arabicNum(rows.length)} فيديو`;
+  body.innerHTML = '';
+  if (!rows.length) { body.innerHTML = '<p class="muted">مفيش بيانات لسه. ارفع تقرير CSV، أو اكتب المشاهدات في «🎞️ فيديو مرجعي ← سجل تجاربي».</p>'; return; }
+  const a = ST.analyze(rows, statHelpers);
+  const N = n => Q.arabicNum(Math.round(n).toLocaleString('en-US'));
+  const cards = document.createElement('div');
+  cards.className = 'stats-cards';
+  cards.innerHTML = [['فيديو', N(a.count)], ['إجمالي المشاهدات', N(a.total)], ['متوسط الفيديو', N(a.avg)], ['نسبة اللايك', `${Q.arabicNum((a.likeRate * 100).toFixed(1))}٪`]]
+    .map(([l, v]) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join('');
+  body.appendChild(cards);
+  // ملاحظات
+  const tips = [];
+  const best = (g, min = 2) => g.filter(x => x.n >= min)[0];
+  const bh = best(a.byHour); if (bh) tips.push(`أحسن وقت نشر: ${Q.arabicNum(bh.label)} (متوسط ${N(bh.avg)} مشاهدة على ${Q.arabicNum(bh.n)} فيديو).`);
+  const hk = a.byHook.find(x => x.k === 'hook'), pl = a.byHook.find(x => x.k === 'plain');
+  if (hk && pl && hk.n >= 2 && pl.n >= 2) tips.push(hk.avg >= pl.avg ? `الفيديوهات اللي بتبدأ بافتتاحية متوسطها ${N(hk.avg)} مقابل ${N(pl.avg)} للي بتبدأ باسم السورة — كمّل بالافتتاحيات.` : `اللي بيبدأ باسم السورة (${N(pl.avg)}) أحسن من الافتتاحيات (${N(hk.avg)}) عندك — جرّب افتتاحيات أقوى.`);
+  const br = best(a.byReciter); if (br) tips.push(`أحسن قارئ عند جمهورك: ${br.label} (متوسط ${N(br.avg)}).`);
+  const bd = best(a.byDur); if (bd) tips.push(`أحسن مدة: ${bd.label}.`);
+  const bw = best(a.byWordMode); if (bw) tips.push(`أحسن طريقة لظهور الآيات: ${bw.label}.`);
+  if (a.likeRate >= 0.1) tips.push(`نسبة اللايك ${Q.arabicNum((a.likeRate * 100).toFixed(1))}٪ ممتازة — المحتوى بيعجب اللي بيشوفه؛ ركّز على الافتتاحية عشان يوصل لناس أكتر.`);
+  if (a.count < 8) tips.push('العينة لسه صغيرة — الأرقام دي مؤشر مش حكم. استنى لحد ١٥–٢٠ فيديو.');
+  if (tips.length) {
+    const ul = document.createElement('ul');
+    ul.className = 'insights';
+    for (const t of tips) { const li = document.createElement('li'); li.textContent = t; ul.appendChild(li); }
+    body.appendChild(ul);
+  }
+  const grid = document.createElement('div');
+  grid.className = 'stats-grid';
+  const section = (title, groups) => {
+    if (!groups.length) return;
+    const sec = document.createElement('section');
+    sec.innerHTML = `<h3></h3><div class="bars"></div>`;
+    sec.querySelector('h3').textContent = title;
+    const max = Math.max(...groups.map(g => g.avg), 1);
+    for (const g of groups.slice(0, 7)) {
+      const r = document.createElement('div');
+      r.className = 'bar-row';
+      r.innerHTML = '<span class="lbl2"></span><div class="bar-track"><div class="bar-fill"></div></div><span class="v"></span>';
+      r.querySelector('.lbl2').textContent = `${Q.arabicNum(g.label)} (${Q.arabicNum(g.n)})`;
+      r.querySelector('.bar-fill').style.width = `${(g.avg / max) * 100}%`;
+      r.querySelector('.v').textContent = Math.round(g.avg).toLocaleString('en-US');
+      sec.querySelector('.bars').appendChild(r);
+    }
+    grid.appendChild(sec);
+  };
+  section('⏰ حسب وقت النشر (متوسط المشاهدات)', a.byHour);
+  section('📅 حسب اليوم', a.byDay);
+  section('🪝 أول سطر', a.byHook);
+  section('🎙️ حسب القارئ', a.byReciter);
+  section('📖 حسب السورة', a.bySurah);
+  section('⏱ حسب المدة', a.byDur);
+  section('✨ ظهور الآيات', a.byWordMode);
+  body.appendChild(grid);
+  const top = document.createElement('section');
+  top.innerHTML = '<h3>🏆 أعلى ٥</h3><ol class="plan-list"></ol>';
+  for (const r of a.top) { const li = document.createElement('li'); li.className = 'plan-item'; li.textContent = `${Math.round(r.views).toLocaleString('en-US')} 👁 — ${(r.title || '').slice(0, 90)}`; top.querySelector('ol').appendChild(li); }
+  body.appendChild(top);
+}
+
+function setupStats() {
+  $('#btn-stats').onclick = () => { renderStats(); $('#dlg-stats').showModal(); };
+  $('#stats-close').onclick = () => $('#dlg-stats').close();
+  const use = text => {
+    try {
+      statRows = ST.rowsFromCsv(text);
+      save('statsRows', statRows.map(r => ({ ...r, date: r.date ? r.date.toISOString() : null })));
+      renderStats();
+    } catch (e) { alert(e.message); }
+  };
+  $('#stats-file').onchange = async () => { const f = $('#stats-file').files[0]; $('#stats-file').value = ''; if (f) use(await f.text()); };
+  $('#stats-paste-go').onclick = () => use($('#stats-paste').value);
+  $('#stats-clear').onclick = () => { statRows = []; save('statsRows', []); renderStats(); };
+}
+
 // ===== البداية =====
 async function init() {
   status('تحميل نص المصحف…');
@@ -2441,6 +2683,8 @@ async function init() {
   setupProject();
   setupQueue();
   setupReference();
+  setupPlanner();
+  setupStats();
   idleLoop();
 }
 

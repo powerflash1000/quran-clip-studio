@@ -96,7 +96,7 @@ export async function generate(blocks, style, translationOf, series = null) {
           }
         }
         body.push(`﴿${ayat.join(' ')}﴾`);
-        if (trs.length) body.push(trs.join(' '));
+        if (trs.length) body.push(style.translation === 'muyassar' ? `📖 التفسير الميسّر: ${trs.join(' ')}` : trs.join(' '));
       }
       info.push(`📖 سورة ${s.ar} • ${rangeLabel(b)}`);
     } else if (b.type === 'zikr') {
@@ -121,6 +121,7 @@ export async function generate(blocks, style, translationOf, series = null) {
   const credits = [];
   if (ps.includeCredits) {
     if (quran.length) credits.push('نص المصحف: مجمع الملك فهد (QuranEnc) • التلاوة: EveryAyah.com');
+    if (quran.length && style.translation === 'muyassar' && style.showTranslation) credits.push('التفسير الميسّر: مجمع الملك فهد لطباعة المصحف الشريف');
     if (hadith.length) credits.push('نص الحديث: hadith-api (fawazahmed0)');
     if (zikr.length) credits.push('الأذكار: حصن المسلم');
   }

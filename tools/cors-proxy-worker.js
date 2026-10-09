@@ -10,6 +10,7 @@ const ALLOWED_HOSTS = [
   'cdn.jsdelivr.net',
   'raw.githubusercontent.com',
   'verses.quran.com',
+  'api.quran.com',
   'api.elevenlabs.io',
   'freesound.org',
   'cdn.freesound.org',

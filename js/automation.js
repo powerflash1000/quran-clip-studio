@@ -14,7 +14,7 @@ export const normName = t => t
   .toLowerCase()
   .replace(/^(ال|al|an|ar|as|at|ad|adh|az|ash)(?=.{3})/, '');
 
-function findSurah(name, surahs) {
+export function findSurah(name, surahs) {
   const q = normName(name);
   if (!q) return null;
   const keys = surahs.map(s => [s, normName(s.ar), normName(s.tr)]);
@@ -86,4 +86,11 @@ export function embedFor(link) {
   else if (h.endsWith('youtube.com')) yt = u.searchParams.get('v') || u.pathname.match(/\/(?:shorts|embed)\/([\w-]+)/)?.[1];
   if (yt) return { platform: 'youtube', name: 'يوتيوب', src: `https://www.youtube.com/embed/${yt}`, url: u.href };
   return null;
+}
+
+// اسم السورة من عنوان فيديو: «سورة يوسف • …» أو «سورة آل عمران | …»
+export function surahInText(text, surahs) {
+  const m = String(text || '').match(/سور[ةه]\s+([^\s•|،,.:()\-\d]+)(?:\s+([^\s•|،,.:()\-\d]+))?/);
+  if (!m) return null;
+  return (m[2] && findSurah(`${m[1]} ${m[2]}`, surahs)) || findSurah(m[1], surahs);
 }

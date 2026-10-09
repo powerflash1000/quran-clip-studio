@@ -18,6 +18,8 @@
       </div>
     </div>
     <div class="btn-row" style="margin:0">
+      <button class="btn ghost" id="btn-plan" type="button" title="المواسم الجاية ومواعيد النشر وسجل اللي نشرته">📅<span class="lbl"> المخطط</span></button>
+      <button class="btn ghost" id="btn-stats" type="button" title="إيه اللي بيجيب مشاهدات معاك">📊<span class="lbl"> الأرقام</span></button>
       <button class="btn ghost" id="btn-ref" type="button" title="شغّل فيديو من تيك توك أو إنستا أو فيسبوك جنب المحرر واعمل زيه">🎞️<span class="lbl"> فيديو مرجعي</span></button>
       <button class="btn ghost" id="proj-save" type="button" title="احفظ المشروع كله في ملف">💾<span class="lbl"> حفظ</span></button>
       <label class="btn ghost file-btn" title="افتح مشروع محفوظ">📂<span class="lbl"> فتح</span><input type="file" id="proj-open" accept=".json,application/json" hidden></label>
@@ -299,6 +301,7 @@
       <!-- ===== التصدير ===== -->
       <div class="card">
         <h2>⬇️ التصدير</h2>
+        <div class="dup-warn" id="dup-warn" hidden></div>
         <div class="export-grid">
           <div>
             <h3>صوت</h3>
@@ -365,6 +368,7 @@
           <button class="btn ghost" id="q-clear-done" type="button">امسح اللي خلص</button>
           <button class="btn ghost" id="q-clear" type="button">🗑 فضّي الطابور</button>
         </div>
+        <div class="dup-warn" id="q-warn" hidden></div>
         <p class="hint">أول مرة المتصفح هيسألك «السماح بتنزيل ملفات متعددة»، وافق. سيب الصفحة مفتوحة والجهاز ما ينامش. في الآخر بينزل ملف فيه العنوان والوصف والهاشتاجات لكل مقطع (تيك توك وإنستجرام وفيسبوك)، وجدولهم بعد كده من TikTok Studio و Meta Business Suite.</p>
       </div>
 
@@ -389,6 +393,7 @@
         <div class="btn-row">
           <button class="btn" id="pub-regen" type="button">↻ توليد من جديد</button>
           <button class="btn" id="pub-copy-all" type="button">📋 نسخ الكل</button>
+          <button class="btn" id="pub-posted" type="button" title="سجّل إن الفيديو ده اتنشر — عشان المخطط يحذرك من التكرار">✅ نشرته</button>
           <button class="btn primary" id="pub-share" type="button" disabled title="صدّر فيديو أو صورة الأول">📤 مشاركة آخر ملف</button>
           <a class="btn ghost" id="pub-open" href="#" target="_blank" rel="noopener">↗ افتح المنصة</a>
         </div>
@@ -608,6 +613,55 @@
       </fieldset>
     </li>
   </template>
+
+  <dialog id="dlg-plan">
+    <div class="dlg wide">
+      <div class="row">
+        <h2 class="grow">📅 مخطط النشر</h2>
+        <button class="btn icon" id="plan-close" type="button">✕</button>
+      </div>
+      <p class="muted" id="plan-today"></p>
+      <div class="plan-grid">
+        <section>
+          <h3>🌙 المواسم في الأسبوعين الجايين</h3>
+          <div id="plan-occasions" class="plan-list"></div>
+        </section>
+        <section>
+          <h3>⏰ المواعيد الجاية المقترحة</h3>
+          <div id="plan-slots" class="plan-list"></div>
+          <div class="grid2">
+            <label>أوقاتك المفضلة <input type="text" id="plan-times" dir="ltr" placeholder="14:00, 20:00, 22:30"></label>
+            <label>فيديوهات في اليوم <input type="number" id="plan-perday" min="1" max="6"></label>
+          </div>
+          <p class="hint">بين كل فيديو والتاني ٤ ساعات على الأقل. جدولها من TikTok Studio و Meta Business Suite.</p>
+          <h3>📝 اللي نشرته (آخر ٣٠ يوم)</h3>
+          <div id="plan-posts" class="plan-list"></div>
+          <p class="hint">بيتسجل لما تضغط «✅ نشرته» في كارت النشر. البرنامج بيحذرك لو نفس الآيات اتنشرت من أقل من ١٤ يوم، أو نفس السورة من أقل من ٧ أيام.</p>
+        </section>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-stats">
+    <div class="dlg wide">
+      <div class="row">
+        <h2 class="grow">📊 الأرقام — إيه اللي بينجح معاك</h2>
+        <button class="btn icon" id="stats-close" type="button">✕</button>
+      </div>
+      <div class="btn-row">
+        <label class="btn file-btn">📥 ارفع تقرير CSV<input type="file" id="stats-file" accept=".csv,.tsv,text/csv,text/plain" hidden></label>
+        <button class="btn ghost" id="stats-clear" type="button">امسح التقرير</button>
+        <span class="muted" id="stats-src"></span>
+      </div>
+      <details class="adv">
+        <summary>إزاي أجيب التقرير؟</summary>
+        <p class="hint">من الكمبيوتر: TikTok Studio ← Analytics ← Content ← <b>Download data</b> (CSV). أو أي جدول فيه عمود <b>Views</b> (وياريت Likes و Post time والعنوان). ولو معاكش تقرير، اللوحة بتشتغل من «سجل تجاربي» (اكتب المشاهدات هناك).</p>
+        <textarea id="stats-paste" rows="3" placeholder="أو الصق الجدول هنا (من Excel أو Google Sheets) واضغط «حلّل»"></textarea>
+        <button class="btn" id="stats-paste-go" type="button">حلّل</button>
+      </details>
+      <div id="stats-body"></div>
+    </div>
+  </dialog>
 
   <dialog id="dlg-ref">
     <div class="dlg">
