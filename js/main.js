@@ -844,17 +844,32 @@ function fillVoiceSelect(sel, value) {
   const opt = v => `<option value="${v.id}">${v.category === 'cloned' || v.category === 'professional' ? '🎙️ ' : ''}${escapeHtml(v.name)}</option>`;
   sel.innerHTML = `<option value="">${def ? `الافتراضي${defName ? `: ${escapeHtml(defName)}` : ' (من الإعدادات)'}` : '— اختار صوت —'}</option>`
     + (cloned.length ? `<optgroup label="أصواتي">${cloned.map(opt).join('')}</optgroup>` : '')
-    + (other.length ? `<optgroup label="أصوات ElevenLabs">${other.map(opt).join('')}</optgroup>` : '');
+    + (other.length ? `<optgroup label="أصوات ElevenLabs">${other.map(opt).join('')}</optgroup>` : '')
+    + '<option value="__add">＋ أضف صوت برقمه (Voice ID)…</option>';
   sel.value = elVoices.some(v => v.id === value) ? value : '';
   sel.hidden = !EL.hasKey();
 }
+// لو المفتاح مالوش صلاحية قراءة الأصوات: تضيف الصوت برقمه من موقع ElevenLabs
+function addVoiceManually() {
+  const id = (prompt('الصق رقم الصوت (Voice ID) من ElevenLabs:\n(من Voices ← اختار الصوت ← ⋯ ← Copy voice ID)') || '').trim();
+  if (!/^[A-Za-z0-9]{10,40}$/.test(id)) { if (id) alert('الرقم ده مش شكل Voice ID'); return null; }
+  const name = (prompt('اسم للصوت ده (يظهر في القايمة):', 'صوتي') || 'صوتي').trim();
+  const v = { id, name, category: 'cloned', preview: '', manual: true };
+  elVoices = [v, ...elVoices.filter(x => x.id !== id)];
+  save('elVoices', elVoices);
+  document.querySelectorAll('[data-f=elVoice]').forEach(sel => { const cur = sel.value === '__add' ? '' : sel.value; fillVoiceSelect(sel, cur); });
+  status(`✅ اتضاف «${name}» لقايمة الأصوات`);
+  return v;
+}
+
 async function refreshVoices(btn, quiet = false) {
   if (!EL.hasKey()) { if (!quiet) alert('حط مفتاح ElevenLabs الأول من ⚙️ الإعدادات ← ElevenLabs.'); return; }
   if (elLoading) return elLoading;
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
   elLoading = (async () => {
     try {
-      elVoices = await EL.listVoices();
+      const fetched = await EL.listVoices();
+      elVoices = [...fetched, ...elVoices.filter(v => v.manual && !fetched.some(x => x.id === v.id))];
       save('elVoices', elVoices);
       document.querySelectorAll('[data-f=elVoice]').forEach(sel => {
         const li = sel.closest('li');
@@ -863,7 +878,9 @@ async function refreshVoices(btn, quiet = false) {
       });
       if (!quiet) status(`✅ اتجابت ${Q.arabicNum(elVoices.length)} صوت من حسابك`);
     } catch (e) {
-      if (!quiet) showError(e);
+      if (/voices_read|missing the permission/i.test(e.message)) {
+        if (!quiet) alert('مفتاح ElevenLabs ده مالوش صلاحية «قراءة الأصوات».\n\nالحل (دقيقة):\nElevenLabs ← Developers ← API Keys ← عدّل المفتاح (أو اعمل مفتاح جديد) ← فعّل:\n• Voices: Read\n• Text to Speech: Access\nوبعدين حط المفتاح في ⚙️ الإعدادات واضغط ↻.\n\nأو من غير ما تغيّر المفتاح: اختار «＋ أضف صوت برقمه» من القايمة والصق الـ Voice ID.');
+      } else if (!quiet) showError(e);
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = '↻'; }
       elLoading = null;
@@ -911,7 +928,14 @@ function wireAudioControls(li, b, sync) {
   };
   // اختيار الصوت من أصواتك في ElevenLabs (لكل مقطع لوحده)
   fillVoiceSelect(f('elVoice'), b.elVoice || '');
-  f('elVoice').onchange = () => { b.elVoice = f('elVoice').value; persist(); };
+  f('elVoice').onchange = () => {
+    if (f('elVoice').value === '__add') {
+      const v = addVoiceManually();
+      fillVoiceSelect(f('elVoice'), v ? v.id : b.elVoice || '');
+      if (!v) return;
+    }
+    b.elVoice = f('elVoice').value; persist();
+  };
   act('elVoices').onclick = () => refreshVoices(act('elVoices'));
   let sample = null;
   act('elPreview').onclick = () => {
@@ -1888,7 +1912,9 @@ function setupSettings() {
       sel.hidden = false;
       sel.onchange = () => { if (sel.value) $('#set-eleven-voice').value = sel.value; };
     } catch (e) {
-      alert(e.message);
+      alert(/voices_read|missing the permission/i.test(e.message)
+        ? 'المفتاح ده مالوش صلاحية «Voices: Read». فعّلها من ElevenLabs ← Developers ← API Keys، أو الصق رقم صوتك (Voice ID) في الخانة بإيدك.'
+        : e.message);
     } finally {
       setSettings({ elevenKey: prev.elevenKey });
       btn.disabled = false; btn.textContent = 'جيب أصواتي';
