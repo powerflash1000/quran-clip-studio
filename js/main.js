@@ -1375,7 +1375,18 @@ function makeMediaItem(file) {
   if (isVideo) {
     el.muted = true; el.loop = true; el.playsInline = true;
     el.onloadeddata = () => { el.play().catch(() => {}); refreshPreview(); };
-    videoThumb(url).then(t => { if (t) { item.thumb = t; renderBgList(); } });
+    videoThumb(url).then(t => {
+      if (t) { item.thumb = t; renderBgList(); return; }
+      // لو المتصفح رفض يقدّم الفيديو: ناخد لقطة من الفيديو اللي شغال في المعاينة
+      setTimeout(() => {
+        try {
+          const c = document.createElement('canvas'); c.width = 68; c.height = 108;
+          const k = Math.max(68 / el.videoWidth, 108 / el.videoHeight);
+          c.getContext('2d').drawImage(el, (68 - el.videoWidth * k) / 2, (108 - el.videoHeight * k) / 2, el.videoWidth * k, el.videoHeight * k);
+          item.thumb = c.toDataURL('image/jpeg', 0.75); renderBgList();
+        } catch { /* هيفضل 🎞️ */ }
+      }, 1500);
+    });
   } else {
     el.onload = () => { refreshPreview(); };
   }
@@ -1433,6 +1444,19 @@ function renderBgList() {
     let th;
     if (m.thumb) { th = document.createElement('img'); th.src = m.thumb; th.className = 'bg-thumb'; th.alt = ''; }
     else { th = document.createElement('span'); th.className = 'bg-thumb-ph'; th.textContent = m.kind === 'video' ? '🎞️' : '🖼️'; }
+    th.title = 'اضغط تشوف الخلفية دي';
+    th.style.cursor = 'pointer';
+    th.onclick = () => {
+      const open = ol.querySelector(`.bg-peek[data-id="${m.id}"]`);
+      ol.querySelectorAll('.bg-peek').forEach(x => x.remove());
+      if (open) return;
+      const pk = document.createElement('li');
+      pk.className = 'bg-peek'; pk.dataset.id = m.id;
+      const media = m.kind === 'video' ? Object.assign(document.createElement('video'), { muted: true, loop: true, autoplay: true, playsInline: true, controls: true }) : document.createElement('img');
+      media.src = m.url;
+      pk.appendChild(media);
+      li.after(pk);
+    };
     li.appendChild(th);
     const name = document.createElement('span');
     name.className = 'grow';

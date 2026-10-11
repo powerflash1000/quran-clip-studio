@@ -53,6 +53,7 @@ Data: `data/quran.json` (Uthmani + English), `data/azkar.json` (Hisn al-Muslim).
 
 ## Conventions
 - Comments in Egyptian Arabic, matching existing style. Keep README.md (Arabic) updated for every user-visible feature.
+- Bump the version string `20261011b`-style in index.html (`?v=` on main.js/style.css + `#app-version` in the footer) on each user-visible deploy, so the user can confirm they have the new build.
 - Commit as `git -c user.name="Claude" -c user.email="noreply@anthropic.com"`, push to `main` (user approved working directly on main).
 
 ## Pending / ideas

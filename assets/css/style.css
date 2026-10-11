@@ -348,3 +348,7 @@ details.adv { border-top: 1px dashed var(--line); padding-top: .4rem; }
 .stock-item.picked { outline: 3px solid var(--good); outline-offset: -3px; }
 .stock-item .num { position: absolute; top: 6px; inset-inline-end: 6px; background: var(--good); color: #fff; border-radius: 50%; min-width: 24px; height: 24px; display: grid; place-items: center; font-weight: 700; font-size: .85rem; }
 .bg-thumb-ph { width: 34px; height: 54px; border-radius: 6px; background: var(--field); display: grid; place-items: center; flex: none; border: 1px solid var(--line); }
+.bg-thumb, .bg-thumb-ph { width: 44px; height: 72px; }
+.bg-peek { list-style: none; display: flex; justify-content: center; padding: .3rem; border: 1px dashed var(--line); border-radius: 10px; }
+.bg-peek video, .bg-peek img { max-height: 260px; max-width: 100%; border-radius: 8px; background: #000; }
+#app-version { font-size: .75rem; margin-bottom: .3rem; }
