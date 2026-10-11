@@ -1336,6 +1336,37 @@ function setupStyle() {
   setupSoundSearch();
 }
 
+// صورة مصغرة لفيديو: من جوه الفيديو (مش أول فريم، لأنه غالبًا أسود)، ولو طلعت سودا نجرب نص الفيديو
+async function videoThumb(url) {
+  const v = document.createElement('video');
+  v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = url;
+  const once = (ev, ms = 8000) => new Promise((res, rej) => {
+    const to = setTimeout(() => rej(new Error('timeout')), ms);
+    v.addEventListener(ev, () => { clearTimeout(to); res(); }, { once: true });
+  });
+  try {
+    await once('loadedmetadata');
+    const c = document.createElement('canvas'); c.width = 68; c.height = 108;
+    const x = c.getContext('2d', { willReadFrequently: true });
+    const d = v.duration || 2;
+    for (const t of [Math.min(1, d * 0.15), d * 0.5, d * 0.8]) {
+      v.currentTime = t;
+      await once('seeked');
+      const k = Math.max(68 / v.videoWidth, 108 / v.videoHeight);
+      x.drawImage(v, (68 - v.videoWidth * k) / 2, (108 - v.videoHeight * k) / 2, v.videoWidth * k, v.videoHeight * k);
+      const px = x.getImageData(0, 0, 68, 108).data;
+      let sum = 0;
+      for (let i = 0; i < px.length; i += 16) sum += px[i] + px[i + 1] + px[i + 2];
+      if (sum / (px.length / 16) > 30) break; // مش سودا
+    }
+    return c.toDataURL('image/jpeg', 0.75);
+  } catch {
+    return null;
+  } finally {
+    v.removeAttribute('src'); v.load();
+  }
+}
+
 function makeMediaItem(file) {
   const url = URL.createObjectURL(file);
   const isVideo = file.type.startsWith('video/');
@@ -1343,16 +1374,8 @@ function makeMediaItem(file) {
   const item = { id: uid(), kind: isVideo ? 'video' : 'image', file, el, url, thumb: isVideo ? null : url };
   if (isVideo) {
     el.muted = true; el.loop = true; el.playsInline = true;
-    el.onloadeddata = () => {
-      // صورة مصغرة ثابتة من أول الفيديو (بدل ما نحمّل الفيديو تاني في القايمة)
-      try {
-        const c = document.createElement('canvas'); c.width = 68; c.height = 108;
-        const x = c.getContext('2d'); const k = Math.max(68 / el.videoWidth, 108 / el.videoHeight);
-        x.drawImage(el, (68 - el.videoWidth * k) / 2, (108 - el.videoHeight * k) / 2, el.videoWidth * k, el.videoHeight * k);
-        item.thumb = c.toDataURL('image/jpeg', 0.7);
-      } catch { /* مش مهم */ }
-      el.play().catch(() => {}); refreshPreview(); renderBgList();
-    };
+    el.onloadeddata = () => { el.play().catch(() => {}); refreshPreview(); };
+    videoThumb(url).then(t => { if (t) { item.thumb = t; renderBgList(); } });
   } else {
     el.onload = () => { refreshPreview(); };
   }
