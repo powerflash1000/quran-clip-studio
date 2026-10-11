@@ -6,7 +6,7 @@
   <title>استوديو مقاطع القرآن</title>
   <meta name="description" content="اختار الآيات والقارئ، وصدّر صوت MP3 أو M4A أو WAV أو فيديو جاهز للنشر — من المتصفح مباشرة وببلاش.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261011c">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261011d">
 </head>
 <body>
   <header class="topbar">
@@ -423,7 +423,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261011c</div>
+    <div class="muted" id="app-version">الإصدار 20261011d</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS
   </footer>
@@ -630,6 +630,9 @@
           <button class="btn primary" data-act="record" type="button">🎙️ سجّل بصوتك (شاشة قراءة)</button>
           <label class="btn file-btn">📁 ملف صوت<input type="file" accept="audio/*" data-f="audioFile" hidden></label>
           <button class="btn" data-act="ai" type="button">🤖 ولّد بصوتي</button>
+          <select data-f="elVoice" class="el-voice" title="أنهي صوت من ElevenLabs"></select>
+          <button class="btn icon" data-act="elPreview" type="button" title="اسمع عينة من الصوت ده (ببلاش)">🔊</button>
+          <button class="btn icon" data-act="elVoices" type="button" title="حدّث قائمة أصواتك من ElevenLabs">↻</button>
           <span class="muted" data-el="audio-name"></span>
         </div>
         <audio controls data-el="audio-preview" hidden></audio>
@@ -824,6 +827,9 @@
           <button class="btn primary" data-act="record" type="button">🎙️ سجّل بصوتك (شاشة قراءة)</button>
           <label class="btn file-btn">📁 ملف صوت<input type="file" accept="audio/*" data-f="audioFile" hidden></label>
           <button class="btn" data-act="ai" type="button">🤖 ولّد بصوتي</button>
+          <select data-f="elVoice" class="el-voice" title="أنهي صوت من ElevenLabs"></select>
+          <button class="btn icon" data-act="elPreview" type="button" title="اسمع عينة من الصوت ده (ببلاش)">🔊</button>
+          <button class="btn icon" data-act="elVoices" type="button" title="حدّث قائمة أصواتك من ElevenLabs">↻</button>
           <span class="muted" data-el="audio-name"></span>
         </div>
         <audio controls data-el="audio-preview" hidden></audio>
@@ -835,6 +841,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261011c"></script>
+  <script type="module" src="js/main.js?v=20261011d"></script>
 </body>
 </html>

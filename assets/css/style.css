@@ -360,3 +360,4 @@ details.adv { border-top: 1px dashed var(--line); padding-top: .4rem; }
 .pager button[aria-current="page"] { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
 .stock-item .meta { position: absolute; top: 6px; inset-inline-start: 6px; display: flex; gap: .25rem; flex-wrap: wrap; }
 .stock-item .meta span { background: rgba(0,0,0,.65); color: #fff; font-size: .7rem; padding: .05rem .35rem; border-radius: 6px; direction: ltr; }
+.el-voice { width: auto; max-width: 13rem; margin: 0; }

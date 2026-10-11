@@ -833,8 +833,48 @@ function hadithBlockEl(b, i) {
   return li;
 }
 
+// ===== أصوات ElevenLabs (بتتحفظ عشان القايمة تظهر على طول) =====
+let elVoices = load('elVoices', []);
+let elLoading = null;
+function fillVoiceSelect(sel, value) {
+  const def = getSettings().elevenVoiceId;
+  const defName = elVoices.find(v => v.id === def)?.name;
+  const cloned = elVoices.filter(v => v.category === 'cloned' || v.category === 'professional' || v.category === 'generated');
+  const other = elVoices.filter(v => !cloned.includes(v));
+  const opt = v => `<option value="${v.id}">${v.category === 'cloned' || v.category === 'professional' ? '🎙️ ' : ''}${escapeHtml(v.name)}</option>`;
+  sel.innerHTML = `<option value="">${def ? `الافتراضي${defName ? `: ${escapeHtml(defName)}` : ' (من الإعدادات)'}` : '— اختار صوت —'}</option>`
+    + (cloned.length ? `<optgroup label="أصواتي">${cloned.map(opt).join('')}</optgroup>` : '')
+    + (other.length ? `<optgroup label="أصوات ElevenLabs">${other.map(opt).join('')}</optgroup>` : '');
+  sel.value = elVoices.some(v => v.id === value) ? value : '';
+  sel.hidden = !EL.hasKey();
+}
+async function refreshVoices(btn, quiet = false) {
+  if (!EL.hasKey()) { if (!quiet) alert('حط مفتاح ElevenLabs الأول من ⚙️ الإعدادات ← ElevenLabs.'); return; }
+  if (elLoading) return elLoading;
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  elLoading = (async () => {
+    try {
+      elVoices = await EL.listVoices();
+      save('elVoices', elVoices);
+      document.querySelectorAll('[data-f=elVoice]').forEach(sel => {
+        const li = sel.closest('li');
+        const blk = state.blocks.find(x => x.id === li?.dataset.id);
+        fillVoiceSelect(sel, blk?.elVoice || sel.value);
+      });
+      if (!quiet) status(`✅ اتجابت ${Q.arabicNum(elVoices.length)} صوت من حسابك`);
+    } catch (e) {
+      if (!quiet) showError(e);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '↻'; }
+      elLoading = null;
+    }
+  })();
+  return elLoading;
+}
+
 // أزرار الصوت المشتركة (حديث أو ذكر): من غير صوت / تسجيل / ملف / ElevenLabs
 function wireAudioControls(li, b, sync) {
+  li.dataset.id = b.id;
   const f = name => li.querySelector(`[data-f=${name}]`);
   const el = name => li.querySelector(`[data-el=${name}]`);
   const act = name => li.querySelector(`[data-act=${name}]`);
@@ -869,10 +909,26 @@ function wireAudioControls(li, b, sync) {
     li.querySelectorAll('[data-f=audioMode]').forEach(r => { r.checked = r.value === 'record'; });
     sync(); persist();
   };
+  // اختيار الصوت من أصواتك في ElevenLabs (لكل مقطع لوحده)
+  fillVoiceSelect(f('elVoice'), b.elVoice || '');
+  f('elVoice').onchange = () => { b.elVoice = f('elVoice').value; persist(); };
+  act('elVoices').onclick = () => refreshVoices(act('elVoices'));
+  let sample = null;
+  act('elPreview').onclick = () => {
+    const id = f('elVoice').value || getSettings().elevenVoiceId;
+    const v = elVoices.find(x => x.id === id);
+    if (sample) { sample.pause(); sample = null; return; }
+    if (!v?.preview) { alert(v ? 'الصوت ده مالوش عينة جاهزة في ElevenLabs — ولّد جملة قصيرة وجرّبه.' : 'اضغط ↻ الأول عشان أجيب أصواتك.'); return; }
+    sample = new Audio(v.preview);
+    sample.onended = () => { sample = null; };
+    sample.play().catch(() => { sample = null; });
+  };
+  if (EL.hasKey() && !elVoices.length) refreshVoices(null, true);
   // قراءة بصوتك عن طريق ElevenLabs
   act('ai').onclick = async () => {
-    if (!EL.isConfigured()) {
-      alert('حط مفتاح ElevenLabs ورقم صوتك الأول من ⚙️ الإعدادات ← ElevenLabs.');
+    const voiceId = f('elVoice').value || getSettings().elevenVoiceId;
+    if (!EL.hasKey() || !voiceId) {
+      alert(EL.hasKey() ? 'اختار صوت من القايمة (أو اضغط ↻ عشان أجيب أصواتك).' : 'حط مفتاح ElevenLabs الأول من ⚙️ الإعدادات ← ElevenLabs.');
       return;
     }
     const text = EL.prepareText(b.text || '');
@@ -881,7 +937,7 @@ function wireAudioControls(li, b, sync) {
     const btn = act('ai');
     btn.disabled = true; btn.textContent = '⏳ بيولّد…';
     try {
-      const blob = await EL.speak(text);
+      const blob = await EL.speak(text, voiceId);
       const buffer = await decode(await blob.arrayBuffer());
       setHadithAudio(b, trimSilence(buffer), 'ElevenLabs', blob);
       b.audioMode = 'ai';
@@ -1824,6 +1880,7 @@ function setupSettings() {
     btn.disabled = true; btn.textContent = '…';
     try {
       const voices = await EL.listVoices();
+      elVoices = voices; save('elVoices', voices);
       const sel = $('#set-eleven-voices');
       sel.innerHTML = '<option value="">— اختار صوتك —</option>' + voices
         .sort((a, b) => (b.category === 'cloned') - (a.category === 'cloned'))

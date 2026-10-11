@@ -14,6 +14,8 @@ export function isConfigured() {
   return !!(s.elevenKey && s.elevenVoiceId);
 }
 
+export const hasKey = () => !!getSettings().elevenKey;
+
 // لو الطلب المباشر اترفض (غالبًا CORS) بنجرّب عن طريق الوسيط
 async function call(path, init) {
   const { elevenKey, proxyUrl } = getSettings();
@@ -41,13 +43,14 @@ export async function listVoices() {
   const res = await call('/v1/voices', { method: 'GET' });
   if (!res.ok) throw new Error(`ElevenLabs ${res.status}: ${await errorText(res)}`);
   const j = await res.json();
-  return (j.voices || []).map(v => ({ id: v.voice_id, name: v.name, category: v.category }));
+  return (j.voices || []).map(v => ({ id: v.voice_id, name: v.name, category: v.category, preview: v.preview_url || '' }));
 }
 
 // تحويل نص لصوت؛ بيرجع Blob (mp3)
-export async function speak(text) {
+// voiceId (اختياري): صوت معيّن للمقطع ده بدل الصوت الافتراضي اللي في الإعدادات
+export async function speak(text, voiceId = '') {
   const { elevenVoiceId, elevenModel } = getSettings();
-  const res = await call(`/v1/text-to-speech/${encodeURIComponent(elevenVoiceId)}?output_format=mp3_44100_128`, {
+  const res = await call(`/v1/text-to-speech/${encodeURIComponent(voiceId || elevenVoiceId)}?output_format=mp3_44100_128`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
     body: JSON.stringify({
