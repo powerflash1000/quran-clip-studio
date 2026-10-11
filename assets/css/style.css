@@ -314,7 +314,6 @@ details.adv { border-top: 1px dashed var(--line); padding-top: .4rem; }
 .bg-item .grow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bg-thumb { width: 34px; height: 54px; object-fit: cover; border-radius: 6px; background: #000; flex: none; }
 .stock-item.picked { border-color: var(--good); }
-.stock-item.picked::after { content: '✓'; position: absolute; top: 6px; inset-inline-start: 6px; background: var(--good); color: #fff; border-radius: 50%; width: 24px; height: 24px; display: grid; place-items: center; font-weight: 700; }
 /* ===== المخطط والأرقام ===== */
 .dup-warn { border: 1px solid #e0a100; background: color-mix(in srgb, #e0a100 14%, transparent); border-radius: 10px; padding: .5rem .7rem; margin: .4rem 0; font-size: .9rem; }
 .dup-warn.high { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
@@ -345,3 +344,7 @@ details.adv { border-top: 1px dashed var(--line); padding-top: .4rem; }
 .block-dur { font-size: .8rem; color: var(--muted); margin-inline-start: .4rem; white-space: nowrap; }
 .bg-secs { width: 4.2rem; margin: 0; padding: .2rem .3rem; }
 .bg-when { font-size: .75rem; color: var(--accent); white-space: nowrap; direction: ltr; }
+.stock-bar { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .6rem 0 0; margin-top: .6rem; border-top: 1px solid var(--line); background: var(--card); }
+.stock-item.picked { outline: 3px solid var(--good); outline-offset: -3px; }
+.stock-item .num { position: absolute; top: 6px; inset-inline-end: 6px; background: var(--good); color: #fff; border-radius: 50%; min-width: 24px; height: 24px; display: grid; place-items: center; font-weight: 700; font-size: .85rem; }
+.bg-thumb-ph { width: 34px; height: 54px; border-radius: 6px; background: var(--field); display: grid; place-items: center; flex: none; border: 1px solid var(--line); }

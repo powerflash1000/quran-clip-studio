@@ -26,6 +26,7 @@ Working memory for Claude sessions on this repo. Read this first; README.md is t
 | `slides.js` | canvas drawing: background, overlay (label, text, word reveal, footer, handle) |
 | `exporter.js` | audio export (ffmpeg), SRT, ffmpeg video path, Filmora zip, `overlayFrames` |
 | `fastexport.js` | WebCodecs H.264/AAC + mp4-muxer fast path (default when supported; seeks video backgrounds per frame) |
+| `mediastore.js` | IndexedDB persistence of background files (+ per-item secs) |
 | `bglist.js` | multiple backgrounds: schedule (per ayah / every N s), crossfade, video seeking |
 | `audio.js` | decode, timeline mixing (`noGap` per segment), WAV, recording, trimSilence, `sliceBuffer`, `enhanceVoice` (gate/EQ/comp/reverb presets) |
 | `words.js` | word-by-word timing (Quran.com segments or approx) |

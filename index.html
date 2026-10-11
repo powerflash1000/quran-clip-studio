@@ -196,19 +196,17 @@
         </div>
         <div class="when-media media-box">
           <div class="btn-row">
-            <label class="btn file-btn">📁 ارفع صورة أو فيديو
-              <input type="file" id="bg-file" accept="image/*,video/*" hidden>
+            <label class="btn file-btn">📁 ارفع صور أو فيديوهات
+              <input type="file" id="bg-file" accept="image/*,video/*" multiple hidden>
             </label>
             <button class="btn" id="open-stock" type="button">🔎 خلفيات مجانية</button>
           </div>
           <div class="muted" id="bg-name">مفيش خلفية مختارة</div>
           <ol class="bg-list" id="bg-list"></ol>
           <div class="muted" id="bg-timing" hidden></div>
-          <div class="btn-row">
-            <label class="btn file-btn">➕ ضيف خلفية تانية
-              <input type="file" id="bg-add" accept="image/*,video/*" multiple hidden>
-            </label>
-            <button class="btn" id="bg-add-stock" type="button">➕ من الخلفيات المجانية</button>
+          <div class="btn-row" id="bg-list-actions" hidden>
+            <input type="file" id="bg-add" accept="image/*,video/*" multiple hidden>
+            <button class="btn ghost" id="bg-clear" type="button">🗑 امسح كل الخلفيات</button>
           </div>
           <div class="grid2" id="bg-switch-row" hidden>
             <label>تبديل الخلفيات
@@ -493,6 +491,12 @@
       <p class="hint">ابحث بالإنجليزي للحصول على نتايج أكتر. اختار مشاهد من غير أشخاص. نتايج Wikimedia و Openverse بيظهر عليها اسم صاحبها ورخصتها؛ لو الرخصة فيها <b>BY</b> اكتب اسمه في الوصف (البرنامج بيحطه لك في رسالة الحالة).</p>
       <p class="hint">ومن غير أي مفتاح: افتح <a href="https://www.pexels.com/search/videos/nature/?orientation=portrait" target="_blank" rel="noopener">Pexels</a> أو <a href="https://mixkit.co/free-stock-video/" target="_blank" rel="noopener">Mixkit</a> أو <a href="https://pixabay.com/videos/" target="_blank" rel="noopener">Pixabay</a> في المتصفح، نزّل الفيديو، وارفعه من «اختار ملف» — كلهم مجانيين ومن غير ذكر المصدر.</p>
       <div class="stock-grid" id="stock-results"></div>
+      <div class="stock-bar">
+        <span class="grow" id="stock-count">اضغط على الخلفيات اللي عايزها (تقدر تختار أكتر من واحدة)</span>
+        <label class="check"><input type="checkbox" id="stock-replace"> امسح الخلفيات الحالية الأول</label>
+        <button class="btn ghost" id="stock-clear-sel" type="button">إلغاء الاختيار</button>
+        <button class="btn primary" id="stock-done" type="button">✓ تم</button>
+      </div>
     </div>
   </dialog>
 

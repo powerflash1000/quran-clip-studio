@@ -12,6 +12,7 @@ import * as SND from './sounds.js';
 import * as WT from './words.js';
 import { fetchFirst } from './net.js';
 import { bgSchedule, pickBg } from './bglist.js';
+import { saveMediaList, loadMediaList } from './mediastore.js';
 import { splitRange, chaptersText, chaptersWarnings } from './series.js';
 import { parseRefs, embedFor, surahInText } from './automation.js';
 import * as PL from './planner.js';
@@ -1305,16 +1306,22 @@ function setupStyle() {
   $('#quality').onchange = () => { state.style.quality = $('#quality').value; persist(); };
   $('#silent').onchange = () => { $('#silent-dur-wrap').hidden = !$('#silent').checked; };
 
+  // الرفع بيضيف للقايمة (مش بيمسح اللي قبله) — والمسح من ✕ أو «امسح كل الخلفيات»
   $('#bg-file').onchange = () => {
-    const file = $('#bg-file').files[0];
-    if (file) setMedia(file);
+    for (const f of $('#bg-file').files) setMedia(f, true);
     $('#bg-file').value = '';
+  };
+  $('#bg-clear').onclick = () => {
+    if (!confirm(`تمسح الـ ${Q.arabicNum(state.mediaList.length)} خلفيات؟`)) return;
+    for (const m of state.mediaList) URL.revokeObjectURL(m.url);
+    state.mediaList = []; state.media = null;
+    persistMedia(); renderBgList(); refreshPreview();
   };
   $('#bg-add').onchange = () => {
     for (const f of $('#bg-add').files) setMedia(f, true);
     $('#bg-add').value = '';
   };
-  $('#bg-add-stock').onclick = () => { stockAppend = true; $('#dlg-stock').showModal(); };
+
 
   $('#ambient-file').onchange = async () => {
     const file = $('#ambient-file').files[0];
@@ -1333,19 +1340,32 @@ function makeMediaItem(file) {
   const url = URL.createObjectURL(file);
   const isVideo = file.type.startsWith('video/');
   const el = isVideo ? document.createElement('video') : new Image();
+  const item = { id: uid(), kind: isVideo ? 'video' : 'image', file, el, url, thumb: isVideo ? null : url };
   if (isVideo) {
     el.muted = true; el.loop = true; el.playsInline = true;
-    el.onloadeddata = () => { el.play().catch(() => {}); refreshPreview(); renderBgList(); };
+    el.onloadeddata = () => {
+      // صورة مصغرة ثابتة من أول الفيديو (بدل ما نحمّل الفيديو تاني في القايمة)
+      try {
+        const c = document.createElement('canvas'); c.width = 68; c.height = 108;
+        const x = c.getContext('2d'); const k = Math.max(68 / el.videoWidth, 108 / el.videoHeight);
+        x.drawImage(el, (68 - el.videoWidth * k) / 2, (108 - el.videoHeight * k) / 2, el.videoWidth * k, el.videoHeight * k);
+        item.thumb = c.toDataURL('image/jpeg', 0.7);
+      } catch { /* مش مهم */ }
+      el.play().catch(() => {}); refreshPreview(); renderBgList();
+    };
   } else {
-    el.onload = () => { refreshPreview(); renderBgList(); };
+    el.onload = () => { refreshPreview(); };
   }
   el.src = url;
-  return { id: uid(), kind: isVideo ? 'video' : 'image', file, el, url };
+  return item;
 }
 
+const persistMedia = () => saveMediaList(state.mediaList);
+
 // append = true: ضيفها جنب الخلفيات الموجودة بدل ما تستبدلهم
-function setMedia(file, append = false) {
+function setMedia(file, append = false, secs = null) {
   const item = makeMediaItem(file);
+  if (secs != null) item.secs = secs;
   if (append && state.mediaList.length) state.mediaList.push(item);
   else {
     for (const m of state.mediaList) URL.revokeObjectURL(m.url);
@@ -1357,6 +1377,7 @@ function setMedia(file, append = false) {
   updateBgVisibility();
   renderBgList();
   persist();
+  persistMedia();
   refreshPreview();
 }
 
@@ -1364,12 +1385,10 @@ function renderBgList() {
   const list = state.mediaList;
   const ol = $('#bg-list');
   ol.innerHTML = '';
-  $('#bg-name').hidden = list.length > 1;
+  $('#bg-name').hidden = list.length > 0;
   $('#bg-switch-row').hidden = list.length < 2;
-  if (list.length === 1) {
-    const m = list[0];
-    $('#bg-name').textContent = `${m.kind === 'video' ? '🎞️' : '🖼️'} ${m.file.name} (${(m.file.size / 1048576).toFixed(1)} MB)`;
-  } else if (!list.length) $('#bg-name').textContent = 'مفيش خلفية مختارة';
+  $('#bg-list-actions').hidden = list.length < 2;
+  if (!list.length) $('#bg-name').textContent = 'مفيش خلفية مختارة — ارفع صورة/فيديو أو اختار من الخلفيات المجانية';
   const custom = state.style.bgSwitch === 'custom';
   const tm = $('#bg-timing');
   tm.hidden = list.length < 2;
@@ -1384,33 +1403,33 @@ function renderBgList() {
         : `مجموع الخلفيات ${fmtDur(sum)}`;
     } else tm.textContent = durCache ? `الفيديو ${fmtDur(durCache.duration)} — التوقيت جنب كل خلفية` : '';
   }
-  if (list.length < 2) return;
+  if (!list.length) return;
   list.forEach((m, i) => {
     const li = document.createElement('li');
     li.className = 'bg-item';
-    const th = m.kind === 'video' ? document.createElement('video') : document.createElement('img');
-    th.src = m.url;
-    if (m.kind === 'video') { th.muted = true; th.preload = 'metadata'; }
-    th.className = 'bg-thumb';
+    let th;
+    if (m.thumb) { th = document.createElement('img'); th.src = m.thumb; th.className = 'bg-thumb'; th.alt = ''; }
+    else { th = document.createElement('span'); th.className = 'bg-thumb-ph'; th.textContent = m.kind === 'video' ? '🎞️' : '🖼️'; }
     li.appendChild(th);
     const name = document.createElement('span');
     name.className = 'grow';
     name.textContent = `${Q.arabicNum(i + 1)}. ${m.kind === 'video' ? '🎞️' : '🖼️'} ${m.file.name}`;
+    name.title = `${m.file.name} (${(m.file.size / 1048576).toFixed(1)} MB)`;
     li.appendChild(name);
     const mk = (txt, title, fn, dis) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn icon'; b.textContent = txt; b.title = title; b.disabled = !!dis; b.onclick = fn; li.appendChild(b); };
-    const swap = j => { [list[i], list[j]] = [list[j], list[i]]; state.media = list[0]; renderBgList(); refreshPreview(); };
-    if (custom) {
+    const swap = j => { [list[i], list[j]] = [list[j], list[i]]; state.media = list[0]; persistMedia(); renderBgList(); refreshPreview(); };
+    if (custom && list.length > 1) {
       const inp = document.createElement('input');
       inp.type = 'number'; inp.min = '0.5'; inp.max = '120'; inp.step = '0.5';
       inp.className = 'bg-secs';
       inp.placeholder = String(state.style.bgEvery || 6);
       inp.title = 'المدة بالثواني';
       inp.value = m.secs ?? '';
-      inp.onchange = () => { m.secs = inp.value === '' ? null : Math.max(0.5, Number(inp.value)); renderBgList(); refreshPreview(); };
+      inp.onchange = () => { m.secs = inp.value === '' ? null : Math.max(0.5, Number(inp.value)); persistMedia(); renderBgList(); refreshPreview(); };
       li.appendChild(inp);
       const u = document.createElement('span'); u.className = 'muted'; u.textContent = 'ث'; li.appendChild(u);
     }
-    if (sched) {
+    if (sched && list.length > 1) {
       const mine = sched.filter(c => c.k === i && c.to - c.from >= 0.5);
       const r = document.createElement('span');
       r.className = 'bg-when';
@@ -1419,7 +1438,7 @@ function renderBgList() {
     }
     mk('▲', 'لفوق', () => swap(i - 1), i === 0);
     mk('▼', 'لتحت', () => swap(i + 1), i === list.length - 1);
-    mk('✕', 'شيلها', () => { URL.revokeObjectURL(m.url); list.splice(i, 1); state.media = list[0] || null; renderBgList(); refreshPreview(); });
+    mk('✕', 'شيلها', () => { URL.revokeObjectURL(m.url); list.splice(i, 1); state.media = list[0] || null; persistMedia(); renderBgList(); refreshPreview(); });
     ol.appendChild(li);
   });
 }
@@ -1502,7 +1521,32 @@ function setupSoundSearch() {
 }
 
 // ===== الخلفيات المجانية =====
-let stockAppend = false;
+const stockSel = new Map(); // id -> item (اختيار متعدد)
+function openStock(query) {
+  stockSel.clear();
+  $('#stock-replace').checked = false;
+  updateStockBar();
+  if (query) $('#stock-q').value = query;
+  $('#dlg-stock').showModal();
+  if (query) $('#stock-go').click();
+}
+
+function updateStockBar() {
+  const n = stockSel.size, have = state.mediaList.length;
+  $('#stock-count').textContent = n
+    ? `✅ اخترت ${Q.arabicNum(n)} ${n === 1 ? 'خلفية' : 'خلفيات'}${have && !$('#stock-replace').checked ? ` — هيتضافوا للـ ${Q.arabicNum(have)} اللي عندك` : ''}`
+    : `اضغط على الخلفيات اللي عايزها (تقدر تختار أكتر من واحدة)${have ? ` — عندك حاليًا ${Q.arabicNum(have)}` : ''}`;
+  $('#stock-done').textContent = n ? `✓ تم — أضف ${Q.arabicNum(n)}` : '✓ تم';
+  $('#stock-replace').parentElement.hidden = !have;
+  document.querySelectorAll('#stock-results .stock-item').forEach(d => {
+    const order = [...stockSel.keys()].indexOf(d.dataset.id);
+    d.classList.toggle('picked', order !== -1);
+    let num = d.querySelector('.num');
+    if (order !== -1) { if (!num) { num = document.createElement('span'); num.className = 'num'; d.appendChild(num); } num.textContent = Q.arabicNum(order + 1); }
+    else num?.remove();
+  });
+}
+
 function setupStock() {
   const dlg = $('#dlg-stock');
   const prov = $('#stock-provider');
@@ -1510,8 +1554,35 @@ function setupStock() {
   const st = getSettings();
   prov.value = load('stockProvider', null) || (st.pixabayKey ? 'pixabay' : st.pexelsKey ? 'pexels' : 'commons');
   prov.onchange = () => save('stockProvider', prov.value);
-  $('#open-stock').onclick = () => { stockAppend = false; dlg.showModal(); };
+  $('#open-stock').onclick = () => openStock();
   $('#stock-close').onclick = () => dlg.close();
+  $('#stock-replace').onchange = updateStockBar;
+  $('#stock-clear-sel').onclick = () => { stockSel.clear(); updateStockBar(); };
+  $('#stock-done').onclick = async () => {
+    const items = [...stockSel.values()];
+    if (!items.length) { dlg.close(); return; }
+    const btn = $('#stock-done');
+    btn.disabled = true;
+    let ok = 0, replace = $('#stock-replace').checked;
+    const credits = [];
+    for (const [i, it] of items.entries()) {
+      $('#stock-count').textContent = `⏳ بيحمّل ${Q.arabicNum(i + 1)} من ${Q.arabicNum(items.length)}…`;
+      try {
+        setMedia(await downloadStock(it), !replace);
+        replace = false;
+        ok++;
+        if (it.license && /BY/i.test(it.license)) credits.push(`${it.credit || 'صاحبها'} (${it.license})`);
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+    btn.disabled = false;
+    stockSel.clear();
+    dlg.close();
+    showTab('look', false);
+    const failed = items.length - ok;
+    status(`✅ اتضاف ${Q.arabicNum(ok)} — عندك ${Q.arabicNum(state.mediaList.length)} خلفيات${failed ? ` (و ${Q.arabicNum(failed)} ماتحمّلتش)` : ''}${credits.length ? ` • اكتب في الوصف: الخلفيات: ${credits.join('، ')}` : ''}`, null, !ok);
+  };
   const go = async () => {
     const box = $('#stock-results');
     box.textContent = 'جاري البحث…';
@@ -1522,23 +1593,17 @@ function setupStock() {
       for (const it of items) {
         const d = document.createElement('div');
         d.className = 'stock-item';
+        d.dataset.id = it.id;
         d.innerHTML = `<img alt="" loading="lazy"><span class="tag"></span>`;
         d.querySelector('img').src = it.thumb;
         d.querySelector('.tag').textContent = `${it.kind === 'video' ? '🎞️' : '🖼️'} ${it.credit || ''}${it.license ? ' · ' + it.license : ''}`;
-        d.onclick = async () => {
-          d.style.opacity = .5;
-          try {
-            setMedia(await downloadStock(it), stockAppend);
-            if (stockAppend) { d.classList.add('picked'); status(`✅ اتضافت — عندك ${Q.arabicNum(state.mediaList.length)} خلفيات. اختار كمان أو اقفل.`); }
-            else dlg.close();
-            if (it.license && /BY/i.test(it.license)) status(`الخلفية برخصة ${it.license}: اكتب في الوصف «الخلفية: ${it.credit || 'صاحبها'} — Wikimedia/Openverse (${it.license})»`);
-          } catch (e) {
-            alert('تعذر تحميل الملف: ' + e.message);
-          }
-          d.style.opacity = 1;
+        d.onclick = () => {
+          if (stockSel.has(it.id)) stockSel.delete(it.id); else stockSel.set(it.id, it);
+          updateStockBar();
         };
         box.appendChild(d);
       }
+      updateStockBar();
     } catch (e) {
       box.textContent = e.message;
     }
@@ -1559,10 +1624,12 @@ function setupTemplates() {
   $('#tpl-apply').onclick = () => {
     const tpl = T.listTemplates()[$('#templates').value];
     if (!tpl) return;
-    state.style = { ...T.DEFAULT_STYLE, ...tpl, bgType: tpl.bgType === 'media' && !state.media ? 'gradient' : tpl.bgType };
+    const keepMedia = state.mediaList.length > 0 && state.style.bgType === 'media';
+    state.style = { ...T.DEFAULT_STYLE, ...tpl, bgType: keepMedia ? 'media' : tpl.bgType === 'media' && !state.media ? 'gradient' : tpl.bgType };
     applyStyleToInputs();
     persist();
     refreshPreview();
+    if (keepMedia) status('✅ القالب اتطبّق، والخلفيات اللي اخترتها فضلت زي ما هي.');
   };
   $('#tpl-save').onclick = () => {
     const name = $('#tpl-name').value.trim();
@@ -2091,7 +2158,7 @@ function setupProject() {
       if (proj.app !== 'quran-clip-studio' || !Array.isArray(proj.blocks)) throw new Error('ده مش ملف مشروع من البرنامج');
       stop();
       state.blocks = proj.blocks;
-      state.style = { ...T.DEFAULT_STYLE, ...proj.style, bgType: proj.style?.bgType === 'media' && !state.media ? 'gradient' : proj.style?.bgType };
+      state.style = { ...T.DEFAULT_STYLE, ...proj.style, bgType: state.mediaList.length && state.style.bgType === 'media' ? 'media' : proj.style?.bgType === 'media' && !state.media ? 'gradient' : proj.style?.bgType };
       if (proj.series) { Object.assign(state.series, proj.series); save('series', state.series); }
       hadithAudio.clear();
       for (const [id, au] of Object.entries(proj.audios || {})) {
@@ -2437,12 +2504,7 @@ function setupRecipe() {
   $('#rc-bg-go').onclick = () => {
     const q = $('#rc-bg').value.trim();
     if (!q) { $('#rc-bg').focus(); return; }
-    $('#stock-q').value = q;
-    // لو فيه خلفية بالفعل، اللي هتختاره هيتضاف جنبها (ريل بأكتر من خلفية)
-    stockAppend = state.style.bgType === 'media' && state.mediaList.length > 0;
-    $('#dlg-stock').showModal();
-    $('#stock-go').click();
-    if (stockAppend) status('اللي هتختاره هيتضاف للخلفيات الموجودة. اختار كذا واحدة ورا بعض.');
+    openStock(q);
   };
   $('#rc-apply').onclick = () => {
     const r = readRecipe();
@@ -2758,12 +2820,24 @@ function setupStats() {
   $('#stats-clear').onclick = () => { statRows = []; save('statsRows', []); renderStats(); };
 }
 
+// الخلفيات المحفوظة من آخر مرة
+async function restoreMedia() {
+  const saved = await loadMediaList();
+  if (!saved.length || state.mediaList.length) return;
+  state.mediaList = saved.map(v => { const m = makeMediaItem(v.file); m.secs = v.secs; return m; });
+  state.media = state.mediaList[0];
+  updateBgVisibility();
+  renderBgList();
+  refreshPreview();
+}
+
 // ===== البداية =====
 async function init() {
   status('تحميل نص المصحف…');
   await Promise.all([Q.loadQuran(), ensureFonts(), loadAzkar()]);
   status('');
   setupStyle();
+  restoreMedia();
   setupReciters();
   setupAyahSearch();
   setupStock();
