@@ -1630,33 +1630,115 @@ function setupStock() {
     const failed = items.length - ok;
     status(`✅ اتضاف ${Q.arabicNum(ok)} — عندك ${Q.arabicNum(state.mediaList.length)} خلفيات${failed ? ` (و ${Q.arabicNum(failed)} ماتحمّلتش)` : ''}${credits.length ? ` • اكتب في الوصف: الخلفيات: ${credits.join('، ')}` : ''}`, null, !ok);
   };
-  const go = async () => {
+  // ===== الفلاتر والصفحات =====
+  const ORDER_NAMES = { relevance: 'الأنسب للبحث', popular: 'الأشهر', latest: 'الأحدث' };
+  const sf = { order: '', dur: '', vertical: false, editors: false, hd: false, ...load('stockFilters', {}) };
+  const syncFilterUi = () => {
+    const P = PROVIDERS[prov.value];
+    const orders = P.order || [];
+    $('#sf-order').innerHTML = orders.map(o => `<option value="${o}">${ORDER_NAMES[o]}</option>`).join('');
+    if (!orders.includes(sf.order)) sf.order = orders[0] || '';
+    $('#sf-order').value = sf.order;
+    $('#sf-order-wrap').hidden = !orders.length;
+    $('#sf-editors-wrap').hidden = !P.editors;
+    $('#sf-dur-wrap').hidden = $('#stock-kind').value !== 'video';
+    $('#sf-dur').value = sf.dur;
+    $('#sf-vertical').checked = sf.vertical;
+    $('#sf-editors').checked = sf.editors;
+    $('#sf-hd').checked = sf.hd;
+  };
+  const passes = it => {
+    if (sf.dur && it.kind === 'video' && it.duration != null) {
+      const [lo, hi] = sf.dur.split('-').map(Number);
+      if (it.duration < lo || it.duration > hi) return false;
+    }
+    if (sf.vertical && it.width && it.height && it.height <= it.width) return false;
+    if (sf.hd && it.width && it.height && Math.min(it.width, it.height) < 720) return false;
+    return true;
+  };
+  let last = null; // { items, total, pages, hasMore, page }
+  const fmtN = n => Q.arabicNum(Number(n).toLocaleString('en-US'));
+  const render = () => {
+    const box = $('#stock-results');
+    box.innerHTML = '';
+    if (!last) return;
+    const shown = last.items.filter(passes);
+    const hidden = last.items.length - shown.length;
+    $('#stock-info').textContent = [
+      last.total != null ? `النتايج: ${fmtN(last.total)}` : '',
+      last.pages ? `الصفحة ${Q.arabicNum(last.page)} من ${Q.arabicNum(last.pages)}` : `الصفحة ${Q.arabicNum(last.page)}`,
+      hidden ? `اتخبى ${Q.arabicNum(hidden)} بسبب الفلاتر` : '',
+    ].filter(Boolean).join(' • ');
+    if (!shown.length) box.textContent = last.items.length ? 'كل نتايج الصفحة دي اتخبت بسبب الفلاتر — جرّب الصفحة اللي بعدها أو خفّف الفلاتر.' : 'مفيش نتايج';
+    for (const it of shown) {
+      const d = document.createElement('div');
+      d.className = 'stock-item';
+      d.dataset.id = it.id;
+      d.innerHTML = `<img alt="" loading="lazy"><div class="meta"></div><span class="tag"></span>`;
+      d.querySelector('img').src = it.thumb;
+      const meta = [];
+      if (it.duration != null) meta.push(`⏱ ${fmtDur(it.duration)}`);
+      if (it.width && it.height) meta.push(`${Math.min(it.width, it.height) >= 1080 ? 'FHD' : Math.min(it.width, it.height) >= 720 ? 'HD' : 'SD'} ${it.height > it.width ? '▯' : '▭'}`);
+      if (it.likes != null) meta.push(`❤ ${it.likes >= 1000 ? (it.likes / 1000).toFixed(1) + 'k' : it.likes}`);
+      d.querySelector('.meta').innerHTML = meta.map(m => `<span>${m}</span>`).join('');
+      d.querySelector('.tag').textContent = `${it.kind === 'video' ? '🎞️' : '🖼️'} ${it.credit || ''}${it.license ? ' · ' + it.license : ''}`;
+      d.onclick = () => {
+        if (stockSel.has(it.id)) stockSel.delete(it.id); else stockSel.set(it.id, it);
+        updateStockBar();
+      };
+      box.appendChild(d);
+    }
+    // أرقام الصفحات
+    const pg = $('#stock-pager');
+    pg.innerHTML = '';
+    const cur = last.page;
+    const maxP = last.pages || (last.hasMore ? cur + 1 : cur);
+    if (maxP <= 1) return;
+    const btn = (label, page, current = false, disabled = false) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'btn'; b.textContent = label;
+      if (current) b.setAttribute('aria-current', 'page');
+      b.disabled = disabled;
+      b.onclick = () => go(page);
+      pg.appendChild(b);
+    };
+    btn('‹ السابق', cur - 1, false, cur <= 1);
+    const nums = new Set([1, maxP, cur - 2, cur - 1, cur, cur + 1, cur + 2].filter(n => n >= 1 && n <= maxP));
+    let prev = 0;
+    for (const n of [...nums].sort((x, y) => x - y)) {
+      if (n - prev > 1) { const sp = document.createElement('span'); sp.className = 'muted'; sp.textContent = '…'; pg.appendChild(sp); }
+      btn(Q.arabicNum(n), n, n === cur);
+      prev = n;
+    }
+    btn('التالي ›', cur + 1, false, !(last.hasMore || (last.pages && cur < last.pages)));
+  };
+  const go = async (page = 1) => {
     const box = $('#stock-results');
     box.textContent = 'جاري البحث…';
+    $('#stock-pager').innerHTML = '';
     try {
       const fn = PROVIDERS[prov.value].fn;
-      const items = await fn($('#stock-q').value.trim() || 'nature', $('#stock-kind').value, state.style.aspect);
-      box.innerHTML = items.length ? '' : 'مفيش نتايج';
-      for (const it of items) {
-        const d = document.createElement('div');
-        d.className = 'stock-item';
-        d.dataset.id = it.id;
-        d.innerHTML = `<img alt="" loading="lazy"><span class="tag"></span>`;
-        d.querySelector('img').src = it.thumb;
-        d.querySelector('.tag').textContent = `${it.kind === 'video' ? '🎞️' : '🖼️'} ${it.credit || ''}${it.license ? ' · ' + it.license : ''}`;
-        d.onclick = () => {
-          if (stockSel.has(it.id)) stockSel.delete(it.id); else stockSel.set(it.id, it);
-          updateStockBar();
-        };
-        box.appendChild(d);
-      }
+      const r = await fn($('#stock-q').value.trim() || 'nature', $('#stock-kind').value, state.style.aspect, { page, order: sf.order, editors: sf.editors });
+      last = { ...r, page };
+      render();
       updateStockBar();
+      $('#stock-results').scrollTop = 0;
     } catch (e) {
       box.textContent = e.message;
+      $('#stock-info').textContent = '';
     }
   };
-  $('#stock-go').onclick = go;
-  $('#stock-q').onkeydown = e => { if (e.key === 'Enter') go(); };
+  const saveSf = () => save('stockFilters', sf);
+  $('#sf-order').onchange = () => { sf.order = $('#sf-order').value; saveSf(); go(1); };
+  $('#sf-editors').onchange = () => { sf.editors = $('#sf-editors').checked; saveSf(); go(1); };
+  $('#sf-dur').onchange = () => { sf.dur = $('#sf-dur').value; saveSf(); render(); updateStockBar(); };
+  $('#sf-vertical').onchange = () => { sf.vertical = $('#sf-vertical').checked; saveSf(); render(); updateStockBar(); };
+  $('#sf-hd').onchange = () => { sf.hd = $('#sf-hd').checked; saveSf(); render(); updateStockBar(); };
+  prov.addEventListener('change', () => { syncFilterUi(); last = null; render(); $('#stock-info').textContent = ''; $('#stock-pager').innerHTML = ''; });
+  $('#stock-kind').addEventListener('change', syncFilterUi);
+  syncFilterUi();
+  $('#stock-go').onclick = () => go(1);
+  $('#stock-q').onkeydown = e => { if (e.key === 'Enter') go(1); };
 }
 
 // ===== القوالب =====

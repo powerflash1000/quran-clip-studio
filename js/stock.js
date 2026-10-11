@@ -12,47 +12,56 @@ function pickPexelsFile(files) {
   return mp4.find(f => Math.min(f.width, f.height) >= 720) || mp4[mp4.length - 1];
 }
 
-export async function searchPexels(query, kind, aspect) {
+// opts: { page, order: 'relevance'|'popular'|'latest', editors }
+// كل مصدر بيرجع { items, total, pages, hasMore } — items: [{ id, kind, thumb, url, width, height, duration, likes, views, credit, license, page }]
+const PER = 30;
+const pagesOf = (total, per = PER) => (total ? Math.max(1, Math.ceil(total / per)) : null);
+
+export async function searchPexels(query, kind, aspect, opts = {}) {
   const { pexelsKey } = getSettings();
   if (!pexelsKey) throw new Error('حط مفتاح Pexels في الإعدادات الأول');
   const o = orient(aspect);
-  const url = kind === 'video'
-    ? `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&orientation=${o}&per_page=24`
-    : `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&orientation=${o}&per_page=24`;
-  const res = await fetch(url, { headers: { Authorization: pexelsKey } });
+  const page = opts.page || 1;
+  const base = kind === 'video' ? 'https://api.pexels.com/videos/search' : 'https://api.pexels.com/v1/search';
+  const res = await fetch(`${base}?query=${encodeURIComponent(query)}&orientation=${o}&per_page=${PER}&page=${page}`, { headers: { Authorization: pexelsKey } });
   if (!res.ok) throw new Error('Pexels: ' + res.status);
   const j = await res.json();
-  if (kind === 'video') {
-    return (j.videos || []).map(v => {
+  const items = kind === 'video'
+    ? (j.videos || []).map(v => {
       const f = pickPexelsFile(v.video_files || []);
-      return f && { id: 'px' + v.id, kind: 'video', thumb: v.image, url: f.link, width: f.width, height: f.height, credit: v.user?.name, page: v.url };
-    }).filter(Boolean);
-  }
-  return (j.photos || []).map(p => ({
-    id: 'px' + p.id, kind: 'image', thumb: p.src.medium,
-    url: aspect === '9:16' ? p.src.portrait : p.src.large2x,
-    credit: p.photographer, page: p.url,
-  }));
+      return f && { id: 'px' + v.id, kind: 'video', thumb: v.image, url: f.link, width: f.width, height: f.height, duration: v.duration, credit: v.user?.name, page: v.url };
+    }).filter(Boolean)
+    : (j.photos || []).map(p => ({ id: 'px' + p.id, kind: 'image', thumb: p.src.medium, url: aspect === '9:16' ? p.src.portrait : p.src.large2x, width: p.width, height: p.height, credit: p.photographer, page: p.url }));
+  return { items, total: j.total_results ?? null, pages: pagesOf(j.total_results), hasMore: !!j.next_page };
 }
 
-export async function searchPixabay(query, kind, aspect) {
+export async function searchPixabay(query, kind, aspect, opts = {}) {
   const { pixabayKey } = getSettings();
   if (!pixabayKey) throw new Error('حط مفتاح Pixabay في الإعدادات الأول');
   const q = encodeURIComponent(query);
+  const page = opts.page || 1;
+  const order = opts.order === 'latest' ? 'latest' : 'popular';
+  const extra = `&safesearch=true&per_page=${PER}&page=${page}&order=${order}${opts.editors ? '&editors_choice=true' : ''}`;
+  let j;
   if (kind === 'video') {
-    const res = await fetch(`https://pixabay.com/api/videos/?key=${pixabayKey}&q=${q}&safesearch=true&per_page=24`);
-    if (!res.ok) throw new Error('Pixabay: ' + res.status);
-    const j = await res.json();
-    return (j.hits || []).map(h => {
+    const res = await fetch(`https://pixabay.com/api/videos/?key=${pixabayKey}&q=${q}${extra}`);
+    if (!res.ok) throw new Error(res.status === 400 && page > 1 ? 'مفيش صفحات أكتر' : 'Pixabay: ' + res.status);
+    j = await res.json();
+    const items = (j.hits || []).map(h => {
       const f = h.videos.medium?.url ? h.videos.medium : h.videos.large || h.videos.small;
-      return { id: 'pb' + h.id, kind: 'video', thumb: h.videos.tiny?.thumbnail || h.videos.small?.thumbnail || '', url: f.url, width: f.width, height: f.height, credit: h.user, page: h.pageURL };
+      return { id: 'pb' + h.id, kind: 'video', thumb: h.videos.tiny?.thumbnail || h.videos.small?.thumbnail || '', url: f.url, width: f.width, height: f.height, duration: h.duration, likes: h.likes, views: h.views, credit: h.user, page: h.pageURL };
     });
+    // Pixabay بيرجّع لحد ٥٠٠ نتيجة بس
+    const total = Math.min(j.totalHits || 0, 500);
+    return { items, total: j.total ?? null, pages: pagesOf(total), hasMore: page * PER < total };
   }
   const o = aspect === '9:16' ? 'vertical' : aspect === '16:9' ? 'horizontal' : 'all';
-  const res = await fetch(`https://pixabay.com/api/?key=${pixabayKey}&q=${q}&image_type=photo&orientation=${o}&safesearch=true&per_page=24`);
-  if (!res.ok) throw new Error('Pixabay: ' + res.status);
-  const j = await res.json();
-  return (j.hits || []).map(h => ({ id: 'pb' + h.id, kind: 'image', thumb: h.previewURL, url: h.largeImageURL, credit: h.user, page: h.pageURL }));
+  const res = await fetch(`https://pixabay.com/api/?key=${pixabayKey}&q=${q}&image_type=photo&orientation=${o}${extra}`);
+  if (!res.ok) throw new Error(res.status === 400 && page > 1 ? 'مفيش صفحات أكتر' : 'Pixabay: ' + res.status);
+  j = await res.json();
+  const total = Math.min(j.totalHits || 0, 500);
+  const items = (j.hits || []).map(h => ({ id: 'pb' + h.id, kind: 'image', thumb: h.webformatURL || h.previewURL, url: h.largeImageURL, width: h.imageWidth, height: h.imageHeight, likes: h.likes, views: h.views, credit: h.user, page: h.pageURL }));
+  return { items, total: j.total ?? null, pages: pagesOf(total), hasMore: page * PER < total };
 }
 
 export async function downloadStock(item) {
@@ -68,17 +77,20 @@ export async function downloadStock(item) {
 // Wikimedia Commons: صور وفيديوهات برخص حرة (بعضها محتاج ذكر صاحبها — الرخصة بتظهر على كل نتيجة)
 const stripTags = s => (s || '').replace(/<[^>]+>/g, '').trim();
 
-export async function searchCommons(query, kind, aspect) {
+export async function searchCommons(query, kind, aspect, opts = {}) {
   const type = kind === 'video' ? 'filetype:video' : 'filetype:bitmap';
   const w = kind === 'video' ? 320 : 1080;
+  const page = opts.page || 1;
+  const sort = opts.order === 'latest' ? 'create_timestamp_desc' : opts.order === 'popular' ? 'incoming_links_desc' : 'relevance';
   const url = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*'
-    + `&generator=search&gsrnamespace=6&gsrlimit=40&gsrsearch=${encodeURIComponent(`${type} ${query}`)}`
-    + `&prop=imageinfo&iiprop=url|size|mime|extmetadata&iiurlwidth=${w}`;
+    + `&generator=search&gsrnamespace=6&gsrlimit=${PER}&gsroffset=${(page - 1) * PER}&gsrsort=${sort}&gsrsearch=${encodeURIComponent(`${type} ${query}`)}`
+    + `&prop=imageinfo&iiprop=url|size|mime|extmetadata&iiurlwidth=${w}`
+    + `&list=search&srsearch=${encodeURIComponent(`${type} ${query}`)}&srnamespace=6&srlimit=1&srinfo=totalhits&srprop=`;
   const res = await fetch(url);
   if (!res.ok) throw new Error('Wikimedia: ' + res.status);
   const j = await res.json();
   const pages = Object.values(j.query?.pages || {}).sort((a, b) => (a.index || 0) - (b.index || 0));
-  const out = [];
+  const items = [];
   for (const p of pages) {
     const ii = p.imageinfo?.[0];
     if (!ii) continue;
@@ -87,34 +99,37 @@ export async function searchCommons(query, kind, aspect) {
     const license = stripTags(m.LicenseShortName?.value);
     if (kind === 'video') {
       if (!/^video\//.test(ii.mime) || ii.size > 80e6 || (ii.duration && ii.duration > 120)) continue;
-      out.push({ id: 'wm' + p.pageid, kind: 'video', thumb: ii.thumburl, url: ii.url, width: ii.width, height: ii.height, credit, license, page: ii.descriptionurl, ext: ii.url.split('.').pop() });
+      items.push({ id: 'wm' + p.pageid, kind: 'video', thumb: ii.thumburl, url: ii.url, width: ii.width, height: ii.height, duration: ii.duration, credit, license, page: ii.descriptionurl, ext: ii.url.split('.').pop() });
     } else {
       if (!/^image\/(jpeg|png|webp)/.test(ii.mime)) continue;
-      if (aspect === '9:16' && ii.width > ii.height * 1.2) continue;
-      out.push({ id: 'wm' + p.pageid, kind: 'image', thumb: ii.thumburl, url: ii.thumburl || ii.url, credit, license, page: ii.descriptionurl });
+      items.push({ id: 'wm' + p.pageid, kind: 'image', thumb: ii.thumburl, url: ii.thumburl || ii.url, width: ii.width, height: ii.height, credit, license, page: ii.descriptionurl });
     }
   }
-  return out.slice(0, 24);
+  const total = j.query?.searchinfo?.totalhits ?? null;
+  return { items, total, pages: pagesOf(total), hasMore: !!j.continue?.gsroffset };
 }
 
 // Openverse (صور بس): ملايين الصور برخص حرة مسموح استخدامها تجاريًا
-export async function searchOpenverse(query, kind, aspect) {
+export async function searchOpenverse(query, kind, aspect, opts = {}) {
   if (kind === 'video') throw new Error('Openverse فيه صور بس — اختار «صورة» أو مصدر تاني للفيديو');
   const ar = aspect === '9:16' ? '&aspect_ratio=tall' : aspect === '16:9' ? '&aspect_ratio=wide' : '';
-  const res = await fetch(`https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&license_type=commercial,modification&page_size=24&mature=false${ar}`);
-  if (!res.ok) throw new Error('Openverse: ' + res.status);
+  const page = opts.page || 1;
+  const res = await fetch(`https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&license_type=commercial,modification&page_size=20&page=${page}&mature=false${ar}`);
+  if (!res.ok) throw new Error(res.status === 400 || res.status === 401 ? 'مفيش صفحات أكتر من غير حساب في Openverse' : 'Openverse: ' + res.status);
   const j = await res.json();
-  return (j.results || []).map(r => ({
+  const items = (j.results || []).map(r => ({
     id: 'ov' + r.id.slice(0, 8), kind: 'image',
     thumb: r.thumbnail || `https://api.openverse.org/v1/images/${r.id}/thumb/`,
     url: `https://api.openverse.org/v1/images/${r.id}/thumb/?full_size=true&compressed=false`,
+    width: r.width, height: r.height,
     credit: r.creator || '', license: `${(r.license || '').toUpperCase()} ${r.license_version || ''}`.trim(), page: r.foreign_landing_url,
   }));
+  return { items, total: j.result_count ?? null, pages: j.page_count ?? null, hasMore: page < (j.page_count || 0) };
 }
 
 export const PROVIDERS = {
-  pixabay: { name: 'Pixabay (مفتاح مجاني)', fn: searchPixabay },
-  commons: { name: 'Wikimedia (من غير مفتاح)', fn: searchCommons },
-  openverse: { name: 'Openverse — صور (من غير مفتاح)', fn: searchOpenverse },
-  pexels: { name: 'Pexels (لو عندك مفتاح قديم)', fn: searchPexels },
+  pixabay: { name: 'Pixabay (مفتاح مجاني)', fn: searchPixabay, editors: true, order: ['popular', 'latest'] },
+  commons: { name: 'Wikimedia (من غير مفتاح)', fn: searchCommons, order: ['relevance', 'popular', 'latest'] },
+  openverse: { name: 'Openverse — صور (من غير مفتاح)', fn: searchOpenverse, order: [] },
+  pexels: { name: 'Pexels (لو عندك مفتاح قديم)', fn: searchPexels, order: [] },
 };

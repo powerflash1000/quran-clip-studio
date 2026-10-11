@@ -6,7 +6,7 @@
   <title>استوديو مقاطع القرآن</title>
   <meta name="description" content="اختار الآيات والقارئ، وصدّر صوت MP3 أو M4A أو WAV أو فيديو جاهز للنشر — من المتصفح مباشرة وببلاش.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261011b">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261011c">
 </head>
 <body>
   <header class="topbar">
@@ -423,7 +423,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261011b</div>
+    <div class="muted" id="app-version">الإصدار 20261011c</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS
   </footer>
@@ -491,7 +491,26 @@
       </div>
       <p class="hint">ابحث بالإنجليزي للحصول على نتايج أكتر. اختار مشاهد من غير أشخاص. نتايج Wikimedia و Openverse بيظهر عليها اسم صاحبها ورخصتها؛ لو الرخصة فيها <b>BY</b> اكتب اسمه في الوصف (البرنامج بيحطه لك في رسالة الحالة).</p>
       <p class="hint">ومن غير أي مفتاح: افتح <a href="https://www.pexels.com/search/videos/nature/?orientation=portrait" target="_blank" rel="noopener">Pexels</a> أو <a href="https://mixkit.co/free-stock-video/" target="_blank" rel="noopener">Mixkit</a> أو <a href="https://pixabay.com/videos/" target="_blank" rel="noopener">Pixabay</a> في المتصفح، نزّل الفيديو، وارفعه من «اختار ملف» — كلهم مجانيين ومن غير ذكر المصدر.</p>
+      <div class="row wrap stock-filters">
+        <label class="inline" id="sf-order-wrap">الترتيب
+          <select id="sf-order"></select>
+        </label>
+        <label class="inline" id="sf-dur-wrap">المدة
+          <select id="sf-dur">
+            <option value="">أي مدة</option>
+            <option value="0-10">أقل من ١٠ث</option>
+            <option value="10-20">١٠–٢٠ث</option>
+            <option value="20-40">٢٠–٤٠ث</option>
+            <option value="40-999">أكتر من ٤٠ث</option>
+          </select>
+        </label>
+        <label class="check"><input type="checkbox" id="sf-vertical"> طولي بس (للريلز)</label>
+        <label class="check" id="sf-editors-wrap"><input type="checkbox" id="sf-editors"> ⭐ مختارات المحررين</label>
+        <label class="check"><input type="checkbox" id="sf-hd"> جودة عالية بس (720p+)</label>
+      </div>
+      <div class="muted" id="stock-info"></div>
       <div class="stock-grid" id="stock-results"></div>
+      <div class="pager" id="stock-pager"></div>
       <div class="stock-bar">
         <span class="grow" id="stock-count">اضغط على الخلفيات اللي عايزها (تقدر تختار أكتر من واحدة)</span>
         <label class="check"><input type="checkbox" id="stock-replace"> امسح الخلفيات الحالية الأول</label>
@@ -816,6 +835,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261011b"></script>
+  <script type="module" src="js/main.js?v=20261011c"></script>
 </body>
 </html>
