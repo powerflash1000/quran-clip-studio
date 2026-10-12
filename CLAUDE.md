@@ -8,6 +8,7 @@ Working memory for Claude sessions on this repo. Read this first; README.md is t
 - Subscriptions: Filmora, Higgsfield, Gemini, ChatGPT, Claude, ElevenLabs (own voice clone).
 - Posts to **TikTok, Instagram, Facebook only** (not YouTube).
 - TikTok: username **`@tilawat.alaaa`** (three a's; locked until 2026-11-07), display name «قرآن يريح القلب 🤍» (changeable after 2026-10-15). Profile picture = «تلاوات» crescent (`assets/profile/tiktok-avatar-tilawat.png`). Default on-video handle = `@tilawat.alaaa` (`js/templates.js`).
+- Facebook Page name: «كيف دخل هؤلاء إلى الإسلام» (older page, different topic from the TikTok brand). Linking IG↔FB hit a Meta temporary restriction (2026-10-12): advised waiting 48h, no rename during the block.
 - Account is Quran-only; other content (e.g. the planned daily-news reels tool) goes to a separate repo + separate account.
 
 ## Hard decisions (don't re-litigate)
