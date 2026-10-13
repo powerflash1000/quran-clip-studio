@@ -5,6 +5,7 @@ import { drawBackground, drawOverlay } from './slides.js';
 import { overlayFrames, FPS } from './exporter.js';
 import { SAMPLE_RATE } from './audio.js';
 import { bgSchedule, pickBg, loadVideoSource, seekVideo } from './bglist.js';
+import { videoFrames } from './vframes.js';
 
 const AVC_CODECS = ['avc1.640028', 'avc1.4d0028', 'avc1.640032', 'avc1.42e028'];
 
@@ -88,7 +89,27 @@ export async function fastExportVideo(project, cfg, onProgress, onStage) {
     sources = await Promise.all(list.map(async m => m.kind === 'video' ? { kind: 'video', el: await loadVideoSource(m.url) } : m));
   }
   const fade = dynamic && style.bgFade !== false ? 0.6 : 0;
+  const totalFrames = Math.ceil(timeline.duration * FPS);
+  // فيديوهات الخلفية: بنحسب مسبقًا كل الإطارات المطلوبة من كل فيديو بالترتيب، ونفكها بـ Mediabunny.
+  // لو فشل (صيغة مش مدعومة مثلًا) بنرجع للطريقة القديمة (seek لكل إطار).
+  if (dynamic && sources.some(m => m.kind === 'video') && !globalThis.__noMB) { // __noMB: للاختبار (يقارن بالطريقة القديمة)
+    const reqs = sources.map(() => []);
+    for (let i = 0; i < totalFrames; i++) {
+      const t = i / FPS, p = pickBg(sched, t, fade);
+      if (p.prev) reqs[p.prev.k].push(t - p.prev.from);
+      reqs[p.cur.k].push(t - p.cur.from);
+    }
+    await Promise.all(sources.map(async (m, k) => {
+      if (m.kind !== 'video' || !reqs[k].length) return;
+      try { m.frames = await videoFrames(list[k].url, reqs[k]); } catch (e) { console.warn('mediabunny → seek', e); }
+    }));
+  }
   const drawItemAt = async (c, m, local) => {
+    if (m.frames) {
+      const fr = await m.frames.next();
+      drawBackground(c, W, H, style, fr ? { kind: 'video', el: fr } : null);
+      return;
+    }
     if (m.kind === 'video') await seekVideo(m.el, local);
     drawBackground(c, W, H, style, m);
   };
@@ -140,7 +161,6 @@ export async function fastExportVideo(project, cfg, onProgress, onStage) {
   const ctx = canvas.getContext('2d');
   const ov = newCanvas(W, H);
   const octx = ov.getContext('2d');
-  const totalFrames = Math.ceil(timeline.duration * FPS);
   const frameDur = 1e6 / FPS;
   let fi = -1;
   const waveform = style.waveform && !silent;
@@ -177,6 +197,7 @@ export async function fastExportVideo(project, cfg, onProgress, onStage) {
       await new Promise(r => setTimeout(r, 0));
     }
   }
+  sources?.forEach(m => m.frames?.close());
   await venc.flush();
   venc.close();
   if (encodeError) throw encodeError;

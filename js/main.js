@@ -2,6 +2,7 @@ import * as Q from './quran.js';
 import { RECITERS, findReciter, customReciter, ayahAudioUrls } from './reciters.js';
 import { COLLECTIONS, collection, getHadith, searchHadith, extractMatn, assessGrade } from './hadith.js';
 import { loadAudio, decode, buildTimeline, startRecording, trimSilence, bufferToWavBlob, sliceBuffer, enhanceVoice, ENHANCE_PRESETS } from './audio.js';
+import { autoMarks } from './automark.js';
 import { ASPECTS, ensureFonts, drawBackground, drawOverlay, drawWave } from './slides.js';
 import { exportAudio, exportVideo, exportFilmoraPackage, renderStill, makeSrt, download } from './exporter.js';
 import { PROVIDERS, downloadStock } from './stock.js';
@@ -183,15 +184,24 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
       while (queue.length) {
         const s = queue.shift();
         try {
-          // ظهور الكلمات مع التلاوة: لو القارئ له توقيت على Quran.com بنستخدم ملف الصوت بتاعهم عشان التوقيت يطابق
+          // ظهور الكلمات مع التلاوة:
+          // ١) توقيت quran-align المحفوظ جوه البرنامج (لنفس ملفات EveryAyah) — أضمن، ومن غير API
+          // ٢) توقيت Quran.com (بملف الصوت بتاعهم عشان التوقيت يطابق)
           let qc = null;
-          if (wordSync && reciter.qurancom && s.qs) {
+          const af = wordSync && s.qs ? WT.alignFolder(reciter) : null;
+          if (af) {
+            try {
+              const segments = await WT.alignSegments(af, s.qs, s.qa);
+              if (segments) { s.audio = await loadAudio(s.audioUrls); qc = { segments, align: true }; }
+            } catch { qc = null; }
+          }
+          if (!qc && wordSync && reciter.qurancom && s.qs) {
             try {
               qc = (await WT.quranComChapter(reciter.qurancom, s.qs)).get(s.qa) || null;
               if (qc) s.audio = await loadAudio([qc.url]);
             } catch { qc = null; }
           }
-          if (!qc) s.audio = await loadAudio(s.audioUrls);
+          if (!s.audio) s.audio = await loadAudio(s.audioUrls);
           // ملفات التلاوة فيها سكوت في أولها وآخرها؛ بنقصه عشان الآيات تبان متصلة
           if (st.trimSilence && s.kind !== 'title') s.audio = trimSilence(s.audio, { threshold: 0.008, pad: 0.06 });
           if (wordSync) {
@@ -199,6 +209,7 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
             const exact = qc && WT.timesFromSegments(qc.segments, n, s.audio.trimStart || 0);
             s.wordTimes = exact || WT.approxTimes(s.text, s.audio.duration);
             s.wordExact = !!exact;
+            s.wordSource = exact ? (qc.align ? 'quran-align' : 'Quran.com') : 'تقريبي';
           }
         } catch (e) {
           const err = new Error(`تعذر تحميل تلاوة ${s.label}.\nجرّب قارئ تاني، أو اضبط «رابط الوسيط» من الإعدادات.`);
@@ -287,6 +298,18 @@ function drawFrame(seg, analyser, t = null) {
   if (analyser && state.style.waveform) drawWave(ctx, W, H, analyser, state.style.accent);
 }
 
+// مصدر توقيت الكلمات للقارئ الحالي (بيظهر تحت «ظهور الآية»)
+function updateWordSrc() {
+  const el = $('#word-src');
+  if (!el) return;
+  const mode = state.style.wordMode;
+  if (!mode || mode === 'full') { el.textContent = ''; return; }
+  const r = findReciter(state.style.reciter);
+  el.textContent = WT.alignFolder(r) ? '⏱️ توقيت دقيق لكل كلمة (quran-align — محفوظ في البرنامج)'
+    : r.qurancom ? '⏱️ توقيت دقيق لكل كلمة (من Quran.com — محتاج نت)'
+      : 'ℹ️ القارئ ده مالوش توقيت كلمات — هيتقسم تقريبي. القرّاء اللي جنبهم ⏱️ أدق.';
+}
+
 let refreshTimer = null;
 function refreshPreview() {
   clearTimeout(refreshTimer);
@@ -301,6 +324,7 @@ function refreshPreview() {
     slider.value = Math.max(0, state.segIndex);
     $('#seg-info').textContent = previewSegs.length ? segInfo(state.segIndex, previewSegs.length) : '';
     drawFrame(previewSegs[state.segIndex]);
+    updateWordSrc();
     refreshPublish();
     if (typeof updateDupWarn === 'function') updateDupWarn();
     scheduleDuration();
@@ -727,6 +751,22 @@ function wireRecitation(li, b) {
     if (player.paused) { player.currentTime = b.rec.start || 0; player.play().catch(() => {}); status('اشتغلت من البداية — اضغط «الآية اللي بعدها» أول ما كل آية تبدأ'); return; }
     b.rec.marks = [...(b.rec.marks || []), player.currentTime].sort((x, y) => x - y);
     sync(); persist();
+  };
+  act('recAuto').onclick = () => {
+    const au = hadithAudio.get(b.id);
+    if (!b.rec || !au) return;
+    const units = recUnits(b);
+    if (units.length < 2) { status('آية واحدة بس — مش محتاجة توقيتات'); return; }
+    const start = Math.max(0, Number(b.rec.start) || 0);
+    const end = Math.min(au.buffer.duration, Number(b.rec.end) > start ? Number(b.rec.end) : au.buffer.duration);
+    const { marks, pauses } = autoMarks(au.buffer, start, end, units.map(t => stripMarks(t).length + 6));
+    if (!marks) {
+      showError(new Error(`لقيت ${Q.arabicNum(pauses)} وقفة بس، والمطلوب ${Q.arabicNum(units.length - 1)}. اتأكد إن البداية والنهاية مظبوطين على الآيات اللي اخترتها، أو علّم بإيدك.`));
+      return;
+    }
+    b.rec.marks = marks;
+    changed();
+    status(`🪄 حدّدت ${Q.arabicNum(marks.length)} بداية آية — اسمع المعاينة، ولو فيه آية مش في مكانها امسح وعلّم بإيدك`);
   };
   act('recMarksClear').onclick = () => { if (!b.rec) return; b.rec.marks = []; changed(); };
   act('recClear').onclick = () => {
@@ -1304,7 +1344,9 @@ function renderReciters() {
   const favs = state.favorites;
   const list = state.showAll ? RECITERS : RECITERS.filter(r => r.featured || favs.includes(r.id) || r.id === st.reciter);
   const sorted = [...list].sort((a, b) => (favs.includes(b.id) - favs.includes(a.id)));
-  let html = sorted.map(r => `<option value="${r.id}">${favs.includes(r.id) ? '★ ' : ''}${r.name}</option>`).join('');
+  // ⏱️ = توقيت دقيق لكل كلمة (للظهور كلمة كلمة / التظليل)
+  const timed = r => WT.alignFolder(r) || r.qurancom;
+  let html = sorted.map(r => `<option value="${r.id}">${favs.includes(r.id) ? '★ ' : ''}${r.name}${timed(r) ? ' ⏱️' : ''}</option>`).join('');
   if (st.reciter.startsWith('custom:')) html = `<option value="${st.reciter}">${findReciter(st.reciter).name}</option>` + html;
   sel.innerHTML = html;
   sel.value = st.reciter;
@@ -3085,4 +3127,4 @@ async function init() {
 init().catch(showError);
 
 // للاختبار من الكونسول
-window.__qcs = { state, buildProject };
+window.__qcs = { state, buildProject, buildSegments };

@@ -24,8 +24,8 @@ export function drawBackground(ctx, W, H, style, media) {
   ctx.save();
   if (media && (media.kind === 'image' || media.kind === 'video')) {
     const el = media.el;
-    const iw = el.naturalWidth || el.videoWidth;
-    const ih = el.naturalHeight || el.videoHeight;
+    const iw = el.naturalWidth || el.videoWidth || el.width;
+    const ih = el.naturalHeight || el.videoHeight || el.height;
     if (iw && ih) {
       const k = Math.max(W / iw, H / ih);
       const dw = iw * k, dh = ih * k;

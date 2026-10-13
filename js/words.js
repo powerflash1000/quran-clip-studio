@@ -1,11 +1,43 @@
 // توقيت ظهور كل كلمة مع التلاوة
 // - للقراء اللي ليهم رقم على Quran.com: توقيت دقيق لكل كلمة من Quran.com (ومعاه ملف الصوت بتاعهم عشان التوقيت يطابق)
+// - توقيت quran-align (CC BY 4.0) محفوظ جوه البرنامج لـ 12 تلاوة من EveryAyah — بيشتغل من غير أي API
 // - لأي حاجة تانية: تقسيم تقريبي للمدة على الكلمات حسب طول كل كلمة
 import { fetchJson } from './net.js';
 
 export const words = text => String(text).split(/[ \t\n]+/).filter(Boolean);
 
 const chapterCache = new Map();
+
+// ===== quran-align: data/wbw/<فولدر EveryAyah>/<السورة>.json → { "رقم الآية": [بداية كل كلمة بالـ 1/100 ثانية، -1 = مش معروفة] }
+export const ALIGNED = new Set([
+  'Abdul_Basit_Mujawwad_128kbps', 'Abdul_Basit_Murattal_64kbps', 'Abdurrahmaan_As-Sudais_192kbps',
+  'Abu_Bakr_Ash-Shaatree_128kbps', 'Alafasy_128kbps', 'Hani_Rifai_192kbps', 'Husary_64kbps',
+  'Husary_Muallim_128kbps', 'Minshawy_Mujawwad_192kbps', 'Minshawy_Murattal_128kbps',
+  'Mohammad_al_Tablaway_128kbps', 'Saood_ash-Shuraym_128kbps',
+]);
+
+// اسم ملف التوقيت للقارئ (نفس التسجيل ممكن يكون بجودة صوت مختلفة على EveryAyah)
+export const alignFolder = reciter => reciter?.align || (ALIGNED.has(reciter?.everyayah) ? reciter.everyayah : null);
+
+const alignCache = new Map();
+export function alignChapter(folder, surah) {
+  const key = `${folder}/${surah}`;
+  if (!alignCache.has(key)) {
+    alignCache.set(key, fetch(`data/wbw/${folder}/${surah}.json`)
+      .then(r => { if (!r.ok) throw new Error('no align data'); return r.json(); })
+      .catch(e => { alignCache.delete(key); throw e; }));
+  }
+  return alignCache.get(key);
+}
+
+// بيحوّل بدايات الكلمات لنفس صيغة Quran.com [رقم الكلمة, من ms, إلى ms] عشان نستخدم نفس الحساب
+export async function alignSegments(folder, surah, ayah) {
+  const starts = (await alignChapter(folder, surah))[ayah];
+  if (!starts) return null;
+  const segs = [];
+  starts.forEach((cs, i) => { if (cs >= 0) segs.push([i + 1, cs * 10, cs * 10]); });
+  return segs;
+}
 
 // بيرجع Map: رقم الآية → { url, segments: [[رقم الكلمة, من ms, إلى ms], ...] }
 export function quranComChapter(recitationId, surah) {

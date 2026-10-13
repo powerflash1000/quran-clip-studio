@@ -2,15 +2,16 @@
 // everyayah: اسم الفولدر على https://everyayah.com/data/<folder>/SSSAAA.mp3
 // islamic: (اختياري) اسم الإصدار على https://cdn.islamic.network/quran/audio/<bitrate>/<edition>/<globalAyah>.mp3
 // featured: يظهر في القائمة المختصرة (الأشهر).
+// align: (اختياري) فولدر توقيت quran-align لو مختلف عن everyayah (نفس التسجيل بجودة تانية)
 // qurancom: رقم التلاوة على Quran.com — عندها توقيت كل كلمة (لخاصية ظهور الكلمات مع التلاوة).
 
 export const RECITERS = [
   { id: 'alafasy', qurancom: 7, name: 'مشاري راشد العفاسي', everyayah: 'Alafasy_128kbps', islamic: 'ar.alafasy', featured: true },
-  { id: 'abdulbasit-murattal', qurancom: 2, name: 'عبد الباسط عبد الصمد (مرتل)', everyayah: 'Abdul_Basit_Murattal_192kbps', islamic: 'ar.abdulbasitmurattal', featured: true },
+  { id: 'abdulbasit-murattal', qurancom: 2, name: 'عبد الباسط عبد الصمد (مرتل)', everyayah: 'Abdul_Basit_Murattal_192kbps', align: 'Abdul_Basit_Murattal_64kbps', islamic: 'ar.abdulbasitmurattal', featured: true },
   { id: 'abdulbasit-mujawwad', qurancom: 1, name: 'عبد الباسط عبد الصمد (مجود)', everyayah: 'Abdul_Basit_Mujawwad_128kbps', featured: true },
   { id: 'minshawi-murattal', qurancom: 9, name: 'محمد صديق المنشاوي (مرتل)', everyayah: 'Minshawy_Murattal_128kbps', islamic: 'ar.minshawi', featured: true },
   { id: 'minshawi-mujawwad', qurancom: 8, name: 'محمد صديق المنشاوي (مجود)', everyayah: 'Minshawy_Mujawwad_192kbps', islamic: 'ar.minshawimujawwad', featured: true },
-  { id: 'husary', qurancom: 6, name: 'محمود خليل الحصري', everyayah: 'Husary_128kbps', islamic: 'ar.husary', featured: true },
+  { id: 'husary', qurancom: 6, name: 'محمود خليل الحصري', everyayah: 'Husary_128kbps', align: 'Husary_64kbps', islamic: 'ar.husary', featured: true },
   { id: 'husary-muallim', qurancom: 12, name: 'محمود خليل الحصري (المعلم)', everyayah: 'Husary_Muallim_128kbps' },
   { id: 'sudais', qurancom: 3, name: 'عبد الرحمن السديس', everyayah: 'Abdurrahmaan_As-Sudais_192kbps', islamic: 'ar.abdurrahmaansudais', featured: true },
   { id: 'shuraim', qurancom: 10, name: 'سعود الشريم', everyayah: 'Saood_ash-Shuraym_128kbps', islamic: 'ar.saoodshuraym', featured: true },

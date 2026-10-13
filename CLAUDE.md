@@ -30,13 +30,15 @@ Working memory for Claude sessions on this repo. Read this first; README.md is t
 | `mediastore.js` | IndexedDB persistence of background files (+ per-item secs) |
 | `bglist.js` | multiple backgrounds: schedule (per ayah / every N s), crossfade, video seeking |
 | `audio.js` | decode, timeline mixing (`noGap` per segment), WAV, recording, trimSilence, `sliceBuffer`, `enhanceVoice` (gate/EQ/comp/reverb presets) |
-| `words.js` | word-by-word timing (Quran.com segments or approx) |
+| `words.js` | word-by-word timing: quran-align data (`data/wbw/<EveryAyah folder>/<surah>.json`, word starts in 1/100 s, -1 unknown; 12 recitations, CC BY 4.0) → Quran.com segments → approx. `alignFolder(reciter)` (reciter.align overrides, e.g. Husary_64kbps for Husary_128kbps) |
 | `reciters.js` | curated reciters: EveryAyah folders, islamic.network, Quran.com recitation ids |
 | `hadith.js` | fawazahmed0 hadith-api, matn extraction, grade assessment |
 | `publish.js` | titles/captions/hashtags per platform (uses `b.rec.name` for uploaded reciter) |
 | `automation.js` | `parseRefs` («يوسف 4-6», «2:255», Arabic digits) and `embedFor` (TikTok/IG/FB/YouTube/Pinterest embeds) |
 | `planner.js` | Hijri dates (Intl umalqura), upcoming occasions, post log (`qcs:posts`), duplicate/spacing warnings, suggested slots |
 | `stats.js` | CSV parsing (TikTok Studio export or any table with Views) + analysis by hour/day/reciter/surah/hook/duration |
+| `automark.js` | auto ayah boundaries for an uploaded recitation: pause detection (RMS env) + DP choosing pauses that fit ayah lengths. Good on short ranges; long surahs with mid-ayah waqf can drift → user reviews |
+| `vframes.js` | Mediabunny (vendor/mediabunny 1.60.0, MPL-2.0) sequential decode of video backgrounds for fast export; requests precomputed per source in frame order; falls back to seekVideo. ~7× faster export in test |
 | `stock.js` | Pixabay / Wikimedia / Openverse / Pexels search; `PROVIDERS` |
 | `series.js`, `sounds.js` (Freesound), `elevenlabs.js`, `templates.js` (`DEFAULT_STYLE`), `storage.js` (`qcs:` localStorage), `quran.js`, `net.js`, `zip.js`, `ffmpeg.js` |
 
@@ -54,7 +56,7 @@ Data: `data/quran.json` (Uthmani + English), `data/azkar.json` (Hisn al-Muslim).
 
 ## Conventions
 - Comments in Egyptian Arabic, matching existing style. Keep README.md (Arabic) updated for every user-visible feature.
-- Bump the version string `20261011b`-style in index.html (`?v=` on main.js/style.css + `#app-version` in the footer) on each user-visible deploy, so the user can confirm they have the new build.
+- Bump the version string `20261013a`-style in index.html (`?v=` on main.js/style.css + `#app-version` in the footer) on each user-visible deploy, so the user can confirm they have the new build.
 - Commit as `git -c user.name="Claude" -c user.email="noreply@anthropic.com"`, push to `main` (user approved working directly on main).
 
 ## Pending / ideas
