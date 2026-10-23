@@ -2060,13 +2060,29 @@ function setupSettings() {
       ...llmFields(),
     });
   });
-  const llmFields = () => ({ llmProvider: $('#set-llm-provider').value, llmKey: $('#set-llm-key').value.trim(), llmModel: $('#set-llm-model').value.trim() });
+  const llmFields = () => ({ llmProvider: $('#set-llm-provider').value, llmKey: $('#set-llm-key').value.trim(), llmModel: LLM.normalizeModel($('#set-llm-model').value) });
+  $('#set-llm-model').onchange = () => { $('#set-llm-model').value = LLM.normalizeModel($('#set-llm-model').value); };
+  $('#set-llm-list').onclick = async () => {
+    const st = $('#set-llm-status'), pick = $('#set-llm-model-pick');
+    const before = getSettings();
+    setSettings(llmFields());
+    st.textContent = '…';
+    try {
+      const ids = await LLM.listModels();
+      $('#set-llm-models').innerHTML = ids.map(id => `<option value="${id}">`).join('');
+      pick.innerHTML = '<option value="">— اختار موديل —</option>' + ids.map(id => `<option value="${id}">${id}</option>`).join('');
+      pick.hidden = !ids.length;
+      pick.onchange = () => { if (pick.value) $('#set-llm-model').value = pick.value; };
+      st.textContent = ids.length ? `✅ لقيت ${ids.length} موديل — اختار واحد من القايمة` : 'مالقيتش موديلات للمفتاح ده';
+    } catch (e) { st.textContent = '❌ ' + e.message; }
+    setSettings({ llmProvider: before.llmProvider, llmKey: before.llmKey, llmModel: before.llmModel });
+  };
   function syncLlmFields() {
     const p = LLM.PROVIDERS[$('#set-llm-provider').value];
     $('#set-llm-model').placeholder = p ? p.model : '';
     $('#set-llm-keyurl').href = p ? p.keyUrl : LLM.PROVIDERS.gemini.keyUrl;
   }
-  $('#set-llm-provider').onchange = () => { $('#set-llm-model').value = ''; syncLlmFields(); };
+  $('#set-llm-provider').onchange = () => { $('#set-llm-model').value = ''; $('#set-llm-model-pick').hidden = true; syncLlmFields(); };
   $('#set-llm-test').onclick = async () => {
     const st = $('#set-llm-status');
     const before = getSettings();

@@ -21,10 +21,38 @@ export const PROVIDERS = {
   },
 };
 
+// اسم الموديل زي ما الخدمة عايزاه: «Gemini 3.6 Flash» ← gemini-3.6-flash
+export const normalizeModel = m => String(m || '').trim().replace(/^models\//, '').replace(/\s+/g, '-').toLowerCase();
+
 export function config() {
   const s = getSettings();
   const provider = PROVIDERS[s.llmProvider] ? s.llmProvider : '';
-  return { provider, key: s.llmKey || '', model: (s.llmModel || '').trim() || (provider ? PROVIDERS[provider].model : '') };
+  return { provider, key: (s.llmKey || '').trim(), model: normalizeModel(s.llmModel) || (provider ? PROVIDERS[provider].model : '') };
+}
+
+// الموديلات المتاحة للمفتاح ده (عشان المستخدم يختار من غير ما يكتب الاسم)
+export async function listModels() {
+  const c = config();
+  if (!c.provider || !c.key) throw new Error('اختار المزوّد وحط المفتاح الأول');
+  let ids = [];
+  if (c.provider === 'gemini') {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=${encodeURIComponent(c.key)}`);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(`Gemini ${r.status}: ${j.error?.message || r.statusText}`);
+    ids = (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent')).map(m => normalizeModel(m.name))
+      .filter(id => /gemini/.test(id) && !/(embedding|image|tts|audio|live|vision)/.test(id));
+  } else if (c.provider === 'openai') {
+    const r = await fetch('https://api.openai.com/v1/models', { headers: { authorization: `Bearer ${c.key}` } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(`OpenAI ${r.status}: ${j.error?.message || r.statusText}`);
+    ids = (j.data || []).map(m => m.id).filter(id => /^(gpt|o\d)/.test(id) && !/(audio|realtime|tts|transcribe|image|search)/.test(id));
+  } else {
+    const r = await fetch('https://api.anthropic.com/v1/models', { headers: { 'x-api-key': c.key, 'anthropic-version': '2026-10-21', 'anthropic-dangerous-direct-browser-access': 'true' } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(`Claude ${r.status}: ${j.error?.message || r.statusText}`);
+    ids = (j.data || []).map(m => m.id);
+  }
+  return [...new Set(ids)].sort().reverse();
 }
 export const isReady = () => { const c = config(); return !!(c.provider && c.key); };
 

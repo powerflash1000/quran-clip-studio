@@ -6,7 +6,7 @@
   <title>استوديو مقاطع القرآن</title>
   <meta name="description" content="اختار الآيات والقارئ، وصدّر صوت MP3 أو M4A أو WAV أو فيديو جاهز للنشر — من المتصفح مباشرة وببلاش.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261023a">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261023b">
 </head>
 <body>
   <header class="topbar">
@@ -431,7 +431,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261023a</div>
+    <div class="muted" id="app-version">الإصدار 20261023b</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -480,9 +480,14 @@
         <label>مفتاح API
           <input type="password" id="set-llm-key" dir="ltr" autocomplete="off">
         </label>
-        <label>الموديل (سيبه زي ما هو لو مش متأكد)
-          <input type="text" id="set-llm-model" dir="ltr">
-        </label>
+        <div class="row">
+          <label class="grow">الموديل (سيبه فاضي لو مش متأكد)
+            <input type="text" id="set-llm-model" dir="ltr" list="set-llm-models" autocomplete="off">
+          </label>
+          <button class="btn" id="set-llm-list" type="button" title="بيجيب أسماء الموديلات المتاحة لمفتاحك">📋 الموديلات المتاحة</button>
+        </div>
+        <datalist id="set-llm-models"></datalist>
+        <select id="set-llm-model-pick" hidden></select>
         <div class="btn-row">
           <a class="btn ghost" id="set-llm-keyurl" href="#" target="_blank" rel="noopener">↗ هات مفتاح</a>
           <button class="btn" id="set-llm-test" type="button">جرّب الاتصال</button>
@@ -875,6 +880,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261023a"></script>
+  <script type="module" src="js/main.js?v=20261023b"></script>
 </body>
 </html>
