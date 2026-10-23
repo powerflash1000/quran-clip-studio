@@ -6,7 +6,7 @@
   <title>استوديو مقاطع القرآن</title>
   <meta name="description" content="اختار الآيات والقارئ، وصدّر صوت MP3 أو M4A أو WAV أو فيديو جاهز للنشر — من المتصفح مباشرة وببلاش.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261023e">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261023f">
 </head>
 <body>
   <header class="topbar">
@@ -431,7 +431,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261023e</div>
+    <div class="muted" id="app-version">الإصدار 20261023f</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -481,7 +481,7 @@
         </label>
         <label>الموديل <select id="set-gtts-model"></select></label>
         <label>الصوت الافتراضي <select id="set-gtts-voice"></select></label>
-        <label>طريقة القراءة (بتتبعت لجوجل قبل النص)
+        <label>طريقة القراءة (اختياري — بتتبعت كتعليمات منفصلة، مش بتتقري)
           <textarea id="set-gtts-style" rows="2" dir="auto"></textarea>
         </label>
         <div class="btn-row">
@@ -683,6 +683,10 @@
           <select data-f="gVoice" title="أنهي صوت من أصوات Gemini"></select>
         </div>
         <audio controls data-el="audio-preview" hidden></audio>
+        <div class="btn-row" data-el="audioTools" hidden>
+          <button class="btn" data-act="regen" type="button" title="ولّد الصوت تاني بنفس الصوت المختار">🔁 ولّد تاني</button>
+          <button class="btn ghost" data-act="audioDel" type="button">🗑️ احذف الصوت</button>
+        </div>
         <div class="btn-row">
           <label class="inline">✨ تحسين الصوت <select data-f="enhance"></select></label>
           <button class="btn ghost" data-act="enhancePreview" type="button">🔊 اسمع بعد التحسين</button>
@@ -893,6 +897,10 @@
           <select data-f="gVoice" title="أنهي صوت من أصوات Gemini"></select>
         </div>
         <audio controls data-el="audio-preview" hidden></audio>
+        <div class="btn-row" data-el="audioTools" hidden>
+          <button class="btn" data-act="regen" type="button" title="ولّد الصوت تاني بنفس الصوت المختار">🔁 ولّد تاني</button>
+          <button class="btn ghost" data-act="audioDel" type="button">🗑️ احذف الصوت</button>
+        </div>
         <div class="btn-row">
           <label class="inline">✨ تحسين الصوت <select data-f="enhance"></select></label>
           <button class="btn ghost" data-act="enhancePreview" type="button">🔊 اسمع بعد التحسين</button>
@@ -901,6 +909,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261023e"></script>
+  <script type="module" src="js/main.js?v=20261023f"></script>
 </body>
 </html>

@@ -813,6 +813,8 @@ function hadithBlockEl(b, i) {
     const au = hadithAudio.get(b.id);
     el('audio-name').textContent = au ? `${au.name} (${au.buffer.duration.toFixed(1)} ث)` : '';
     el('audio-preview').hidden = !au?.url;
+    el('audioTools').hidden = !au;
+    act('regen').hidden = !['ai', 'gtts'].includes(au?.kind);
     if (au?.url && el('audio-preview').src !== au.url) el('audio-preview').src = au.url;
   };
 
@@ -1005,7 +1007,7 @@ function wireAudioControls(li, b, sync) {
     try {
       const blob = await EL.speak(text, voiceId);
       const buffer = await decode(await blob.arrayBuffer());
-      setHadithAudio(b, trimSilence(buffer), 'ElevenLabs', blob);
+      setHadithAudio(b, trimSilence(buffer), 'ElevenLabs', blob, 'ai');
       b.audioMode = 'ai';
       li.querySelectorAll('[data-f=audioMode]').forEach(r => { r.checked = r.value === 'ai'; });
       sync(); persist(); refreshPublish(true);
@@ -1031,7 +1033,7 @@ function wireAudioControls(li, b, sync) {
     try {
       const blob = await GT.speak(text, b.gVoice);
       const buffer = await decode(await blob.arrayBuffer());
-      setHadithAudio(b, trimSilence(buffer), 'Gemini', blob);
+      setHadithAudio(b, trimSilence(buffer), 'Gemini', blob, 'gtts');
       b.audioMode = 'gtts';
       li.querySelectorAll('[data-f=audioMode]').forEach(r => { r.checked = r.value === 'gtts'; });
       sync(); persist(); refreshPublish(true);
@@ -1043,6 +1045,24 @@ function wireAudioControls(li, b, sync) {
     } finally {
       btn.disabled = false; btn.textContent = '🆓 ولّد بصوت Gemini';
     }
+  };
+  // أدوات الصوت الجاهز: ولّد تاني (بنفس المزوّد) أو احذف
+  act('regen').onclick = () => {
+    const kind = hadithAudio.get(b.id)?.kind;
+    if (kind === 'gtts') act('gtts').click();
+    else if (kind === 'ai') act('ai').click();
+  };
+  act('audioDel').onclick = () => {
+    if (!confirm('تحذف الصوت ده؟')) return;
+    const au = hadithAudio.get(b.id);
+    if (au?.url) URL.revokeObjectURL(au.url);
+    hadithAudio.delete(b.id);
+    el('audio-preview').pause();
+    el('audio-preview').removeAttribute('src');
+    b.audioMode = 'none';
+    li.querySelectorAll('[data-f=audioMode]').forEach(r => { r.checked = r.value === 'none'; });
+    sync(); persist(); refreshPublish(true); refreshPreview();
+    status('🗑️ الصوت اتحذف — المقطع هيظهر بالمدة المكتوبة.');
   };
   f('audioFile').onchange = async () => {
     const file = f('audioFile').files[0];
@@ -1060,10 +1080,11 @@ function wireAudioControls(li, b, sync) {
 
 }
 
-function setHadithAudio(b, buffer, name, blob) {
+// kind: 'ai' (ElevenLabs) أو 'gtts' (Gemini) — عشان زرار «ولّد تاني» يعرف يولّد بإيه
+function setHadithAudio(b, buffer, name, blob, kind = '') {
   const old = hadithAudio.get(b.id);
   if (old?.url) URL.revokeObjectURL(old.url);
-  hadithAudio.set(b.id, { buffer, name, url: URL.createObjectURL(blob) });
+  hadithAudio.set(b.id, { buffer, name, url: URL.createObjectURL(blob), kind });
 }
 
 function estimateSeconds(text) {
@@ -1105,6 +1126,7 @@ function zikrBlockEl(b, i) {
   blockCommon(li, b, i);
   const f = name => li.querySelector(`[data-f=${name}]`);
   const el = name => li.querySelector(`[data-el=${name}]`);
+  const act = name => li.querySelector(`[data-act=${name}]`);
   const cats = AZKAR?.categories || [];
   f('cat').innerHTML = cats.map(c => `<option>${escapeHtml(c.name)}</option>`).join('');
   f('cat').value = b.cat;
@@ -1150,6 +1172,8 @@ function zikrBlockEl(b, i) {
     const au = hadithAudio.get(b.id);
     el('audio-name').textContent = au ? `${au.name} (${au.buffer.duration.toFixed(1)} ث)` : '';
     el('audio-preview').hidden = !au?.url;
+    el('audioTools').hidden = !au;
+    act('regen').hidden = !['ai', 'gtts'].includes(au?.kind);
     if (au?.url && el('audio-preview').src !== au.url) el('audio-preview').src = au.url;
   };
   fillItems();
@@ -2072,7 +2096,8 @@ function setupSettings() {
     $('#set-gtts-key').value = s.gttsKey || '';
     $('#set-gtts-voice').innerHTML = GT.VOICES.map(v => `<option value="${v.id}">${v.id} — ${v.desc}</option>`).join('');
     $('#set-gtts-voice').value = s.gttsVoice || 'Charon';
-    $('#set-gtts-style').value = s.gttsStyle || GT.DEFAULT_STYLE;
+    $('#set-gtts-style').value = s.gttsStyle || '';
+    $('#set-gtts-style').placeholder = GT.STYLE_HINT;
     $('#set-gtts-model').dataset.want = s.gttsModel || '';
     $('#set-gtts-status').textContent = '';
     loadGttsModels();
@@ -2130,7 +2155,7 @@ function setupSettings() {
   // صوت Gemini: الموديلات بتتملي من المفتاح (أو مفتاح مساعد الكتابة)
   const gttsFields = () => {
     const st = $('#set-gtts-style').value.trim();
-    return { gttsKey: $('#set-gtts-key').value.trim(), gttsModel: $('#set-gtts-model').value, gttsVoice: $('#set-gtts-voice').value, gttsStyle: st === GT.DEFAULT_STYLE ? '' : st };
+    return { gttsKey: $('#set-gtts-key').value.trim(), gttsModel: $('#set-gtts-model').value, gttsVoice: $('#set-gtts-voice').value, gttsStyle: /^read the following arabic text/i.test(st) ? '' : st };
   };
   const gttsKeyNow = () => $('#set-gtts-key').value.trim() || ($('#set-llm-provider').value === 'gemini' ? $('#set-llm-key').value.trim() : '');
   let gttsLoad = 0;
@@ -2633,7 +2658,7 @@ function setupProject() {
         buf = sliceBuffer(buf, st, en);
         b.rec = { ...b.rec, start: 0, end: buf.duration, marks: (b.rec.marks || []).map(t => t - st).filter(t => t > 0 && t < buf.duration) };
       }
-      audios[id] = { name: au.name, data: await blobToDataUrl(bufferToWavBlob(buf)) };
+      audios[id] = { name: au.name, kind: au.kind || '', data: await blobToDataUrl(bufferToWavBlob(buf)) };
     }
     const proj = { app: 'quran-clip-studio', version: 1, savedAt: new Date().toISOString(), blocks, style: state.style, series: state.series, audios };
     const first = state.blocks[0];
@@ -2655,7 +2680,7 @@ function setupProject() {
       hadithAudio.clear();
       for (const [id, au] of Object.entries(proj.audios || {})) {
         const blob = await (await fetch(au.data)).blob();
-        setHadithAudio({ id }, await decode(await blob.arrayBuffer()), au.name, blob);
+        setHadithAudio({ id }, await decode(await blob.arrayBuffer()), au.name, blob, au.kind || '');
       }
       applyStyleToInputs();
       renderBlocks();

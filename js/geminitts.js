@@ -39,8 +39,8 @@ export const VOICES = [
   ['Sadachbia', 'نسائي — حيوي'],
 ].map(([id, desc]) => ({ id, desc }));
 
-// توجيه الأسلوب بيتكتب قبل النص (جوجل بيفهمه ومش بيقراه)
-export const DEFAULT_STYLE = 'Read the following Arabic text slowly, in a calm, gentle and reverent voice, exactly as written with its diacritics:';
+// توجيه الأسلوب (اختياري) بيتبعت كتعليمات منفصلة، مش جوه النص — لأن الموديل ساعات بيقرا أي كلام قبل النص بصوت عالي
+export const STYLE_HINT = 'مثلًا: Speak slowly in a calm, gentle, reverent voice.';
 
 // المفتاح: الخاص بالصوت، أو مفتاح Gemini من مساعد الكتابة
 export function key() {
@@ -77,18 +77,24 @@ export async function speak(text, voice = '') {
   if (!k) throw new Error('حط مفتاح Gemini في ⚙️ الإعدادات ← 🔊 صوت Gemini (أو في مساعد الكتابة)');
   const s = getSettings();
   const model = await pickModel(k);
-  const style = (s.gttsStyle || DEFAULT_STYLE).trim();
-  const r = await fetch(`${API}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(k)}`, {
+  const style = (s.gttsStyle || '').trim();
+  const voiceName = voice || s.gttsVoice || 'Charon';
+  const send = withStyle => fetch(`${API}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(k)}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: `${style}\n\n${text}` }] }],
+      // النص لوحده بس — عشان مايتقريش أي مقدمة في أول الصوت
+      ...(withStyle ? { systemInstruction: { parts: [{ text: style }] } } : {}),
+      contents: [{ parts: [{ text }] }],
       generationConfig: {
         responseModalities: ['AUDIO'],
-        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice || s.gttsVoice || 'Charon' } } },
+        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } },
       },
     }),
   });
+  let r = await send(!!style);
+  // لو الموديل مش بيقبل تعليمات منفصلة، بنبعت النص لوحده
+  if (style && r.status === 400) r = await send(false);
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(ttsError(r.status, j.error?.message || r.statusText, model));
   const part = (j.candidates?.[0]?.content?.parts || []).find(p => p.inlineData?.data);
