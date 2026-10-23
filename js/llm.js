@@ -6,7 +6,7 @@ import { getSettings } from './storage.js';
 export const PROVIDERS = {
   gemini: {
     name: 'Google Gemini (فيه مستوى مجاني)',
-    model: 'gemini-2.5-flash',
+    model: 'gemini-flash-latest', // اسم ثابت لأحدث Flash — متاح في المستوى المجاني
     keyUrl: 'https://aistudio.google.com/apikey',
   },
   openai: {
@@ -52,7 +52,17 @@ export async function listModels() {
     if (!r.ok) throw new Error(`Claude ${r.status}: ${j.error?.message || r.statusText}`);
     ids = (j.data || []).map(m => m.id);
   }
-  return [...new Set(ids)].sort().reverse();
+  ids = [...new Set(ids)].sort().reverse();
+  // جوجل مابترجعش السعر، فبنعلّم على حسب النوع: Flash و Flash-Lite و Gemma عليهم مستوى مجاني، و Pro مدفوع
+  return ids.map(id => ({ id, tag: freeTag(c.provider, id) }))
+    .sort((a, b) => (a.tag.free === b.tag.free ? 0 : a.tag.free ? -1 : 1));
+}
+
+export function freeTag(provider, id) {
+  if (provider !== 'gemini') return { free: false, label: '💳 مدفوع' };
+  if (/pro/.test(id)) return { free: false, label: '💳 مدفوع (محتاج Prepay)' };
+  if (/(flash|gemma)/.test(id)) return { free: true, label: '🆓 مجاني' };
+  return { free: false, label: '❔ غالبًا مدفوع' };
 }
 export const isReady = () => { const c = config(); return !!(c.provider && c.key); };
 
@@ -77,7 +87,7 @@ async function callGemini({ key, model }, system, user) {
     }),
   });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(`Gemini ${r.status}: ${j.error?.message || r.statusText}`);
+  if (!r.ok) throw new Error(geminiError(r.status, j.error?.message || r.statusText, model));
   const text = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
   if (!text) throw new Error('Gemini رجّع رد فاضي' + (j.candidates?.[0]?.finishReason ? ` (${j.candidates[0].finishReason})` : ''));
   return text;
@@ -122,6 +132,18 @@ async function callClaude({ key, model }, system, user) {
   if (!r.ok) throw new Error(`Claude ${r.status}: ${j.error?.message || r.statusText}`);
   if (j.stop_reason === 'refusal') throw new Error('Claude رفض الطلب ده — جرّب تاني أو غيّر المزوّد');
   return (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+}
+
+// رسائل أوضح لأشهر أخطاء جوجل
+function geminiError(code, msg, model) {
+  const m = String(msg || '');
+  if (/prepay|billing|credits|payment/i.test(m)) {
+    return `الموديل ${model} مش مجاني على مشروعك، أو المشروع مربوط بحساب دفع (Prepay). الحل: اعمل مشروع جديد في AI Studio من غير حساب دفع، واختار موديل عليه 🆓 (Flash أو Flash-Lite). (${code})`;
+  }
+  if (code === 429) return `خلّصت الحد المجاني للدقيقة أو اليوم. استنى شوية وجرّب تاني، أو اختار موديل Flash-Lite. (${m})`;
+  if (code === 404 || /not found|model name/i.test(m)) return `اسم الموديل ${model} مش موجود. اضغط «📋 الموديلات المتاحة» واختار من القايمة. (${m})`;
+  if (code === 400 && /api key/i.test(m)) return 'المفتاح غلط — انسخه تاني من aistudio.google.com/apikey';
+  return `Gemini ${code}: ${m}`;
 }
 
 const CALLERS = { gemini: callGemini, openai: callOpenAI, anthropic: callClaude };

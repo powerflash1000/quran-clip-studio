@@ -2069,11 +2069,14 @@ function setupSettings() {
     st.textContent = '…';
     try {
       const ids = await LLM.listModels();
-      $('#set-llm-models').innerHTML = ids.map(id => `<option value="${id}">`).join('');
-      pick.innerHTML = '<option value="">— اختار موديل —</option>' + ids.map(id => `<option value="${id}">${id}</option>`).join('');
+      $('#set-llm-models').innerHTML = ids.map(m => `<option value="${m.id}">${m.tag.label}</option>`).join('');
+      pick.innerHTML = '<option value="">— اختار موديل —</option>' + ids.map(m => `<option value="${m.id}">${m.tag.label}  ${m.id}</option>`).join('');
       pick.hidden = !ids.length;
+      const firstFree = ids.find(m => m.tag.free);
+      if (firstFree && !$('#set-llm-model').value) { $('#set-llm-model').value = firstFree.id; pick.value = firstFree.id; }
       pick.onchange = () => { if (pick.value) $('#set-llm-model').value = pick.value; };
-      st.textContent = ids.length ? `✅ لقيت ${ids.length} موديل — اختار واحد من القايمة` : 'مالقيتش موديلات للمفتاح ده';
+      const nFree = ids.filter(m => m.tag.free).length;
+      st.textContent = ids.length ? `✅ لقيت ${ids.length} موديل${nFree ? ` (${nFree} مجاني 🆓 فوق)` : ''} — اختار واحد من القايمة` : 'مالقيتش موديلات للمفتاح ده';
     } catch (e) { st.textContent = '❌ ' + e.message; }
     setSettings({ llmProvider: before.llmProvider, llmKey: before.llmKey, llmModel: before.llmModel });
   };
