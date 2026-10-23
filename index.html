@@ -6,7 +6,7 @@
   <title>استوديو مقاطع القرآن</title>
   <meta name="description" content="اختار الآيات والقارئ، وصدّر صوت MP3 أو M4A أو WAV أو فيديو جاهز للنشر — من المتصفح مباشرة وببلاش.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261013a">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261023a">
 </head>
 <body>
   <header class="topbar">
@@ -71,6 +71,7 @@
         <div class="btn-row">
           <button class="btn" id="add-quran" type="button">＋ آيات</button>
           <button class="btn" id="add-hadith" type="button">＋ حديث</button>
+          <button class="btn" id="add-custom" type="button" title="دعاء أو كلام من عندك مش موجود في المكتبة">✍️ نص خاص</button>
           <button class="btn primary" id="add-zikr" type="button">📿 مكتبة الأذكار والأدعية</button>
         </div>
         <div class="btn-row">
@@ -265,6 +266,11 @@
           <option value="شاركها لعلها تكون صدقة جارية لك 🤍">
           <option value="دقيقة مع القرآن 🤍">
         </datalist>
+        <div class="btn-row">
+          <button class="btn" id="ai-hooks" type="button" title="بيقترح افتتاحيات حسب محتوى الفيديو (محتاج مفتاح في الإعدادات)">✨ اقترح افتتاحيات</button>
+          <span class="muted" id="ai-hooks-status"></span>
+        </div>
+        <div class="chips" id="ai-hooks-list"></div>
         <div class="grid2">
           <label>مدة الافتتاحية (ث) <input type="number" id="introSeconds" min="0.8" max="5" step="0.1"></label>
           <span></span>
@@ -394,6 +400,7 @@
         </div>
         <div class="btn-row">
           <button class="btn" id="pub-regen" type="button">↻ توليد من جديد</button>
+          <button class="btn" id="pub-ai" type="button" title="وصف وعنوان وهاشتاجات مكتوبين بالذكاء الاصطناعي للمنصة دي">✨ اكتب بالذكاء الاصطناعي</button>
           <button class="btn" id="pub-copy-all" type="button">📋 نسخ الكل</button>
           <button class="btn" id="pub-posted" type="button" title="سجّل إن الفيديو ده اتنشر — عشان المخطط يحذرك من التكرار">✅ نشرته</button>
           <button class="btn primary" id="pub-share" type="button" disabled title="صدّر فيديو أو صورة الأول">📤 مشاركة آخر ملف</button>
@@ -424,7 +431,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261013a</div>
+    <div class="muted" id="app-version">الإصدار 20261023a</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -467,7 +474,24 @@
         <select id="set-eleven-voices" hidden></select>
         <label>الموديل <select id="set-eleven-model"></select></label>
       </details>
-      <p class="hint">🔒 المفاتيح بتتحفظ في المتصفح ده على جهازك بس، ومش بتترفع على GitHub، ومحدش بيفتح الموقع يقدر يشوفها. بتتبعت بس للخدمة نفسها (Pexels أو Pixabay أو ElevenLabs) وقت الاستخدام.</p>
+      <details>
+        <summary>✨ مساعد الكتابة — افتتاحيات ووصف وهاشتاجات (اختياري)</summary>
+        <label>المزوّد <select id="set-llm-provider"></select></label>
+        <label>مفتاح API
+          <input type="password" id="set-llm-key" dir="ltr" autocomplete="off">
+        </label>
+        <label>الموديل (سيبه زي ما هو لو مش متأكد)
+          <input type="text" id="set-llm-model" dir="ltr">
+        </label>
+        <div class="btn-row">
+          <a class="btn ghost" id="set-llm-keyurl" href="#" target="_blank" rel="noopener">↗ هات مفتاح</a>
+          <button class="btn" id="set-llm-test" type="button">جرّب الاتصال</button>
+          <span class="muted" id="set-llm-status"></span>
+        </div>
+        <p class="hint">💡 الأسهل والمجاني: <b>Gemini</b> — ادخل aistudio.google.com/apikey بحساب جوجل واعمل مفتاح. اشتراك ChatGPT Plus أو Claude Pro <b>مش بيشمل</b> الـ API؛ مفاتيح OpenAI و Claude بتتحاسب لوحدها.</p>
+        <p class="hint">🛡️ المساعد بيكتب الافتتاحيات والوصف والهاشتاجات بس. مش بيكتب آيات ولا أحاديث ولا تفسير، والنصوص الدينية بتفضل من مصادرها.</p>
+      </details>
+      <p class="hint">🔒 المفاتيح بتتحفظ في المتصفح ده على جهازك بس، ومش بتترفع على GitHub، ومحدش بيفتح الموقع يقدر يشوفها. بتتبعت بس للخدمة نفسها (Pexels أو Pixabay أو ElevenLabs أو مزوّد الكتابة) وقت الاستخدام.</p>
       <div class="btn-row end">
         <button class="btn primary" value="save">حفظ</button>
         <button class="btn" value="cancel">إلغاء</button>
@@ -802,20 +826,28 @@
   <template id="tpl-zikr">
     <li class="block zikr">
       <div class="block-head">
-        <span class="badge zk">ذكر / دعاء</span>
+        <span class="badge zk" data-el="badge">ذكر / دعاء</span>
         <span class="block-title"></span><span class="block-dur" data-el="dur"></span>
         <span class="spacer"></span>
         <button class="btn icon" data-act="up" type="button">▲</button>
         <button class="btn icon" data-act="down" type="button">▼</button>
         <button class="btn icon danger" data-act="remove" type="button">✕</button>
       </div>
-      <div class="grid2">
+      <div class="grid2" data-el="libRow">
         <label>التصنيف <select data-f="cat"></select></label>
         <label>الذكر <select data-f="item"></select></label>
       </div>
-      <label>النص اللي هيظهر (تقدر تعدّله)
+      <div class="grid2" data-el="customRow" hidden>
+        <label>العنوان اللي فوق النص <input type="text" data-f="customLabel" placeholder="مثلًا: دعاء الفجر 🤍"></label>
+        <label>تحت النص (اختياري) <input type="text" data-f="customRef" placeholder="مثلًا: دعاء — أو اسم المصدر"></label>
+      </div>
+      <label>النص اللي هيظهر <span data-el="textHint">(تقدر تعدّله)</span>
         <textarea data-f="text" rows="4"></textarea>
       </label>
+      <div class="btn-row" data-el="customTools" hidden>
+        <button class="btn" data-act="polish" type="button" title="يصحّح الإملاء ويقسّم السطور — من غير ما يغيّر المعنى">✨ حسّن الصياغة</button>
+        <span class="muted">⚠️ لو النص حديث، استخدم «＋ حديث» عشان درجته تظهر. ولو آية، استخدم «＋ آيات».</span>
+      </div>
       <div class="muted" data-el="meta"></div>
       <label class="check"><input type="checkbox" data-f="showCount"> اكتب عدد المرات على الشاشة (مثلًا: ٣ مرات)</label>
       <fieldset>
@@ -843,6 +875,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261013a"></script>
+  <script type="module" src="js/main.js?v=20261023a"></script>
 </body>
 </html>

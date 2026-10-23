@@ -14,7 +14,7 @@ Working memory for Claude sessions on this repo. Read this first; README.md is t
 ## Hard decisions (don't re-litigate)
 - Static site, **no build step**, vanilla ES modules, hosted on GitHub Pages from `main`: https://powerflash1000.github.io/quran-clip-studio/
 - Everything runs in the browser; no server. Optional Cloudflare Worker CORS proxy: `tools/cors-proxy-worker.js` (allowlist of hosts).
-- No AI inside the app except opt-in ElevenLabs TTS (user's own key). API keys live only in localStorage.
+- AI inside the app is opt-in only, with the user's own key (localStorage): ElevenLabs TTS, and since 2026-10-23 the writing assistant `js/llm.js` (Gemini default/free tier, OpenAI, or Claude `claude-opus-5-5` via direct-browser header). The assistant writes hooks, captions/titles/hashtags and polishes custom text only — its system prompt forbids writing/quoting/paraphrasing Quran or hadith, tafsir, attributions, invented fadail, engagement bait. Never route religious text generation through it.
 - Declined, with reasons — don't add: downloading videos/audio from TikTok/IG/FB/Pinterest (ToS + copyright; use official embeds for reference only), ibtihalat (copyright), Pinterest as a background source (no reuse licence).
 - Hadith must show grade; weak/unknown grades warn before export.
 - Video max 3 minutes in-browser (longer → Filmora package). 9:16 default. Shorts >60s warning.
@@ -39,13 +39,14 @@ Working memory for Claude sessions on this repo. Read this first; README.md is t
 | `stats.js` | CSV parsing (TikTok Studio export or any table with Views) + analysis by hour/day/reciter/surah/hook/duration |
 | `automark.js` | auto ayah boundaries for an uploaded recitation: pause detection (RMS env) + DP choosing pauses that fit ayah lengths. Good on short ranges; long surahs with mid-ayah waqf can drift → user reviews |
 | `vframes.js` | Mediabunny (vendor/mediabunny 1.60.0, MPL-2.0) sequential decode of video backgrounds for fast export; requests precomputed per source in frame order; falls back to seekVideo. ~7× faster export in test |
+| `llm.js` | writing assistant: providers table, `askJson` (lenient JSON parse), `suggestHooks`, `writeCaption`, `polishText`, `ping`. UI: #ai-hooks chips, #pub-ai, polish button on custom blocks, settings `llmProvider/llmKey/llmModel` |
 | `stock.js` | Pixabay / Wikimedia / Openverse / Pexels search; `PROVIDERS` |
 | `series.js`, `sounds.js` (Freesound), `elevenlabs.js`, `templates.js` (`DEFAULT_STYLE`), `storage.js` (`qcs:` localStorage), `quran.js`, `net.js`, `zip.js`, `ffmpeg.js` |
 
 Data: `data/quran.json` (Uthmani + English), `data/azkar.json` (Hisn al-Muslim). Fonts: KFGQPC Uthmanic HAFS, Amiri.
 
 ## Features (all shipped)
-4-step tabs (#content/#audio/#look/#export, Alt+1..4) · ayah ranges + repeat · hadith with grades · azkar library · series mode (optional) · uploaded full-surah recitation with start/end + tap-to-mark ayat (e.g. Sheikh Sayed Said from mp3quran) · recording teleprompter · ElevenLabs · voice enhance (clean/room/mosque) · silence trim · Freesound/Pixabay ambience · word-by-word reveal · hook intro + handle watermark · multiple backgrounds with crossfade · templates · MP3/M4A/WAV/MP4/PNG/SRT/Filmora · silent video · export queue (MP4/MP3/Filmora, captions file) · reference-video panel with reel recipe, screenshot palette, experiment log (views/likes, CSV) · publish panel + Web Share (+ «✅ نشرته» post log) · project save/open · 📅 planner (Hijri occasions, duplicate warnings, slots) · Tafsir Muyassar as a «translation» option · 📊 stats dashboard.
+4-step tabs (#content/#audio/#look/#export, Alt+1..4) · ayah ranges + repeat · hadith with grades · azkar library · series mode (optional) · uploaded full-surah recitation with start/end + tap-to-mark ayat (e.g. Sheikh Sayed Said from mp3quran) · recording teleprompter · ElevenLabs · voice enhance (clean/room/mosque) · silence trim · Freesound/Pixabay ambience · word-by-word reveal · hook intro + handle watermark · multiple backgrounds with crossfade · templates · MP3/M4A/WAV/MP4/PNG/SRT/Filmora · silent video · export queue (MP4/MP3/Filmora, captions file) · reference-video panel with reel recipe, screenshot palette, experiment log (views/likes, CSV) · publish panel + Web Share (+ «✅ نشرته» post log) · project save/open · 📅 planner (Hijri occasions, duplicate warnings, slots) · Tafsir Muyassar as a «translation» option · 📊 stats dashboard · ✍️ custom text block (`type:'zikr', custom:true`, label/ref, auto seconds until edited) · ✨ writing assistant (hooks, captions, polish).
 
 ## Testing
 - Playwright: `/opt/node22/lib/node_modules/playwright/index.mjs`, Chromium preinstalled. Serve with `npx -y http-server -p 8124 -s -c-1 .` **in the same shell command** as the test (background servers die between calls).
@@ -62,7 +63,7 @@ Data: `data/quran.json` (Uthmani + English), `data/azkar.json` (Hisn al-Muslim).
 ## Pending / ideas
 - After ~1 week of posting: analyze TikTok Analytics screenshots (Followers → active hours, countries). Early data: like rate 15–18% (good); posting same surah 3× in a day got 0 views (duplicate); best hooks start with «إسمعها للآخر».
 - Higgsfield voice clone paused: balance 0.69 credits, and need confirmation the sample is the user's own voice.
-- Not yet approved: optional Gemini «suggest hooks» button (LLM only for hooks/captions, never Quran/hadith/tafsir text), text motion animations, cover-image generator, PWA install.
+- Not yet approved: text motion animations, cover-image generator, PWA install.
 - Tafsir source (spa5k tafsir_api slug `ar-tafsir-muyassar`, fallback Quran.com tafsir id 16) is unverified live.
 - Unverified against real services: Quran.com reciter id mapping/CORS, Wikimedia/Openverse live responses, real H.264 export on the user's machine, TikTok/IG embeds rendering.
 - Separate project planned: daily news reels tool (new repo `daily-reels-studio`, new chat, separate social account).

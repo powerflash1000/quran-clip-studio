@@ -74,8 +74,9 @@ export async function generate(blocks, style, translationOf, series = null) {
     const h = hadith[0];
     title = `حديث شريف | ${collection(h.col).name} ${N(h.number)}`;
   } else if (zikr.length) {
-    const first = zikr[0].text.replace(/\s+/g, ' ').split(' ').slice(0, 7).join(' ');
-    title = `${zikr[0].cat} | ${first}…`;
+    const z = zikr[0];
+    const first = z.text.replace(/\s+/g, ' ').split(' ').slice(0, 7).join(' ');
+    title = `${z.custom ? (z.label || 'دعاء') : z.cat} | ${first}…`;
   } else {
     title = 'تلاوة قرآنية';
   }
@@ -99,6 +100,10 @@ export async function generate(blocks, style, translationOf, series = null) {
         if (trs.length) body.push(style.translation === 'muyassar' ? `📖 التفسير الميسّر: ${trs.join(' ')}` : trs.join(' '));
       }
       info.push(`📖 سورة ${s.ar} • ${rangeLabel(b)}`);
+    } else if (b.type === 'zikr' && b.custom) {
+      // نص خاص كتبه المستخدم (دعاء أو كلام من عنده)
+      if (ps.includeText && b.text) body.push(b.text);
+      info.push(`✍️ ${b.label || 'دعاء'}${b.ref ? ` (${b.ref})` : ''}`);
     } else if (b.type === 'zikr') {
       if (ps.includeText && b.text) body.push(b.text);
       info.push(`📿 ${b.cat}${b.count > 1 ? ` — يُقال ${N(b.count)} ${b.count <= 10 ? 'مرات' : 'مرة'}` : ''}${b.ref ? ` (${b.ref})` : ''}`);
@@ -123,7 +128,7 @@ export async function generate(blocks, style, translationOf, series = null) {
     if (quran.length) credits.push('نص المصحف: مجمع الملك فهد (QuranEnc) • التلاوة: EveryAyah.com');
     if (quran.length && style.translation === 'muyassar' && style.showTranslation) credits.push('التفسير الميسّر: مجمع الملك فهد لطباعة المصحف الشريف');
     if (hadith.length) credits.push('نص الحديث: hadith-api (fawazahmed0)');
-    if (zikr.length) credits.push('الأذكار: حصن المسلم');
+    if (zikr.some(b => !b.custom)) credits.push('الأذكار: حصن المسلم');
   }
 
   // ===== الهاشتاجات =====
@@ -134,8 +139,9 @@ export async function generate(blocks, style, translationOf, series = null) {
     base.push(tag(reciterShort(reciter)));
   }
   if (zikr.length) {
-    base.push('#أذكار', '#دعاء', '#ذكر_الله', '#حصن_المسلم');
-    for (const b of zikr) base.push(tag(b.cat));
+    base.push('#أذكار', '#دعاء', '#ذكر_الله');
+    if (zikr.some(b => !b.custom)) base.push('#حصن_المسلم');
+    for (const b of zikr) if (!b.custom) base.push(tag(b.cat));
   }
   if (hadith.length) {
     base.push('#حديث', '#السنة_النبوية');

@@ -9,6 +9,7 @@ import { PROVIDERS, downloadStock } from './stock.js';
 import * as T from './templates.js';
 import { getSettings, setSettings, load, save } from './storage.js';
 import * as EL from './elevenlabs.js';
+import * as LLM from './llm.js';
 import * as SND from './sounds.js';
 import * as WT from './words.js';
 import { fetchFirst } from './net.js';
@@ -119,9 +120,9 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
       const zAudio = useAudio ? await enhanceVoice(au.buffer, b.enhance) : null;
       segs.push({
         kind: 'zikr',
-        text: b.text || '(اختار الذكر أو اكتب النص)',
+        text: b.text || (b.custom ? '(اكتب النص بتاعك)' : '(اختار الذكر أو اكتب النص)'),
         sub: '',
-        label: b.cat || 'ذكر',
+        label: b.custom ? (b.label || '') : (b.cat || 'ذكر'),
         footer: [b.showCount && n > 1 ? `يُقال ${Q.arabicNum(n)} ${n <= 10 ? 'مرات' : 'مرة'}` : '', b.ref].filter(Boolean).join(' • '),
         audio: zAudio,
         silence: Number(b.seconds) || 8,
@@ -410,7 +411,7 @@ function baseName() {
   const rc = b.rec && hadithAudio.get(b.id) ? 'custom' : state.style.reciter;
   if (b.type === 'quran' && ser) return `quran_${b.surah}_part${String(ser.index).padStart(2, '0')}_${b.from}-${b.to}_${rc}`;
   if (b.type === 'quran') return `quran_${b.surah}_${b.from}-${b.to}_${rc}`;
-  if (b.type === 'zikr') return `zikr_${b.index + 1}`;
+  if (b.type === 'zikr') return b.custom ? 'dua' : `zikr_${b.index + 1}`;
   return `hadith_${b.col}_${b.number}`;
 }
 
@@ -1055,7 +1056,13 @@ function newZikrBlock(cat = 'أذكار الصباح', index = 0) {
   return b;
 }
 
+// نص خاص: دعاء أو كلام من عند المستخدم مش موجود في المكتبة — نفس كتلة الذكر (صوت ومدة) من غير مكتبة
+function newCustomBlock() {
+  return { id: uid(), type: 'zikr', custom: true, cat: '', index: 0, label: 'دعاء', text: '', count: 1, ref: '', desc: '', showCount: false, audioMode: 'none', seconds: 8, secondsManual: false, enhance: 'clean' };
+}
+
 function fillZikr(b) {
+  if (b.custom) return;
   const c = AZKAR?.categories.find(x => x.name === b.cat);
   const it = c?.items[b.index];
   if (!it) return;
@@ -1082,8 +1089,36 @@ function zikrBlockEl(b, i) {
     }).join('');
     f('item').value = b.index;
   };
+  if (b.custom) {
+    el('libRow').hidden = true;
+    el('customRow').hidden = false;
+    el('customTools').hidden = false;
+    el('badge').textContent = 'نص خاص';
+    el('textHint').textContent = '(اكتب الدعاء أو الكلام بتاعك)';
+    f('customLabel').value = b.label || '';
+    f('customRef').value = b.ref || '';
+    f('text').placeholder = 'اكتب النص هنا…';
+    f('customLabel').oninput = () => { b.label = f('customLabel').value.trim(); sync(); persist(); refreshPreview(); };
+    f('customRef').oninput = () => { b.ref = f('customRef').value.trim(); persist(); refreshPreview(); };
+    li.querySelector('[data-act=polish]').onclick = async e => {
+      const btn = e.currentTarget;
+      if (!b.text.trim()) { status('اكتب النص الأول'); return; }
+      if (!LLM.isReady()) { needLLM(); return; }
+      const prev = btn.textContent;
+      btn.disabled = true; btn.textContent = '…';
+      try {
+        const out = await LLM.polishText(b.text);
+        if (confirm(`النص بعد التحسين:\n\n${out}\n\nأستخدمه بدل النص الحالي؟`)) {
+          b.text = out; f('text').value = out;
+          if (!b.secondsManual) { b.seconds = estimateSeconds(out); f('seconds').value = b.seconds; }
+          persist(); refreshPreview();
+        }
+      } catch (err) { showError(err); }
+      btn.disabled = false; btn.textContent = prev;
+    };
+  }
   const sync = () => {
-    li.querySelector('.block-title').textContent = b.cat;
+    li.querySelector('.block-title').textContent = b.custom ? (b.label || 'نص خاص') : b.cat;
     el('meta').textContent = [b.ref && `📖 ${b.ref}`, b.count > 1 && `🔁 ${b.count} مرات`, b.desc && `💡 ${b.desc}`].filter(Boolean).join('  •  ');
     const au = hadithAudio.get(b.id);
     el('audio-name').textContent = au ? `${au.name} (${au.buffer.duration.toFixed(1)} ث)` : '';
@@ -1097,12 +1132,92 @@ function zikrBlockEl(b, i) {
   li.querySelectorAll('[data-f=audioMode]').forEach(r => { r.name = 'am-' + b.id; r.checked = r.value === b.audioMode; });
   f('cat').onchange = () => { b.cat = f('cat').value; b.index = 0; fillZikr(b); fillItems(); f('text').value = b.text; f('seconds').value = b.seconds; sync(); persist(); refreshPreview(); };
   f('item').onchange = () => { b.index = Number(f('item').value); fillZikr(b); f('text').value = b.text; f('seconds').value = b.seconds; sync(); persist(); refreshPreview(); };
-  f('text').oninput = () => { b.text = f('text').value; persist(); refreshPreview(); };
+  f('text').oninput = () => {
+    b.text = f('text').value;
+    // النص الخاص: المدة بتتظبط لوحدها على طول النص لحد ما المستخدم يغيّرها بإيده
+    if (b.custom && !b.secondsManual) { b.seconds = estimateSeconds(b.text); f('seconds').value = b.seconds; }
+    persist(); refreshPreview();
+  };
   f('showCount').onchange = () => { b.showCount = f('showCount').checked; persist(); refreshPreview(); };
-  f('seconds').oninput = () => { b.seconds = clamp(f('seconds').value, 2, 120); persist(); };
+  f('seconds').oninput = () => { b.seconds = clamp(f('seconds').value, 2, 120); b.secondsManual = true; persist(); };
   wireAudioControls(li, b, sync);
   sync();
   return li;
+}
+
+// ===== مساعد الكتابة (LLM اختياري) =====
+function needLLM() {
+  status('✨ مساعد الكتابة محتاج مفتاح: ⚙️ الإعدادات ← «مساعد الكتابة»');
+  $('#btn-settings')?.click();
+  const d = $('#set-llm-provider')?.closest('details');
+  if (d) d.open = true;
+}
+
+// ملخص محتوى الفيديو للمساعد (للفهم بس — بنقوله ماينقلش منه)
+function contentSummary() {
+  const lines = [];
+  for (const b of state.blocks) {
+    if (b.type === 'quran') {
+      const s = Q.surah(b.surah);
+      const ayat = [];
+      for (let a = b.from; a <= Math.min(b.to, b.from + 6); a++) ayat.push(Q.ayahText(b.surah, a));
+      lines.push(`آيات من سورة ${s.ar} (${b.from}–${b.to}): ${ayat.join(' ')}`);
+    } else if (b.type === 'zikr') {
+      lines.push(`${b.custom ? (b.label || 'دعاء') : b.cat}: ${String(b.text || '').slice(0, 400)}`);
+    } else {
+      lines.push(`حديث (${collection(b.col)?.name || b.col}): ${String(b.text || '').slice(0, 400)}`);
+    }
+  }
+  const rec = state.blocks.find(b => b.rec?.name)?.rec.name || findReciter(state.style.reciter).name;
+  if (state.blocks.some(b => b.type === 'quran')) lines.push(`القارئ: ${rec}`);
+  return lines.join('\n') || 'فيديو قرآن قصير';
+}
+
+function setupLLM() {
+  const box = $('#ai-hooks-list');
+  $('#ai-hooks').onclick = async () => {
+    if (!LLM.isReady()) { needLLM(); return; }
+    const btn = $('#ai-hooks');
+    btn.disabled = true; $('#ai-hooks-status').textContent = 'بيفكّر…';
+    try {
+      const hooks = await LLM.suggestHooks({ summary: contentSummary() });
+      box.innerHTML = '';
+      for (const h of hooks) {
+        const c = document.createElement('button');
+        c.type = 'button'; c.className = 'chip'; c.textContent = h;
+        c.onclick = () => { $('#intro').value = h; $('#intro').dispatchEvent(new Event('input', { bubbles: true })); $('#intro').dispatchEvent(new Event('change', { bubbles: true })); };
+        box.appendChild(c);
+      }
+      $('#ai-hooks-status').textContent = hooks.length ? 'اضغط على أي واحدة عشان تستخدمها' : 'مارجعش اقتراحات — جرّب تاني';
+    } catch (e) { $('#ai-hooks-status').textContent = ''; showError(e); }
+    btn.disabled = false;
+  };
+
+  $('#pub-ai').onclick = async () => {
+    if (!LLM.isReady()) { needLLM(); return; }
+    const btn = $('#pub-ai'); const prev = btn.textContent;
+    btn.disabled = true; btn.textContent = '✨ بيكتب…';
+    try {
+      if (!pub.data) await refreshPublish(true);
+      const p = PLATFORMS[pub.platform];
+      const ai = await LLM.writeCaption({ summary: contentSummary() }, p.name);
+      const d = pub.data[pub.platform];
+      // الوصف: كلام المساعد فوق، وتحته المعلومات والمصادر والهاشتاجات اللي البرنامج بيولّدها
+      d.caption = [ai.caption, d.caption].filter(Boolean).join('\n\n');
+      if (p.title && ai.title) d.title = ai.title;
+      // الهاشتاجات: هاشتاجات المساعد الأول وبعدها اللي البرنامج حطها، في آخر الوصف (يوتيوب ليه خانة Tags لوحدها فبنسيبها)
+      if (ai.tags.length && !p.tags) {
+        const tail = d.caption.match(/(?:#\S+\s*)+$/u);
+        const existing = tail ? tail[0].split(/\s+/).filter(Boolean) : [];
+        const merged = [...new Set([...ai.tags, ...existing])].slice(0, p.hashtags || 8);
+        d.caption = (tail ? d.caption.slice(0, tail.index) : d.caption).trimEnd() + '\n\n' + merged.join(' ');
+      }
+      pub.edited = true;
+      renderPublish();
+      status('✨ الوصف اتكتب — راجعه وعدّل اللي يعجبك قبل النشر');
+    } catch (e) { showError(e); }
+    btn.disabled = false; btn.textContent = prev;
+  };
 }
 
 // ===== مكتبة الأذكار (نافذة) =====
@@ -1924,6 +2039,12 @@ function setupSettings() {
     $('#set-eleven-model').innerHTML = EL.MODELS.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
     $('#set-eleven-model').value = s.elevenModel;
     $('#set-eleven-voices').hidden = true;
+    $('#set-llm-provider').innerHTML = '<option value="">— مش مفعّل —</option>' + Object.entries(LLM.PROVIDERS).map(([id, p]) => `<option value="${id}">${p.name}</option>`).join('');
+    $('#set-llm-provider').value = s.llmProvider || '';
+    $('#set-llm-key').value = s.llmKey || '';
+    $('#set-llm-model').value = s.llmModel || '';
+    syncLlmFields();
+    $('#set-llm-status').textContent = '';
     dlg.showModal();
   };
   dlg.addEventListener('close', () => {
@@ -1936,8 +2057,24 @@ function setupSettings() {
       elevenKey: $('#set-eleven-key').value.trim(),
       elevenVoiceId: $('#set-eleven-voice').value.trim(),
       elevenModel: $('#set-eleven-model').value,
+      ...llmFields(),
     });
   });
+  const llmFields = () => ({ llmProvider: $('#set-llm-provider').value, llmKey: $('#set-llm-key').value.trim(), llmModel: $('#set-llm-model').value.trim() });
+  function syncLlmFields() {
+    const p = LLM.PROVIDERS[$('#set-llm-provider').value];
+    $('#set-llm-model').placeholder = p ? p.model : '';
+    $('#set-llm-keyurl').href = p ? p.keyUrl : LLM.PROVIDERS.gemini.keyUrl;
+  }
+  $('#set-llm-provider').onchange = () => { $('#set-llm-model').value = ''; syncLlmFields(); };
+  $('#set-llm-test').onclick = async () => {
+    const st = $('#set-llm-status');
+    const before = getSettings();
+    setSettings(llmFields());
+    st.textContent = '…';
+    try { await LLM.ping(); st.textContent = '✅ شغال'; }
+    catch (e) { st.textContent = '❌ ' + e.message; setSettings({ llmProvider: before.llmProvider, llmKey: before.llmKey, llmModel: before.llmModel }); }
+  };
   // جلب الأصوات من حساب ElevenLabs (بالمفتاح المكتوب حاليًا في الخانة)
   $('#set-eleven-load').onclick = async () => {
     const btn = $('#set-eleven-load');
@@ -2446,7 +2583,7 @@ const refLabel = r => `${Q.surah(r.surah).ar} ${r.from === r.to ? Q.arabicNum(r.
 
 function blocksLabel(blocks) {
   const names = blocks.map(b => b.type === 'quran' ? refLabel(b)
-    : b.type === 'zikr' ? 'ذكر' : `حديث ${collection(b.col)?.name || b.col} ${b.number}`);
+    : b.type === 'zikr' ? (b.custom ? (b.label || 'نص خاص') : 'ذكر') : `حديث ${collection(b.col)?.name || b.col} ${b.number}`);
   return names.length > 2 ? `${names.slice(0, 2).join(' + ')} + ${names.length - 2} كمان` : names.join(' + ');
 }
 
@@ -3102,6 +3239,8 @@ async function init() {
   $('#add-quran').onclick = () => { state.blocks.push(newQuranBlock(1, 1, 1)); renderBlocks(); focusLastBlock(); };
   $('#add-hadith').onclick = () => { state.blocks.push(newHadithBlock()); renderBlocks(); focusLastBlock(); };
   $('#add-zikr').onclick = openAzkarLibrary;
+  $('#add-custom').onclick = () => { state.blocks.push(newCustomBlock()); renderBlocks(); focusLastBlock(); blocksEl.lastElementChild?.querySelector('[data-f=text]')?.focus(); };
+  setupLLM();
   setupAzkarLibrary();
   document.querySelectorAll('[data-preset]').forEach(btn => { btn.onclick = () => applyPreset(btn.dataset.preset); });
   $('#btn-play').onclick = play;

@@ -54,11 +54,16 @@ export function postFromBlocks(blocks, platform, title) {
     platform, title: title || '',
     keys: q.map(b => `${b.surah}:${b.from}-${b.to}`),
     surahs: [...new Set(q.map(b => b.surah))],
-    other: blocks.filter(b => b.type !== 'quran').map(b => b.type === 'zikr' ? `zikr:${b.cat}:${b.index}` : `hadith:${b.col}:${b.number}`),
+    other: blocks.filter(b => b.type !== 'quran').map(otherKey),
   };
 }
 
 const DAY = 864e5;
+
+// مفتاح التكرار للكتل اللي مش آيات (النص الخاص بيتعرف من أول كلامه)
+const otherKey = b => b.type === 'zikr'
+  ? (b.custom ? `custom:${String(b.text || '').replace(/[\u0610-\u061A\u064B-\u065F\u0670\s]/g, '').slice(0, 40)}` : `zikr:${b.cat}:${b.index}`)
+  : `hadith:${b.col}:${b.number}`;
 
 // تحذيرات قبل النشر: نفس الآيات خلال ١٤ يوم، نفس السورة خلال ٧ أيام، أو آخر نشر من أقل من ٤ ساعات
 export function checkBlocks(blocks, posts, now = Date.now()) {
@@ -76,7 +81,7 @@ export function checkBlocks(blocks, posts, now = Date.now()) {
       if (p.surahs.includes(b.surah) && age < 7 * DAY) { warn.push({ level: 'mid', surah: b.surah, days: Math.floor(age / DAY), kind: 'surah' }); break; }
     }
   }
-  const other = blocks.filter(b => b.type !== 'quran').map(b => b.type === 'zikr' ? `zikr:${b.cat}:${b.index}` : `hadith:${b.col}:${b.number}`);
+  const other = blocks.filter(b => b.type !== 'quran').map(otherKey);
   if (other.length && posts.some(p => now - Date.parse(p.at) < 14 * DAY && p.other?.some(o => other.includes(o)))) warn.push({ level: 'high', kind: 'other' });
   const last = posts.reduce((m, p) => Math.max(m, Date.parse(p.at)), 0);
   if (last && now - last < 4 * 36e5) warn.push({ level: 'mid', kind: 'spacing', hours: (now - last) / 36e5 });
