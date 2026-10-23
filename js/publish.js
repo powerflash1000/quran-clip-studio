@@ -117,6 +117,7 @@ export async function generate(blocks, style, translationOf, series = null) {
   if (quran.length) info.push(`🎙️ بصوت القارئ: ${reciterShort(reciter)}`);
   // إفصاح مطلوب على يوتيوب وغيره لو فيه صوت مولّد بالذكاء الاصطناعي
   if ([...hadith, ...zikr].some(b => b.audioMode === 'ai')) info.push('🔊 صوت قراءة الحديث مولّد بتقنية الذكاء الاصطناعي (نسخة من صوتي)');
+  else if ([...hadith, ...zikr].some(b => b.audioMode === 'gtts')) info.push('🔊 صوت القراءة مولّد بتقنية الذكاء الاصطناعي');
   if (series) {
     info.push(series.index < series.total
       ? `📌 الجزء ${N(series.index)} من ${N(series.total)} — تابع باقي الأجزاء في قائمة التشغيل`

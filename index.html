@@ -6,7 +6,7 @@
   <title>استوديو مقاطع القرآن</title>
   <meta name="description" content="اختار الآيات والقارئ، وصدّر صوت MP3 أو M4A أو WAV أو فيديو جاهز للنشر — من المتصفح مباشرة وببلاش.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261023d">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261023e">
 </head>
 <body>
   <header class="topbar">
@@ -431,7 +431,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261023d</div>
+    <div class="muted" id="app-version">الإصدار 20261023e</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -473,6 +473,24 @@
         </div>
         <select id="set-eleven-voices" hidden></select>
         <label>الموديل <select id="set-eleven-model"></select></label>
+      </details>
+      <details>
+        <summary>🔊 صوت Gemini — قراءة الأدعية والأذكار (مجاني، اختياري)</summary>
+        <label>مفتاح API
+          <input type="password" id="set-gtts-key" dir="ltr" autocomplete="off" placeholder="لو فاضي هياخد مفتاح Gemini بتاع مساعد الكتابة">
+        </label>
+        <label>الموديل <select id="set-gtts-model"></select></label>
+        <label>الصوت الافتراضي <select id="set-gtts-voice"></select></label>
+        <label>طريقة القراءة (بتتبعت لجوجل قبل النص)
+          <textarea id="set-gtts-style" rows="2" dir="auto"></textarea>
+        </label>
+        <div class="btn-row">
+          <a class="btn ghost" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">↗ هات مفتاح</a>
+          <button class="btn" id="set-gtts-test" type="button">🔊 اسمع الصوت</button>
+          <span class="muted" id="set-gtts-status"></span>
+        </div>
+        <p class="hint">💡 نفس مفتاح Gemini المجاني (من مشروع مش مربوط بحساب دفع). عليه حد في اليوم. الموديلات اللي عليها 🆓 هي Flash.</p>
+        <p class="hint">⚠️ للأدعية والأذكار والنص الخاص بس. القرآن بيفضل بأصوات القرّاء. واسمع الصوت كله قبل النشر وراجع النطق والتشكيل.</p>
       </details>
       <details>
         <summary>✨ مساعد الكتابة — افتتاحيات ووصف وهاشتاجات (اختياري)</summary>
@@ -650,6 +668,7 @@
         <label class="check"><input type="radio" value="record" data-f="audioMode"> سجّل بصوتك</label>
         <label class="check"><input type="radio" value="upload" data-f="audioMode"> ارفع ملف صوت</label>
         <label class="check"><input type="radio" value="ai" data-f="audioMode"> 🤖 اقرا بصوتي (ElevenLabs)</label>
+        <label class="check"><input type="radio" value="gtts" data-f="audioMode"> 🆓 صوت Gemini (مجاني)</label>
         <div class="btn-row">
           <button class="btn primary" data-act="record" type="button">🎙️ سجّل بصوتك (شاشة قراءة)</button>
           <label class="btn file-btn">📁 ملف صوت<input type="file" accept="audio/*" data-f="audioFile" hidden></label>
@@ -658,6 +677,10 @@
           <button class="btn icon" data-act="elPreview" type="button" title="اسمع عينة من الصوت ده (ببلاش)">🔊</button>
           <button class="btn icon" data-act="elVoices" type="button" title="حدّث قائمة أصواتك من ElevenLabs">↻</button>
           <span class="muted" data-el="audio-name"></span>
+        </div>
+        <div class="btn-row">
+          <button class="btn" data-act="gtts" type="button">🆓 ولّد بصوت Gemini</button>
+          <select data-f="gVoice" title="أنهي صوت من أصوات Gemini"></select>
         </div>
         <audio controls data-el="audio-preview" hidden></audio>
         <div class="btn-row">
@@ -855,6 +878,7 @@
         <label class="check"><input type="radio" value="record" data-f="audioMode"> سجّل بصوتك</label>
         <label class="check"><input type="radio" value="upload" data-f="audioMode"> ارفع ملف صوت</label>
         <label class="check"><input type="radio" value="ai" data-f="audioMode"> 🤖 اقرا بصوتي (ElevenLabs)</label>
+        <label class="check"><input type="radio" value="gtts" data-f="audioMode"> 🆓 صوت Gemini (مجاني)</label>
         <div class="btn-row">
           <button class="btn primary" data-act="record" type="button">🎙️ سجّل بصوتك (شاشة قراءة)</button>
           <label class="btn file-btn">📁 ملف صوت<input type="file" accept="audio/*" data-f="audioFile" hidden></label>
@@ -863,6 +887,10 @@
           <button class="btn icon" data-act="elPreview" type="button" title="اسمع عينة من الصوت ده (ببلاش)">🔊</button>
           <button class="btn icon" data-act="elVoices" type="button" title="حدّث قائمة أصواتك من ElevenLabs">↻</button>
           <span class="muted" data-el="audio-name"></span>
+        </div>
+        <div class="btn-row">
+          <button class="btn" data-act="gtts" type="button">🆓 ولّد بصوت Gemini</button>
+          <select data-f="gVoice" title="أنهي صوت من أصوات Gemini"></select>
         </div>
         <audio controls data-el="audio-preview" hidden></audio>
         <div class="btn-row">
@@ -873,6 +901,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261023d"></script>
+  <script type="module" src="js/main.js?v=20261023e"></script>
 </body>
 </html>

@@ -9,6 +9,7 @@ import { PROVIDERS, downloadStock } from './stock.js';
 import * as T from './templates.js';
 import { getSettings, setSettings, load, save } from './storage.js';
 import * as EL from './elevenlabs.js';
+import * as GT from './geminitts.js';
 import * as LLM from './llm.js';
 import * as SND from './sounds.js';
 import * as WT from './words.js';
@@ -1015,6 +1016,32 @@ function wireAudioControls(li, b, sync) {
       showError(e);
     } finally {
       btn.disabled = false; btn.textContent = '🤖 ولّد بصوتي';
+    }
+  };
+  // قراءة بصوت Gemini (مجاني بمفتاح من مشروع من غير حساب دفع)
+  f('gVoice').innerHTML = `<option value="">الافتراضي (من الإعدادات)</option>` + GT.VOICES.map(v => `<option value="${v.id}">${v.id} — ${v.desc}</option>`).join('');
+  f('gVoice').value = b.gVoice || '';
+  f('gVoice').onchange = () => { b.gVoice = f('gVoice').value; persist(); };
+  act('gtts').onclick = async () => {
+    if (!GT.hasKey()) { alert('حط مفتاح Gemini الأول من ⚙️ الإعدادات ← 🔊 صوت Gemini.'); return; }
+    const text = EL.prepareText(b.text || '');
+    if (text.length < 3) { alert('اكتب النص الأول.'); return; }
+    const btn = act('gtts');
+    btn.disabled = true; btn.textContent = '⏳ بيولّد…';
+    try {
+      const blob = await GT.speak(text, b.gVoice);
+      const buffer = await decode(await blob.arrayBuffer());
+      setHadithAudio(b, trimSilence(buffer), 'Gemini', blob);
+      b.audioMode = 'gtts';
+      li.querySelectorAll('[data-f=audioMode]').forEach(r => { r.checked = r.value === 'gtts'; });
+      sync(); persist(); refreshPublish(true);
+      el('audio-preview').hidden = false;
+      el('audio-preview').play().catch(() => {});
+      status('✅ الصوت اتولّد. اسمعه كله وراجع النطق والتشكيل قبل التصدير. ولو فيه غلط، عدّل النص أو جرّب صوت تاني.');
+    } catch (e) {
+      showError(e);
+    } finally {
+      btn.disabled = false; btn.textContent = '🆓 ولّد بصوت Gemini';
     }
   };
   f('audioFile').onchange = async () => {
@@ -2042,6 +2069,13 @@ function setupSettings() {
     $('#set-llm-provider').innerHTML = '<option value="">— مش مفعّل —</option>' + Object.entries(LLM.PROVIDERS).map(([id, p]) => `<option value="${id}">${p.name}</option>`).join('');
     $('#set-llm-provider').value = s.llmProvider || '';
     $('#set-llm-key').value = s.llmKey || '';
+    $('#set-gtts-key').value = s.gttsKey || '';
+    $('#set-gtts-voice').innerHTML = GT.VOICES.map(v => `<option value="${v.id}">${v.id} — ${v.desc}</option>`).join('');
+    $('#set-gtts-voice').value = s.gttsVoice || 'Charon';
+    $('#set-gtts-style').value = s.gttsStyle || GT.DEFAULT_STYLE;
+    $('#set-gtts-model').dataset.want = s.gttsModel || '';
+    $('#set-gtts-status').textContent = '';
+    loadGttsModels();
     $('#set-llm-model').dataset.want = s.llmModel || '';
     $('#set-llm-status').textContent = '';
     syncLlmFields();
@@ -2059,6 +2093,7 @@ function setupSettings() {
       elevenVoiceId: $('#set-eleven-voice').value.trim(),
       elevenModel: $('#set-eleven-model').value,
       ...llmFields(),
+      ...gttsFields(),
     });
   });
   const llmFields = () => ({ llmProvider: $('#set-llm-provider').value, llmKey: $('#set-llm-key').value.trim(), llmModel: $('#set-llm-model').value });
@@ -2091,7 +2126,48 @@ function setupSettings() {
   }
   $('#set-llm-model').onchange = () => { $('#set-llm-model').dataset.want = $('#set-llm-model').value; };
   $('#set-llm-provider').onchange = () => { $('#set-llm-model').dataset.want = ''; $('#set-llm-model').value = ''; syncLlmFields(); loadLlmModels(); };
-  $('#set-llm-key').onchange = () => loadLlmModels();
+  $('#set-llm-key').onchange = () => { loadLlmModels(); loadGttsModels(); };
+  // صوت Gemini: الموديلات بتتملي من المفتاح (أو مفتاح مساعد الكتابة)
+  const gttsFields = () => {
+    const st = $('#set-gtts-style').value.trim();
+    return { gttsKey: $('#set-gtts-key').value.trim(), gttsModel: $('#set-gtts-model').value, gttsVoice: $('#set-gtts-voice').value, gttsStyle: st === GT.DEFAULT_STYLE ? '' : st };
+  };
+  const gttsKeyNow = () => $('#set-gtts-key').value.trim() || ($('#set-llm-provider').value === 'gemini' ? $('#set-llm-key').value.trim() : '');
+  let gttsLoad = 0;
+  async function loadGttsModels() {
+    const sel = $('#set-gtts-model'), st = $('#set-gtts-status');
+    const want = sel.dataset.want ?? '';
+    sel.innerHTML = '<option value="">تلقائي — أحدث Flash 🆓</option>' + (want ? `<option value="${want}">${want}</option>` : '');
+    sel.value = want;
+    const k = gttsKeyNow();
+    if (!k) return;
+    const my = ++gttsLoad;
+    try {
+      const list = await GT.listModels(k);
+      if (my !== gttsLoad) return;
+      sel.innerHTML = '<option value="">تلقائي — أحدث Flash 🆓</option>' + list.map(m => `<option value="${m.id}">${m.label} — ${m.id}</option>`).join('');
+      if (want && !list.some(m => m.id === want)) sel.insertAdjacentHTML('beforeend', `<option value="${want}">${want}</option>`);
+      sel.value = want;
+      st.textContent = list.length ? '' : 'مفتاحك مفيهوش موديلات صوت';
+    } catch (e) { if (my === gttsLoad) st.textContent = '❌ ' + e.message; }
+  }
+  $('#set-gtts-model').onchange = () => { $('#set-gtts-model').dataset.want = $('#set-gtts-model').value; };
+  $('#set-gtts-key').onchange = () => loadGttsModels();
+  let gttsPlayer = null;
+  $('#set-gtts-test').onclick = async () => {
+    const st = $('#set-gtts-status'), btn = $('#set-gtts-test');
+    const before = getSettings();
+    setSettings({ ...gttsFields(), ...(!$('#set-gtts-key').value.trim() ? llmFields() : {}) });
+    btn.disabled = true; st.textContent = '…';
+    try {
+      const blob = await GT.speak('اللَّهُمَّ إِنَّكَ عَفُوٌّ تُحِبُّ الْعَفْوَ فَاعْفُ عَنِّي');
+      if (gttsPlayer) { gttsPlayer.pause(); URL.revokeObjectURL(gttsPlayer.src); }
+      gttsPlayer = new Audio(URL.createObjectURL(blob));
+      gttsPlayer.play().catch(() => {});
+      st.textContent = '✅ شغال';
+    } catch (e) { st.textContent = '❌ ' + e.message; }
+    finally { btn.disabled = false; setSettings(before); }
+  };
   $('#set-llm-test').onclick = async () => {
     const st = $('#set-llm-status');
     const before = getSettings();

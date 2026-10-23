@@ -1,0 +1,120 @@
+// قراءة النص بصوت Gemini (اختياري) — مجاني بمفتاح من مشروع جوجل مش مربوط بحساب دفع
+// بيستخدم مفتاحه الخاص لو متحط، أو مفتاح Gemini بتاع مساعد الكتابة. الطلب بيروح لجوجل مباشرة.
+// للأدعية والأذكار والنص الخاص بس — القرآن بيفضل بأصوات القرّاء.
+import { getSettings } from './storage.js';
+
+const API = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+// أصوات Gemini الجاهزة (الاسم ثابت عند جوجل، والوصف عشان تختار)
+export const VOICES = [
+  ['Charon', 'رجالي — هادي وواضح'],
+  ['Algenib', 'رجالي — عميق ومبحوح'],
+  ['Gacrux', 'رجالي — ناضج'],
+  ['Iapetus', 'رجالي — واضح'],
+  ['Orus', 'رجالي — ثابت'],
+  ['Alnilam', 'رجالي — حازم'],
+  ['Rasalgethi', 'رجالي — رزين'],
+  ['Sadaltager', 'رجالي — رصين'],
+  ['Schedar', 'رجالي — متزن'],
+  ['Umbriel', 'رجالي — سلس'],
+  ['Enceladus', 'رجالي — هامس'],
+  ['Fenrir', 'رجالي — متحمس'],
+  ['Puck', 'رجالي — مرح'],
+  ['Achird', 'رجالي — ودود'],
+  ['Zubenelgenubi', 'رجالي — عادي'],
+  ['Algieba', 'رجالي — ناعم'],
+  ['Sulafat', 'نسائي — دافي'],
+  ['Vindemiatrix', 'نسائي — رقيق'],
+  ['Achernar', 'نسائي — هادي'],
+  ['Kore', 'نسائي — حازم'],
+  ['Aoede', 'نسائي — خفيف'],
+  ['Despina', 'نسائي — ناعم'],
+  ['Erinome', 'نسائي — واضح'],
+  ['Leda', 'نسائي — شبابي'],
+  ['Zephyr', 'نسائي — مشرق'],
+  ['Autonoe', 'نسائي — مشرق'],
+  ['Callirrhoe', 'نسائي — بسيط'],
+  ['Laomedeia', 'نسائي — مرح'],
+  ['Pulcherrima', 'نسائي — مباشر'],
+  ['Sadachbia', 'نسائي — حيوي'],
+].map(([id, desc]) => ({ id, desc }));
+
+// توجيه الأسلوب بيتكتب قبل النص (جوجل بيفهمه ومش بيقراه)
+export const DEFAULT_STYLE = 'Read the following Arabic text slowly, in a calm, gentle and reverent voice, exactly as written with its diacritics:';
+
+// المفتاح: الخاص بالصوت، أو مفتاح Gemini من مساعد الكتابة
+export function key() {
+  const s = getSettings();
+  return (s.gttsKey || (s.llmProvider === 'gemini' ? s.llmKey : '') || '').trim();
+}
+export const hasKey = () => !!key();
+
+// موديلات الصوت المتاحة للمفتاح؛ Flash عليه مستوى مجاني و Pro مدفوع
+export async function listModels(k = key()) {
+  if (!k) throw new Error('حط مفتاح Gemini الأول');
+  const r = await fetch(`${API}?pageSize=1000&key=${encodeURIComponent(k)}`);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(`Gemini ${r.status}: ${j.error?.message || r.statusText}`);
+  const ids = [...new Set((j.models || []).map(m => m.name.replace(/^models\//, '')).filter(id => /tts/.test(id)))];
+  const free = id => !/pro/.test(id);
+  return ids.sort((a, b) => (free(a) !== free(b) ? (free(a) ? -1 : 1) : b.localeCompare(a, 'en', { numeric: true })))
+    .map(id => ({ id, free: free(id), label: free(id) ? '🆓 مجاني' : '💳 مدفوع' }));
+}
+
+// لو مفيش موديل محدد: أحدث Flash TTS متاح للمفتاح
+async function pickModel(k) {
+  const m = getSettings().gttsModel;
+  if (m) return m;
+  const list = await listModels(k);
+  const best = list.find(x => x.free) || list[0];
+  if (!best) throw new Error('مفتاحك مفيهوش موديلات صوت (TTS)');
+  return best.id;
+}
+
+// تحويل نص لصوت؛ بيرجع Blob (wav)
+export async function speak(text, voice = '') {
+  const k = key();
+  if (!k) throw new Error('حط مفتاح Gemini في ⚙️ الإعدادات ← 🔊 صوت Gemini (أو في مساعد الكتابة)');
+  const s = getSettings();
+  const model = await pickModel(k);
+  const style = (s.gttsStyle || DEFAULT_STYLE).trim();
+  const r = await fetch(`${API}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(k)}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: `${style}\n\n${text}` }] }],
+      generationConfig: {
+        responseModalities: ['AUDIO'],
+        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice || s.gttsVoice || 'Charon' } } },
+      },
+    }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(ttsError(r.status, j.error?.message || r.statusText, model));
+  const part = (j.candidates?.[0]?.content?.parts || []).find(p => p.inlineData?.data);
+  if (!part) throw new Error('Gemini مارجّعش صوت' + (j.candidates?.[0]?.finishReason ? ` (${j.candidates[0].finishReason})` : ''));
+  const rate = Number(/rate=(\d+)/.exec(part.inlineData.mimeType || '')?.[1]) || 24000;
+  const bytes = Uint8Array.from(atob(part.inlineData.data), c => c.charCodeAt(0));
+  if (/wav|mpeg|mp3|ogg/.test(part.inlineData.mimeType || '')) return new Blob([bytes], { type: part.inlineData.mimeType });
+  return pcmToWav(bytes, rate);
+}
+
+// جوجل بيرجع PCM خام (16-bit mono) — بنحط عليه هيدر WAV عشان المتصفح يشغله
+function pcmToWav(pcm, rate) {
+  const h = new DataView(new ArrayBuffer(44));
+  const str = (o, s) => [...s].forEach((c, i) => h.setUint8(o + i, c.charCodeAt(0)));
+  str(0, 'RIFF'); h.setUint32(4, 36 + pcm.length, true); str(8, 'WAVE');
+  str(12, 'fmt '); h.setUint32(16, 16, true); h.setUint16(20, 1, true); h.setUint16(22, 1, true);
+  h.setUint32(24, rate, true); h.setUint32(28, rate * 2, true); h.setUint16(32, 2, true); h.setUint16(34, 16, true);
+  str(36, 'data'); h.setUint32(40, pcm.length, true);
+  return new Blob([h.buffer, pcm], { type: 'audio/wav' });
+}
+
+function ttsError(code, msg, model) {
+  const m = String(msg || '');
+  if (/prepay|billing|credits|payment/i.test(m)) return `مشروع جوجل اللي طالع منه المفتاح مربوط بحساب دفع (Prepay)، فمش مجاني. اعمل مفتاح في مشروع جديد من غير Billing في aistudio.google.com/apikey. (${code})`;
+  if (code === 429) return `خلّصت الحد المجاني للصوت (الدقيقة أو اليوم). استنى شوية وجرّب تاني. (${m})`;
+  if (code === 404 || /not found|model name/i.test(m)) return `موديل الصوت ${model} مش متاح لمفتاحك. اختار «تلقائي» في ⚙️ الإعدادات ← 🔊 صوت Gemini. (${m})`;
+  if (code === 400 && /api key/i.test(m)) return 'المفتاح غلط — انسخه تاني من aistudio.google.com/apikey';
+  return `Gemini ${code}: ${m}`;
+}
