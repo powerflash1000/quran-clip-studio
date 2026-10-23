@@ -1,5 +1,5 @@
 // مساعد الكتابة (اختياري): افتتاحيات ووصف وهاشتاجات، وتحسين صياغة النص الخاص
-// بيشتغل بمفتاح المستخدم نفسه (Gemini أو OpenAI أو Claude) — المفتاح بيتحفظ في المتصفح بس
+// بيشتغل بمفتاح المستخدم نفسه (Gemini أو OpenRouter أو OpenAI أو Claude) — المفتاح بيتحفظ في المتصفح بس
 // والطلب بيروح من المتصفح للخدمة مباشرة. ممنوع يكتب آيات أو أحاديث أو ينسب كلام لحد.
 import { getSettings } from './storage.js';
 
@@ -8,6 +8,11 @@ export const PROVIDERS = {
     name: 'Google Gemini (فيه مستوى مجاني)',
     model: 'gemini-flash-latest', // اسم ثابت لأحدث Flash — متاح في المستوى المجاني
     keyUrl: 'https://aistudio.google.com/apikey',
+  },
+  openrouter: {
+    name: 'OpenRouter (موديلات مجانية من غير فيزا)',
+    model: '', // فاضي = أول موديل مجاني من القايمة
+    keyUrl: 'https://openrouter.ai/keys',
   },
   openai: {
     name: 'OpenAI (ChatGPT API — مدفوع)',
@@ -41,6 +46,8 @@ export async function listModels() {
     if (!r.ok) throw new Error(`Gemini ${r.status}: ${j.error?.message || r.statusText}`);
     ids = (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent')).map(m => normalizeModel(m.name))
       .filter(id => /gemini/.test(id) && !/(embedding|image|tts|audio|live|vision)/.test(id));
+  } else if (c.provider === 'openrouter') {
+    return openRouterModels();
   } else if (c.provider === 'openai') {
     const r = await fetch('https://api.openai.com/v1/models', { headers: { authorization: `Bearer ${c.key}` } });
     const j = await r.json().catch(() => ({}));
@@ -56,6 +63,22 @@ export async function listModels() {
   // جوجل مابترجعش السعر، فبنعلّم على حسب النوع: Flash و Flash-Lite و Gemma عليهم مستوى مجاني، و Pro مدفوع
   return ids.map(id => ({ id, tag: freeTag(c.provider, id) }))
     .sort((a, b) => (a.tag.free === b.tag.free ? 0 : a.tag.free ? -1 : 1));
+}
+
+// OpenRouter بيرجع السعر مع كل موديل، فالمجاني معروف بالظبط (سعره صفر)
+let orCache = null;
+async function openRouterModels() {
+  if (orCache) return orCache;
+  const r = await fetch('https://openrouter.ai/api/v1/models');
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(`OpenRouter ${r.status}: ${j.error?.message || r.statusText}`);
+  const free = m => Number(m.pricing?.prompt) === 0 && Number(m.pricing?.completion) === 0;
+  // الموديلات الكبيرة المعروفة بتكتب عربي أحسن، فبتيجي الأول
+  const rank = id => (/(deepseek|qwen|llama-3\.3-70b|llama-4|gemini|gemma-3-27b|mistral-small)/.test(id) ? 0 : 1);
+  const list = (j.data || []).filter(m => (m.architecture?.output_modalities || ['text']).includes('text'))
+    .map(m => ({ id: m.id, tag: free(m) ? { free: true, label: '🆓 مجاني' } : { free: false, label: '💳 مدفوع' } }));
+  orCache = list.sort((a, b) => (a.tag.free !== b.tag.free ? (a.tag.free ? -1 : 1) : rank(a.id) - rank(b.id) || a.id.localeCompare(b.id)));
+  return orCache;
 }
 
 export function freeTag(provider, id) {
@@ -93,19 +116,35 @@ async function callGemini({ key, model }, system, user) {
   return text;
 }
 
-async function callOpenAI({ key, model }, system, user) {
-  const r = await fetch('https://api.openai.com/v1/chat/completions', {
+async function callOpenAI({ key, model }, system, user, url = 'https://api.openai.com/v1/chat/completions', name = 'OpenAI') {
+  const r = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
     body: JSON.stringify({
       model,
       messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-      response_format: { type: 'json_object' },
+      // مش كل موديلات OpenRouter المجانية بتدعم json_object، والرد بيتفك بـ parseJson
+      ...(name === 'OpenAI' ? { response_format: { type: 'json_object' } } : {}),
     }),
   });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(`OpenAI ${r.status}: ${j.error?.message || r.statusText}`);
+  if (!r.ok) throw new Error(name === 'OpenRouter' ? openRouterError(r.status, j.error?.message || r.statusText, model) : `${name} ${r.status}: ${j.error?.message || r.statusText}`);
   return j.choices?.[0]?.message?.content || '';
+}
+
+async function callOpenRouter(c, system, user) {
+  let model = c.model;
+  if (!model) model = (await openRouterModels()).find(m => m.tag.free)?.id;
+  if (!model) throw new Error('مالقيتش موديل مجاني على OpenRouter دلوقتي');
+  return callOpenAI({ key: c.key, model }, system, user, 'https://openrouter.ai/api/v1/chat/completions', 'OpenRouter');
+}
+
+function openRouterError(code, msg, model) {
+  const m = String(msg || '');
+  if (code === 402) return `الموديل ${model} مدفوع. اختار موديل عليه 🆓 من القايمة. (${code})`;
+  if (code === 429) return `الموديل المجاني ${model} عليه زحمة أو خلّصت حد اليوم. اختار موديل 🆓 تاني من القايمة أو جرّب بعد شوية. (${m})`;
+  if (code === 401) return 'المفتاح غلط — اعمل مفتاح جديد من openrouter.ai/keys';
+  return `OpenRouter ${code}: ${m}`;
 }
 
 async function callClaude({ key, model }, system, user) {
@@ -138,7 +177,7 @@ async function callClaude({ key, model }, system, user) {
 function geminiError(code, msg, model) {
   const m = String(msg || '');
   if (/prepay|billing|credits|payment/i.test(m)) {
-    return `الموديل ${model} مش مجاني على مشروعك، أو المشروع مربوط بحساب دفع (Prepay). الحل: اعمل مشروع جديد في AI Studio من غير حساب دفع، واختار موديل عليه 🆓 (Flash أو Flash-Lite). (${code})`;
+    return `مشروع جوجل اللي طالع منه المفتاح ده مربوط بحساب دفع (Prepay)، فجوجل شالته من المجاني — حتى Flash بيتحاسب عليه. الحل: اعمل مفتاح في مشروع جديد من غير Billing (لازم تشوف «Free tier» جنبه في aistudio.google.com/apikey)، أو اختار المزوّد OpenRouter. (${code})`;
   }
   if (code === 429) return `خلّصت الحد المجاني للدقيقة أو اليوم. استنى شوية وجرّب تاني، أو اختار موديل Flash-Lite. (${m})`;
   if (code === 404 || /not found|model name/i.test(m)) return `اسم الموديل ${model} مش موجود. اضغط «📋 الموديلات المتاحة» واختار من القايمة. (${m})`;
@@ -146,7 +185,7 @@ function geminiError(code, msg, model) {
   return `Gemini ${code}: ${m}`;
 }
 
-const CALLERS = { gemini: callGemini, openai: callOpenAI, anthropic: callClaude };
+const CALLERS = { gemini: callGemini, openrouter: callOpenRouter, openai: (c, s, u) => callOpenAI(c, s, u), anthropic: callClaude };
 
 // بيرجع JSON؛ لو الموديل لف الرد بكلام أو ```json بناخد أول كائن
 export function parseJson(text) {

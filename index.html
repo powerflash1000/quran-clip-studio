@@ -6,7 +6,7 @@
   <title>استوديو مقاطع القرآن</title>
   <meta name="description" content="اختار الآيات والقارئ، وصدّر صوت MP3 أو M4A أو WAV أو فيديو جاهز للنشر — من المتصفح مباشرة وببلاش.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261023c">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261023d">
 </head>
 <body>
   <header class="topbar">
@@ -431,7 +431,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261023c</div>
+    <div class="muted" id="app-version">الإصدار 20261023d</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -480,20 +480,13 @@
         <label>مفتاح API
           <input type="password" id="set-llm-key" dir="ltr" autocomplete="off">
         </label>
-        <div class="row">
-          <label class="grow">الموديل (سيبه فاضي لو مش متأكد)
-            <input type="text" id="set-llm-model" dir="ltr" list="set-llm-models" autocomplete="off">
-          </label>
-          <button class="btn" id="set-llm-list" type="button" title="بيجيب أسماء الموديلات المتاحة لمفتاحك">📋 الموديلات المتاحة</button>
-        </div>
-        <datalist id="set-llm-models"></datalist>
-        <select id="set-llm-model-pick" hidden></select>
+        <label>الموديل <select id="set-llm-model"></select></label>
         <div class="btn-row">
           <a class="btn ghost" id="set-llm-keyurl" href="#" target="_blank" rel="noopener">↗ هات مفتاح</a>
           <button class="btn" id="set-llm-test" type="button">جرّب الاتصال</button>
           <span class="muted" id="set-llm-status"></span>
         </div>
-        <p class="hint">💡 الأسهل والمجاني: <b>Gemini</b> — ادخل aistudio.google.com/apikey بحساب جوجل واعمل مفتاح في <b>مشروع جديد من غير حساب دفع</b> (لو المشروع مربوط بفيزا هيطلب Prepay). واختار موديل عليه 🆓 (Flash أو Flash-Lite)، أو سيب الخانة فاضية. اشتراك ChatGPT Plus أو Claude Pro <b>مش بيشمل</b> الـ API؛ مفاتيح OpenAI و Claude بتتحاسب لوحدها.</p>
+        <p class="hint">💡 المجاني: <b>Gemini</b> ببلاش بس لو المفتاح من <b>مشروع جديد مش مربوط بحساب دفع</b> (لو المشروع عليه فيزا جوجل بيطلب Prepay حتى على Flash). أو <b>OpenRouter</b>: حساب بالإيميل من غير فيزا، واختار موديل عليه 🆓. القايمة بتتملي لوحدها أول ما تحط المفتاح. اشتراك ChatGPT Plus أو Claude Pro <b>مش بيشمل</b> الـ API؛ مفاتيح OpenAI و Claude بتتحاسب لوحدها.</p>
         <p class="hint">🛡️ المساعد بيكتب الافتتاحيات والوصف والهاشتاجات بس. مش بيكتب آيات ولا أحاديث ولا تفسير، والنصوص الدينية بتفضل من مصادرها.</p>
       </details>
       <p class="hint">🔒 المفاتيح بتتحفظ في المتصفح ده على جهازك بس، ومش بتترفع على GitHub، ومحدش بيفتح الموقع يقدر يشوفها. بتتبعت بس للخدمة نفسها (Pexels أو Pixabay أو ElevenLabs أو مزوّد الكتابة) وقت الاستخدام.</p>
@@ -880,6 +873,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261023c"></script>
+  <script type="module" src="js/main.js?v=20261023d"></script>
 </body>
 </html>

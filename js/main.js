@@ -2042,9 +2042,10 @@ function setupSettings() {
     $('#set-llm-provider').innerHTML = '<option value="">— مش مفعّل —</option>' + Object.entries(LLM.PROVIDERS).map(([id, p]) => `<option value="${id}">${p.name}</option>`).join('');
     $('#set-llm-provider').value = s.llmProvider || '';
     $('#set-llm-key').value = s.llmKey || '';
-    $('#set-llm-model').value = s.llmModel || '';
-    syncLlmFields();
+    $('#set-llm-model').dataset.want = s.llmModel || '';
     $('#set-llm-status').textContent = '';
+    syncLlmFields();
+    loadLlmModels();
     dlg.showModal();
   };
   dlg.addEventListener('close', () => {
@@ -2060,32 +2061,37 @@ function setupSettings() {
       ...llmFields(),
     });
   });
-  const llmFields = () => ({ llmProvider: $('#set-llm-provider').value, llmKey: $('#set-llm-key').value.trim(), llmModel: LLM.normalizeModel($('#set-llm-model').value) });
-  $('#set-llm-model').onchange = () => { $('#set-llm-model').value = LLM.normalizeModel($('#set-llm-model').value); };
-  $('#set-llm-list').onclick = async () => {
-    const st = $('#set-llm-status'), pick = $('#set-llm-model-pick');
-    const before = getSettings();
-    setSettings(llmFields());
-    st.textContent = '…';
+  const llmFields = () => ({ llmProvider: $('#set-llm-provider').value, llmKey: $('#set-llm-key').value.trim(), llmModel: $('#set-llm-model').value });
+  // قايمة واحدة للموديلات: بتتملي لوحدها من المفتاح، والمجاني 🆓 فوق
+  let llmLoad = 0;
+  async function loadLlmModels() {
+    const sel = $('#set-llm-model'), st = $('#set-llm-status');
+    const f = llmFields(), want = sel.dataset.want || f.llmModel;
+    const auto = f.llmProvider === 'gemini' ? 'تلقائي — أحدث Flash 🆓' : f.llmProvider === 'openrouter' ? 'تلقائي — أول موديل 🆓' : 'تلقائي';
+    sel.innerHTML = `<option value="">${auto}</option>` + (want ? `<option value="${want}">${want}</option>` : '');
+    sel.value = want;
+    if (!f.llmProvider || !f.llmKey) return;
+    const my = ++llmLoad, before = getSettings();
+    setSettings(f);
+    st.textContent = 'بجيب الموديلات…';
     try {
       const ids = await LLM.listModels();
-      $('#set-llm-models').innerHTML = ids.map(m => `<option value="${m.id}">${m.tag.label}</option>`).join('');
-      pick.innerHTML = '<option value="">— اختار موديل —</option>' + ids.map(m => `<option value="${m.id}">${m.tag.label}  ${m.id}</option>`).join('');
-      pick.hidden = !ids.length;
-      const firstFree = ids.find(m => m.tag.free);
-      if (firstFree && !$('#set-llm-model').value) { $('#set-llm-model').value = firstFree.id; pick.value = firstFree.id; }
-      pick.onchange = () => { if (pick.value) $('#set-llm-model').value = pick.value; };
+      if (my !== llmLoad) return;
+      sel.innerHTML = `<option value="">${auto}</option>` + ids.map(m => `<option value="${m.id}">${m.tag.label} — ${m.id}</option>`).join('');
+      if (want && !ids.some(m => m.id === want)) sel.insertAdjacentHTML('beforeend', `<option value="${want}">${want}</option>`);
+      sel.value = want;
       const nFree = ids.filter(m => m.tag.free).length;
-      st.textContent = ids.length ? `✅ لقيت ${ids.length} موديل${nFree ? ` (${nFree} مجاني 🆓 فوق)` : ''} — اختار واحد من القايمة` : 'مالقيتش موديلات للمفتاح ده';
-    } catch (e) { st.textContent = '❌ ' + e.message; }
+      st.textContent = ids.length ? `${ids.length} موديل${nFree ? ` — ${nFree} مجاني 🆓 فوق` : ''}` : 'مالقيتش موديلات للمفتاح ده';
+    } catch (e) { if (my === llmLoad) st.textContent = '❌ ' + e.message; }
     setSettings({ llmProvider: before.llmProvider, llmKey: before.llmKey, llmModel: before.llmModel });
-  };
+  }
   function syncLlmFields() {
     const p = LLM.PROVIDERS[$('#set-llm-provider').value];
-    $('#set-llm-model').placeholder = p ? p.model : '';
     $('#set-llm-keyurl').href = p ? p.keyUrl : LLM.PROVIDERS.gemini.keyUrl;
   }
-  $('#set-llm-provider').onchange = () => { $('#set-llm-model').value = ''; $('#set-llm-model-pick').hidden = true; syncLlmFields(); };
+  $('#set-llm-model').onchange = () => { $('#set-llm-model').dataset.want = $('#set-llm-model').value; };
+  $('#set-llm-provider').onchange = () => { $('#set-llm-model').dataset.want = ''; $('#set-llm-model').value = ''; syncLlmFields(); loadLlmModels(); };
+  $('#set-llm-key').onchange = () => loadLlmModels();
   $('#set-llm-test').onclick = async () => {
     const st = $('#set-llm-status');
     const before = getSettings();
