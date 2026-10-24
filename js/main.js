@@ -3,7 +3,7 @@ import { RECITERS, findReciter, customReciter, ayahAudioUrls } from './reciters.
 import { COLLECTIONS, collection, getHadith, searchHadith, extractMatn, assessGrade } from './hadith.js';
 import { loadAudio, decode, buildTimeline, startRecording, trimSilence, bufferToWavBlob, sliceBuffer, enhanceVoice, ENHANCE_PRESETS } from './audio.js';
 import { autoMarks } from './automark.js';
-import { ASPECTS, ensureFonts, drawBackground, drawOverlay, drawWave } from './slides.js';
+import { ASPECTS, TEXT_FONT, ensureFonts, drawBackground, drawOverlay, drawWave } from './slides.js';
 import { exportAudio, exportVideo, exportFilmoraPackage, renderStill, makeSrt, download } from './exporter.js';
 import { PROVIDERS, downloadStock } from './stock.js';
 import * as T from './templates.js';
@@ -2874,6 +2874,349 @@ function setupQueue() {
   renderQueue();
 }
 
+// ===== 🔴 البث المباشر =====
+// قايمة بتشتغل ورا بعض في نافذة لوحدها (OBS بياخدها). كل عنصر بيتقسم لأجزاء صغيرة،
+// والجزء الجاي بيتجهّز وهو الحالي شغال، فالبث مايقفش. الرسم ماشي على توقيت نافذة البث نفسها.
+const LIVE_CHUNK = 10; // أقصى عدد آيات في الجزء الواحد (عشان الذاكرة)
+const live = {
+  items: load('liveQueue', []), opts: { aspect: '16:9', after: 'loop', badge: true, next: true, title: '', ...load('liveOpts', {}) },
+  win: null, ac: null, canvas: document.createElement('canvas'), on: false,
+  pos: null, cur: null, nextJob: null, countdownEnd: 0, raf: 0, msg: '', session: 0,
+};
+const saveLive = () => { save('liveQueue', live.items.map(({ id, label, blocks, reciter }) => ({ id, label, blocks, reciter }))); save('liveOpts', live.opts); };
+
+// أجزاء العنصر: السورة الطويلة بتتقسم كل LIVE_CHUNK آية (البسملة مع أول جزء بس)
+function liveParts(it) {
+  const parts = [];
+  let other = [];
+  for (const b of it.blocks) {
+    if (b.type !== 'quran' || b.rec || b.to - b.from < LIVE_CHUNK) { other.push(b); continue; }
+    if (other.length) { parts.push(other); other = []; }
+    for (let a = b.from; a <= b.to; a += LIVE_CHUNK) {
+      parts.push([{ ...b, id: uid(), from: a, to: Math.min(b.to, a + LIVE_CHUNK - 1), basmala: b.basmala && a === b.from }]);
+    }
+  }
+  if (other.length) parts.push(other);
+  return parts;
+}
+
+// بيجهّز جزء (تحميل التلاوة وبناء الصوت) — بقارئ العنصر نفسه
+async function liveBuild(it, part) {
+  const saved = state.style;
+  state.style = { ...saved, reciter: it.reciter || saved.reciter };
+  const p = buildSegments(true, null, part, null);
+  state.style = saved; // buildSegments بياخد نسخته من الإعدادات أول ما يبدأ
+  let segs = await p;
+  if (saved.intro && segs[0]?.kind === 'title') segs = segs.slice(1); // الافتتاحية للريلز بس
+  if (!segs.length) throw new Error('الجزء فاضي');
+  const timeline = buildTimeline(segs, { gap: Number(saved.gap) || 0, ambient: state.ambient?.buffer, ambientVolume: state.ambient ? state.ambientVolume : 0 });
+  return { segs, timeline, label: it.label };
+}
+
+// اللي بعد الموضع ده (ولو القايمة خلصت: حسب الاختيار)
+function liveNextPos(pos) {
+  if (!live.items.length) return null;
+  if (pos) {
+    const i = live.items.findIndex(x => x.id === pos.id);
+    if (i >= 0 && pos.part + 1 < liveParts(live.items[i]).length) return { id: pos.id, part: pos.part + 1 };
+    if (i >= 0 && i + 1 < live.items.length) return { id: live.items[i + 1].id, part: 0 };
+    if (i < 0) return { id: live.items[0].id, part: 0 };
+    if (live.opts.after === 'loop') return { id: live.items[0].id, part: 0 };
+    if (live.opts.after === 'next') {
+      const it = liveContinue(live.items[i]);
+      if (it) { live.items.push(it); saveLive(); renderLive(); return { id: it.id, part: 0 }; }
+    }
+    return null;
+  }
+  return { id: live.items[0].id, part: 0 };
+}
+
+// «يكمّل اللي بعده في المصحف»: نفس الطول من بعد آخر آية، أو السورة اللي بعدها كاملة
+function liveContinue(it) {
+  const q = [...it.blocks].reverse().find(b => b.type === 'quran' && !b.rec);
+  if (!q) return null;
+  const s = Q.surah(q.surah);
+  let r;
+  if (q.from === 1 && q.to === s.count) {
+    const n = q.surah % 114 + 1;
+    r = { surah: n, from: 1, to: Q.surah(n).count };
+  } else if (q.to < s.count) {
+    r = { surah: q.surah, from: q.to + 1, to: Math.min(s.count, q.to + 1 + (q.to - q.from)) };
+  } else {
+    r = { surah: q.surah % 114 + 1, from: 1, to: Q.surah(q.surah % 114 + 1).count };
+  }
+  return { id: uid(), label: refLabel(r), blocks: [quranRefBlock(r, true)], reciter: it.reciter };
+}
+
+function liveItemAt(pos) { return pos && live.items.find(x => x.id === pos.id); }
+
+// يجهّز الجزء الجاي في الخلفية
+function livePrepareNext() {
+  const pos = liveNextPos(live.pos);
+  const it = liveItemAt(pos);
+  if (!it) { live.nextJob = null; return; }
+  const part = liveParts(it)[pos.part];
+  live.nextJob = { pos, promise: liveBuild(it, part).catch(e => ({ error: e })) };
+}
+
+async function liveAdvance() {
+  if (!live.on) return;
+  if (!live.nextJob) livePrepareNext();
+  const job = live.nextJob;
+  live.cur = null;
+  // القايمة خلصت: شاشة الانتظار (والموضع بيفضل، عشان أي حاجة تتضاف بعدين تشتغل هي)
+  if (!job) { live.msg = ''; renderLive(); return; }
+  live.msg = '⏳ بيجهّز…';
+  renderLive();
+  const proj = await job.promise;
+  if (!live.on || live.nextJob !== job) return;
+  live.nextJob = null;
+  live.pos = job.pos;
+  if (proj.error) {
+    // جزء فشل (نت أو قارئ): نسيبه ونكمّل، من غير ما البث يقف
+    live.msg = '⚠️ ' + (proj.error.message || proj.error).split('\n')[0];
+    renderLive();
+    const ses = live.session;
+    setTimeout(() => { if (live.session === ses) liveAdvance(); }, 1500);
+    return;
+  }
+  const ac = live.ac;
+  const buf = ac.createBuffer(2, proj.timeline.left.length, 44100);
+  buf.copyToChannel(proj.timeline.left, 0);
+  buf.copyToChannel(proj.timeline.right, 1);
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const analyser = ac.createAnalyser();
+  analyser.fftSize = 1024;
+  src.connect(analyser).connect(ac.destination);
+  const startAt = ac.currentTime + 0.1;
+  src.start(startAt);
+  const list = state.style.bgType === 'media' ? state.mediaList : [];
+  live.cur = { ...proj, src, analyser, startAt, duration: proj.timeline.duration, bgSched: list.length > 1 ? bgSchedule(proj.segs, proj.timeline.duration, list.length, state.style, list.map(m => m.secs)) : null };
+  src.onended = () => { if (live.cur?.src === src) liveAdvance(); };
+  live.msg = '';
+  renderLive();
+  livePrepareNext();
+}
+
+// رسم فريم البث
+function liveDraw() {
+  const win = live.win;
+  if (!live.on) return;
+  if (!win || win.closed) { liveStop(); status('نافذة البث اتقفلت — البث وقف.'); return; }
+  const { w: W, h: H } = ASPECTS[live.opts.aspect] || ASPECTS['16:9'];
+  const c = live.canvas;
+  if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+  const g = c.getContext('2d');
+  const list = state.style.bgType === 'media' ? state.mediaList : [];
+  const cur = live.cur;
+  const t = cur ? live.ac.currentTime - cur.startAt : 0;
+  let bg = bgMedia(), prev = null, alpha = 1;
+  if (cur?.bgSched) {
+    const p = pickBg(cur.bgSched, Math.max(0, t), state.style.bgFade !== false ? 0.6 : 0);
+    bg = list[p.cur.k]; prev = p.prev && list[p.prev.k]; alpha = p.alpha;
+  }
+  g.clearRect(0, 0, W, H);
+  if (prev) drawBackground(g, W, H, state.style, prev);
+  g.globalAlpha = alpha;
+  drawBackground(g, W, H, state.style, bg);
+  g.globalAlpha = 1;
+  const unit = Math.min(W, H) / 1080;
+  if (cur) {
+    let i = 0;
+    for (let k = 0; k < cur.segs.length; k++) if (cur.segs[k].start <= t + 0.05) i = k;
+    const seg = cur.segs[i];
+    drawOverlay(g, W, H, seg.wordTimes ? { ...seg, wordCount: WT.shownAt(seg.wordTimes, t - seg.start) } : seg, state.style);
+    if (state.style.waveform) drawWave(g, W, H, cur.analyser, state.style.accent);
+  } else {
+    // شاشة الانتظار / العد التنازلي
+    const left = Math.max(0, Math.ceil((live.countdownEnd - Date.now()) / 1000));
+    const title = live.opts.title || 'قرآن يريح القلب 🤍';
+    const sub = left ? `البث يبدأ بعد ${Q.arabicNum(Math.floor(left / 60))}:${Q.arabicNum(String(left % 60).padStart(2, '0'))}` : (live.msg || (live.items.length ? '' : 'انتظرونا'));
+    drawOverlay(g, W, H, { kind: 'title', text: title, sub, label: '', footer: '' }, state.style);
+  }
+  // الشارات الصغيرة: «تلاوة مسجّلة» و«التالي»
+  g.save();
+  g.font = `600 ${Math.round(30 * unit)}px ${TEXT_FONT}`;
+  g.textBaseline = 'middle';
+  g.direction = 'rtl';
+  const pill = (text, x, y, color) => {
+    const w = g.measureText(text).width + 36 * unit, h = 52 * unit;
+    g.fillStyle = 'rgba(0,0,0,.45)';
+    g.beginPath(); g.roundRect(x - w, y, w, h, h / 2); g.fill();
+    g.fillStyle = color;
+    g.textAlign = 'center';
+    g.fillText(text, x - w / 2, y + h / 2 + 2 * unit);
+  };
+  const m = 28 * unit;
+  if (live.opts.badge && cur) pill('● تلاوة مسجّلة', W - m, m, '#ffb4b4');
+  const ni = live.nextJob && liveItemAt(live.nextJob.pos);
+  if (live.opts.next && cur && ni && ni.id !== live.pos?.id) pill(`التالي: ${ni.label}`, W - m, H - m - 52 * unit, '#ffffff');
+  g.restore();
+  // للنافذة (بحجمها)
+  const out = win.document.getElementById('c');
+  if (out) {
+    if (out.width !== W || out.height !== H) { out.width = W; out.height = H; }
+    out.getContext('2d').drawImage(c, 0, 0);
+  }
+  live.raf = win.requestAnimationFrame(liveDraw);
+}
+
+function liveOpenWindow() {
+  const { w, h } = ASPECTS[live.opts.aspect] || ASPECTS['16:9'];
+  const k = Math.min(1, (screen.availWidth * 0.6) / w, (screen.availHeight * 0.8) / h);
+  const win = window.open('', 'qcs-live', `popup,width=${Math.round(w * k)},height=${Math.round(h * k)}`);
+  if (!win) return null;
+  win.document.open();
+  win.document.write(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>🔴 بث — ${escapeHtml(live.opts.title || 'قرآن يريح القلب')}</title>
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{width:100vw;height:100vh;object-fit:contain;display:block}</style></head>
+<body><canvas id="c"></canvas></body></html>`);
+  win.document.close();
+  return win;
+}
+
+async function liveStart() {
+  if (live.on) return;
+  const win = liveOpenWindow();
+  if (!win) { alert('المتصفح منع فتح نافذة البث. اسمح بالنوافذ المنبثقة (Pop-ups) للموقع ده وجرّب تاني.'); return; }
+  live.win = win;
+  live.on = true;
+  const ses = ++live.session;
+  live.ac = new AudioContext({ sampleRate: 44100 });
+  live.pos = null; live.cur = null; live.nextJob = null;
+  for (const m of state.mediaList) if (m.kind === 'video') { m.el.loop = true; m.el.play().catch(() => {}); }
+  const mins = Math.max(0, Number($('#live-countdown').value) || 0);
+  live.countdownEnd = Date.now() + mins * 60000;
+  liveDraw();
+  renderLive();
+  if (live.items.length) livePrepareNext(); // بيجهّز أول جزء وقت العد التنازلي
+  setTimeout(() => { if (live.session === ses) liveAdvance(); }, mins * 60000);
+}
+
+function liveStop() {
+  if (!live.on) return;
+  live.on = false;
+  live.session++;
+  try { live.cur?.src.stop(); } catch { /* اتوقف */ }
+  live.ac?.close();
+  live.ac = null; live.cur = null; live.pos = null; live.nextJob = null; live.msg = '';
+  if (live.win && !live.win.closed) live.win.close();
+  live.win = null;
+  renderLive();
+}
+
+function liveSkip() {
+  if (!live.on || !live.cur) return;
+  const src = live.cur.src;
+  live.cur = null;
+  try { src.stop(); } catch { /* اتوقف */ }
+  liveAdvance();
+}
+
+function renderLive() {
+  const ol = $('#live-list');
+  if (!ol) return;
+  ol.innerHTML = '';
+  live.items.forEach((it, i) => {
+    const li = document.createElement('li');
+    const now = !!live.cur && live.pos?.id === it.id;
+    li.className = 'part' + (now ? ' live-now' : '');
+    li.innerHTML = `<span class="pname"></span><span class="pinfo"></span>
+      <button class="btn icon" type="button" data-a="play" title="شغّله دلوقتي">▶</button>
+      <button class="btn icon" type="button" data-a="up" title="لفوق">↑</button>
+      <button class="btn icon" type="button" data-a="down" title="لتحت">↓</button>
+      <button class="btn icon" type="button" data-a="del" title="شيل من القايمة">✕</button>`;
+    const parts = liveParts(it).length;
+    li.querySelector('.pname').textContent = `${Q.arabicNum(i + 1)}. ${it.label}`;
+    li.querySelector('.pinfo').textContent = [findReciter(it.reciter || state.style.reciter)?.name, parts > 1 && (now ? `الجزء ${Q.arabicNum(live.pos.part + 1)} من ${Q.arabicNum(parts)}` : `${Q.arabicNum(parts)} أجزاء`), now && '🔴 شغّال'].filter(Boolean).join(' • ');
+    const mv = d => { const j = i + d; if (j < 0 || j >= live.items.length) return; [live.items[i], live.items[j]] = [live.items[j], live.items[i]]; liveQueueChanged(); };
+    li.querySelector('[data-a=up]').onclick = () => mv(-1);
+    li.querySelector('[data-a=down]').onclick = () => mv(1);
+    li.querySelector('[data-a=del]').onclick = () => {
+      live.items.splice(i, 1);
+      // لو اتشال اللي شغّال: الجزء الحالي بيكمّل، وبعده اللي كان بعده في الترتيب
+      if (live.pos?.id === it.id) {
+        const p = live.items[i - 1];
+        live.pos = p ? { id: p.id, part: liveParts(p).length - 1 } : null;
+      }
+      liveQueueChanged();
+    };
+    li.querySelector('[data-a=play]').onclick = () => {
+      if (!live.on) { live.items.unshift(...live.items.splice(i, 1)); liveQueueChanged(); liveStart(); return; }
+      live.nextJob = null;
+      const job = { pos: { id: it.id, part: 0 }, promise: liveBuild(it, liveParts(it)[0]).catch(e => ({ error: e })) };
+      live.nextJob = job;
+      if (live.cur) { const src = live.cur.src; live.cur = null; try { src.stop(); } catch { /* */ } }
+      liveAdvance();
+    };
+    ol.appendChild(li);
+  });
+  $('#live-empty').hidden = live.items.length > 0;
+  $('#live-start').disabled = live.on;
+  $('#live-skip').disabled = !live.on || !live.cur;
+  $('#live-stop').disabled = !live.on;
+  $('#live-state').textContent = live.on ? '— 🔴 شغّال' : '';
+  const cur = live.cur;
+  $('#live-now').textContent = !live.on ? '' : cur ? `🔴 دلوقتي: ${cur.label}${live.msg ? ' — ' + live.msg : ''}` : live.countdownEnd > Date.now() ? '⏳ عد تنازلي…' : live.msg || (live.items.length ? '' : 'القايمة فاضية — شاشة الانتظار ظاهرة. ضيف حاجة وهتبدأ لوحدها.');
+}
+
+// القايمة اتغيّرت: الجزء الجاي المتجهّز ممكن مايبقاش هو اللي بعده
+function liveQueueChanged() {
+  saveLive();
+  if (live.on && live.nextJob) {
+    const want = liveNextPos(live.pos);
+    if (!want || want.id !== live.nextJob.pos.id || want.part !== live.nextJob.pos.part) { live.nextJob = null; if (live.cur) livePrepareNext(); }
+  }
+  if (live.on && !live.cur && !live.nextJob && live.countdownEnd <= Date.now() && !live.msg) liveAdvance();
+  renderLive();
+}
+
+function setupLive() {
+  const o = live.opts;
+  $('#live-aspect').value = o.aspect; $('#live-after').value = o.after;
+  $('#live-badge').checked = o.badge; $('#live-next').checked = o.next; $('#live-title').value = o.title;
+  $('#live-aspect').onchange = () => {
+    o.aspect = $('#live-aspect').value; saveLive();
+    // المقاس اتغيّر: نكبّر النافذة على الشكل الجديد
+    if (live.win && !live.win.closed) {
+      const { w, h } = ASPECTS[o.aspect];
+      const k = Math.min(1, (screen.availWidth * 0.6) / w, (screen.availHeight * 0.8) / h);
+      try { live.win.resizeTo(Math.round(w * k), Math.round(h * k) + (live.win.outerHeight - live.win.innerHeight)); } catch { /* */ }
+    }
+  };
+  $('#live-after').onchange = () => { o.after = $('#live-after').value; liveQueueChanged(); };
+  $('#live-badge').onchange = () => { o.badge = $('#live-badge').checked; saveLive(); };
+  $('#live-next').onchange = () => { o.next = $('#live-next').checked; saveLive(); };
+  $('#live-title').onchange = () => { o.title = $('#live-title').value.trim(); saveLive(); };
+  $('#live-add').onclick = () => {
+    const { ok, bad } = parseRefs($('#live-input').value, Q.surahs());
+    for (const r of ok) live.items.push({ id: uid(), label: refLabel(r), blocks: [quranRefBlock(r, true)], reciter: state.style.reciter });
+    $('#live-input').value = bad.join('\n');
+    liveQueueChanged();
+    if (bad.length) status('السطور اللي فضلت في الخانة مش مفهومة — اكتبها زي «الكهف» أو «يوسف 4-6» أو «12:4-6»', null, true);
+  };
+  $('#live-add-current').onclick = () => {
+    if (!state.blocks.length) return;
+    if (!confirmGrades()) return;
+    // نسخة بأرقام جديدة، ومعاها الأصوات المسجّلة (عشان لو اتشالت من المحرر)
+    const blocks = structuredClone(state.blocks).map(b => {
+      const id = uid(), au = hadithAudio.get(b.id);
+      if (au) hadithAudio.set(id, { ...au });
+      return { ...b, id };
+    });
+    live.items.push({ id: uid(), label: blocksLabel(blocks), blocks, reciter: state.style.reciter });
+    liveQueueChanged();
+    status('✅ المحتوى الحالي اتضاف لقايمة البث');
+  };
+  $('#live-start').onclick = liveStart;
+  $('#live-stop').onclick = () => { if (confirm('توقّف البث؟')) liveStop(); };
+  $('#live-skip').onclick = liveSkip;
+  $('#btn-live').onclick = () => { renderLive(); $('#dlg-live').showModal(); };
+  $('#live-close').onclick = () => $('#dlg-live').close();
+  setInterval(() => { if (live.on && $('#dlg-live').open) renderLive(); }, 1000);
+  window.addEventListener('beforeunload', e => { if (live.on) { e.preventDefault(); e.returnValue = ''; } });
+}
+
 // ===== الفيديو المرجعي =====
 const refs = { list: load('refs', []), current: null };
 const REF_ICONS = { tiktok: '🎵', instagram: '📸', facebook: '📘', youtube: '▶️', pinterest: '📌' };
@@ -3383,6 +3726,7 @@ async function init() {
   setupLayout();
   setupProject();
   setupQueue();
+  setupLive();
   setupReference();
   setupPlanner();
   setupStats();
@@ -3392,4 +3736,4 @@ async function init() {
 init().catch(showError);
 
 // للاختبار من الكونسول
-window.__qcs = { state, buildProject, buildSegments };
+window.__qcs = { state, buildProject, buildSegments, live };

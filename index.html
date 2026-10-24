@@ -6,7 +6,7 @@
   <title>استوديو مقاطع القرآن</title>
   <meta name="description" content="اختار الآيات والقارئ، وصدّر صوت MP3 أو M4A أو WAV أو فيديو جاهز للنشر — من المتصفح مباشرة وببلاش.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261023f">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261024a">
 </head>
 <body>
   <header class="topbar">
@@ -18,6 +18,7 @@
       </div>
     </div>
     <div class="btn-row" style="margin:0">
+      <button class="btn ghost" id="btn-live" type="button" title="بث مباشر مستمر: قايمة تلاوات وأدعية بتشتغل ورا بعض">🔴<span class="lbl"> بث</span></button>
       <button class="btn ghost" id="btn-plan" type="button" title="المواسم الجاية ومواعيد النشر وسجل اللي نشرته">📅<span class="lbl"> المخطط</span></button>
       <button class="btn ghost" id="btn-stats" type="button" title="إيه اللي بيجيب مشاهدات معاك">📊<span class="lbl"> الأرقام</span></button>
       <button class="btn ghost" id="btn-ref" type="button" title="شغّل فيديو من تيك توك أو إنستا أو فيسبوك جنب المحرر واعمل زيه">🎞️<span class="lbl"> فيديو مرجعي</span></button>
@@ -431,7 +432,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261023f</div>
+    <div class="muted" id="app-version">الإصدار 20261024a</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -695,6 +696,75 @@
     </li>
   </template>
 
+  <dialog id="dlg-live">
+    <div class="dlg wide">
+      <div class="row">
+        <h2 class="grow">🔴 بث مباشر <span class="muted" id="live-state"></span></h2>
+        <button class="btn icon" id="live-close" type="button" title="اقفل اللوحة (البث بيفضل شغال)">✕</button>
+      </div>
+      <p class="hint">البرنامج بيفتح <b>شاشة بث</b> لوحدها بتشغّل القايمة ورا بعض، وبرنامج <b>OBS</b> (مجاني) بياخدها ويبعتها للمنصة بمفتاح البث. تقدر تضيف للقايمة والبث شغال، وتقفل اللوحة دي وتكمّل شغلك عادي.</p>
+      <div class="row wrap">
+        <label>الشكل <select id="live-aspect">
+          <option value="16:9">أفقي 16:9 (يوتيوب، فيسبوك، X، Twitch)</option>
+          <option value="9:16">رأسي 9:16 (تيك توك، إنستجرام، شورتس)</option>
+          <option value="1:1">مربع 1:1</option>
+        </select></label>
+        <label>لما القايمة تخلص <select id="live-after">
+          <option value="loop">يعيد القايمة من الأول</option>
+          <option value="next">يكمّل اللي بعده في المصحف (نفس القارئ)</option>
+          <option value="stop">يقف ويعرض شاشة الانتظار</option>
+        </select></label>
+        <label>ابدأ بعد (دقايق) <input type="number" id="live-countdown" min="0" max="120" step="1" value="0" style="width:5em"></label>
+      </div>
+      <div class="row wrap">
+        <label class="check"><input type="checkbox" id="live-badge" checked> اكتب «تلاوة مسجّلة» على الشاشة</label>
+        <label class="check"><input type="checkbox" id="live-next" checked> اعرض «التالي»</label>
+        <label class="grow">اسم البث (شاشة الانتظار) <input type="text" id="live-title" placeholder="قرآن يريح القلب 🤍"></label>
+      </div>
+      <h3>القايمة</h3>
+      <ol class="parts" id="live-list"></ol>
+      <p class="muted" id="live-empty">القايمة فاضية — ضيف سور أو مقاطع من تحت.</p>
+      <div class="row wrap">
+        <textarea id="live-input" rows="2" class="grow" placeholder="سورة أو مقطع في كل سطر: «الكهف» أو «يس» أو «البقرة 1-20» أو «2:255»"></textarea>
+        <div class="btn-col">
+          <button class="btn" id="live-add" type="button">＋ أضف للقايمة</button>
+          <button class="btn ghost" id="live-add-current" type="button" title="الآيات والأدعية والأحاديث اللي في المحرر دلوقتي بصوتها">＋ المحتوى الحالي</button>
+        </div>
+      </div>
+      <p class="hint">القارئ والخلفيات والألوان من إعدادات البرنامج. القارئ بيتحفظ مع كل مقطع وقت ما تضيفه، فممكن كل سورة تبقى بقارئ مختلف. السور الطويلة بتتقسم لوحدها لأجزاء صغيرة عشان الجهاز مايتقلش.</p>
+      <div class="btn-row">
+        <button class="btn primary" id="live-start" type="button">🔴 افتح شاشة البث وابدأ</button>
+        <button class="btn" id="live-skip" type="button" disabled>⏭ اللي بعده</button>
+        <button class="btn" id="live-stop" type="button" disabled>⏹ وقّف البث</button>
+      </div>
+      <p class="muted" id="live-now"></p>
+      <details>
+        <summary>📡 إزاي أطلّع البث على المنصات (OBS) — خطوة بخطوة</summary>
+        <ol class="live-steps">
+          <li>نزّل <a href="https://obsproject.com" target="_blank" rel="noopener">OBS Studio</a> (مجاني).</li>
+          <li>هنا اضغط <b>«🔴 افتح شاشة البث وابدأ»</b>. هتفتح نافذة لوحدها اسمها «🔴 بث». <b>سيبها ظاهرة</b> (ماتصغّرهاش لتحت)، عشان المتصفح مايوقفش رسمها.</li>
+          <li>في OBS: Sources ← ＋ ← <b>Window Capture</b> ← اختار نافذة «🔴 بث». ومن Settings ← Video خلّي المقاس زي الشكل اللي اخترته (1920×1080 أو 1080×1920 أو 1080×1080).</li>
+          <li>الصوت: OBS بياخد صوت الجهاز (Desktop Audio). اقفل أي صوت تاني على الجهاز وقت البث.</li>
+          <li>Settings ← Stream: اختار المنصة، والصق <b>مفتاح البث (Stream Key)</b> من الجدول تحت، واضغط <b>Start Streaming</b>.</li>
+          <li>عايز تبث على أكتر من منصة في نفس الوقت؟ إضافة <b>Multiple RTMP outputs</b> لـ OBS (مجانية)، أو موقع Restream (فيه خطة مجانية لمنصتين).</li>
+        </ol>
+        <table class="live-table">
+          <thead><tr><th>المنصة</th><th>مفتاح البث منين</th><th>البث المسجّل المستمر</th></tr></thead>
+          <tbody>
+            <tr><td>▶️ يوتيوب</td><td><a href="https://studio.youtube.com" target="_blank" rel="noopener">YouTube Studio</a> ← Create ← Go live ← Stream (أول مرة بيتفعّل بعد 24 ساعة)</td><td>✅ الأنسب. 24 ساعة مسموح. جرّب كل قارئ في فيديو Unlisted الأول عشان Content ID</td></tr>
+            <tr><td>📘 فيسبوك</td><td><a href="https://www.facebook.com/live/producer" target="_blank" rel="noopener">Live Producer</a> ← Streaming software</td><td>⚠️ مسموح لو مكتوب إنه مسجّل (سيب «تلاوة مسجّلة» متعلّمة). صور ثابتة بس بتقلّل الوصول — استخدم خلفيات فيديو</td></tr>
+            <tr><td>📸 إنستجرام</td><td>من الكمبيوتر: instagram.com ← Create ← Live video ← بياديك Stream URL و Key (للحسابات المؤهلة)</td><td>⚠️ لايف حقيقي بيتفاعل أحسن. البث المسجّل الطويل ممكن يتقفل</td></tr>
+            <tr><td>🎵 تيك توك</td><td>LIVE Studio أو Stream Key (بيظهر للحسابات المؤهلة: 18+ و 1000 متابع)</td><td>❌ بيعتبر الصورة الثابتة أو الفيديو المتكرر أو البث من غير حد موجود «بث ضعيف». اعمله وانت موجود بصوتك وبترد على التعليقات</td></tr>
+            <tr><td>✖️ X (تويتر)</td><td><a href="https://studio.x.com" target="_blank" rel="noopener">Media Studio</a> ← Producer ← Sources (RTMP)</td><td>⚠️ مسموح، بس جمهور التلاوات عليه قليل</td></tr>
+            <tr><td>🟣 Twitch / 🟢 Kick</td><td>Twitch: Creator Dashboard ← Settings ← Stream. Kick: Creator Dashboard ← Settings ← Stream URL & Key</td><td>⚠️ مسموح، جمهور قليل للتلاوات</td></tr>
+            <tr><td>👻 سناب شات</td><td>مفيش بث من OBS للحسابات العادية</td><td>❌ مش متاح — انشر Spotlight كفيديوهات عادية</td></tr>
+          </tbody>
+        </table>
+        <p class="hint">⚠️ صورة القارئ: ماتستخدمهاش (حقوقها للمصوّر). اسمه بيتكتب كنص بس. وحقوق الصوت: لو يوتيوب وقّف البث بسبب Claim، شيل القارئ ده من القايمة وجرّب غيره.</p>
+      </details>
+    </div>
+  </dialog>
+
   <dialog id="dlg-plan">
     <div class="dlg wide">
       <div class="row">
@@ -909,6 +979,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261023f"></script>
+  <script type="module" src="js/main.js?v=20261024a"></script>
 </body>
 </html>

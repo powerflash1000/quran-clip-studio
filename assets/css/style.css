@@ -361,3 +361,11 @@ details.adv { border-top: 1px dashed var(--line); padding-top: .4rem; }
 .stock-item .meta { position: absolute; top: 6px; inset-inline-start: 6px; display: flex; gap: .25rem; flex-wrap: wrap; }
 .stock-item .meta span { background: rgba(0,0,0,.65); color: #fff; font-size: .7rem; padding: .05rem .35rem; border-radius: 6px; direction: ltr; }
 .el-voice { width: auto; max-width: 13rem; margin: 0; }
+
+/* البث المباشر */
+.part.live-now { border-color: var(--danger); box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 25%, transparent); }
+.btn-col { display: grid; gap: .4rem; }
+.live-table { width: 100%; border-collapse: collapse; font-size: .88rem; margin: .5rem 0; }
+.live-table th, .live-table td { border: 1px solid var(--line); padding: .35rem .5rem; vertical-align: top; text-align: start; }
+@media (max-width: 640px) { .live-table { display: block; overflow-x: auto; } }
+.live-steps { padding-inline-start: 1.3rem; display: grid; gap: .3rem; }
