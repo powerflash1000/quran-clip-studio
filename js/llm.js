@@ -176,10 +176,15 @@ async function callClaude({ key, model }, system, user) {
 // رسائل أوضح لأشهر أخطاء جوجل
 function geminiError(code, msg, model) {
   const m = String(msg || '');
-  if (/prepay|billing|credits|payment/i.test(m)) {
+  // 429 = الحد المجاني خلص (رسالة جوجل فيها كلمة billing بس مش معناها إنك هتدفع)
+  if (code === 429) {
+    const wait = /retry in ([\d.]+)s/i.exec(m)?.[1];
+    return wait && Number(wait) < 120 ? `⏳ حد الدقيقة خلص. استنى ${Math.ceil(Number(wait))} ثانية وجرّب تاني.`
+      : `⏳ الحد المجاني بتاع النهارده خلص للموديل ${model} — مش مشكلة دفع. جرّب موديل 🆓 تاني من القايمة، أو استنى لبكرة الساعة 10 الصبح تقريبًا بتوقيت مصر.`;
+  }
+  if (code === 402 || /prepay/i.test(m)) {
     return `مشروع جوجل اللي طالع منه المفتاح ده مربوط بحساب دفع (Prepay)، فجوجل شالته من المجاني — حتى Flash بيتحاسب عليه. الحل: اعمل مفتاح في مشروع جديد من غير Billing (لازم تشوف «Free tier» جنبه في aistudio.google.com/apikey)، أو اختار المزوّد OpenRouter. (${code})`;
   }
-  if (code === 429) return `خلّصت الحد المجاني للدقيقة أو اليوم. استنى شوية وجرّب تاني، أو اختار موديل Flash-Lite. (${m})`;
   if (code === 404 || /not found|model name/i.test(m)) return `اسم الموديل ${model} مش موجود. اضغط «📋 الموديلات المتاحة» واختار من القايمة. (${m})`;
   if (code === 400 && /api key/i.test(m)) return 'المفتاح غلط — انسخه تاني من aistudio.google.com/apikey';
   return `Gemini ${code}: ${m}`;

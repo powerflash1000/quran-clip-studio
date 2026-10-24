@@ -61,14 +61,15 @@ export async function listModels(k = key()) {
     .map(id => ({ id, free: free(id), label: free(id) ? '🆓 مجاني' : '💳 مدفوع' }));
 }
 
-// لو مفيش موديل محدد: أحدث Flash TTS متاح للمفتاح
-async function pickModel(k) {
+// الموديلات اللي هنجرّبها بالترتيب: المختار بس، أو (تلقائي) كل موديلات Flash المجانية —
+// عشان لو حد اليوم خلص في واحد، نكمّل على اللي بعده (كل موديل ليه حده)
+async function pickModels(k) {
   const m = getSettings().gttsModel;
-  if (m) return m;
+  if (m) return [m];
   const list = await listModels(k);
-  const best = list.find(x => x.free) || list[0];
-  if (!best) throw new Error('مفتاحك مفيهوش موديلات صوت (TTS)');
-  return best.id;
+  const free = list.filter(x => x.free).map(x => x.id);
+  if (!list.length) throw new Error('مفتاحك مفيهوش موديلات صوت (TTS)');
+  return free.length ? free : [list[0].id];
 }
 
 // تحويل نص لصوت؛ بيرجع Blob (wav)
@@ -76,10 +77,10 @@ export async function speak(text, voice = '') {
   const k = key();
   if (!k) throw new Error('حط مفتاح Gemini في ⚙️ الإعدادات ← 🔊 صوت Gemini (أو في مساعد الكتابة)');
   const s = getSettings();
-  const model = await pickModel(k);
+  const models = await pickModels(k);
   const style = (s.gttsStyle || '').trim();
   const voiceName = voice || s.gttsVoice || 'Charon';
-  const send = withStyle => fetch(`${API}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(k)}`, {
+  const send = (model, withStyle) => fetch(`${API}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(k)}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -92,11 +93,15 @@ export async function speak(text, voice = '') {
       },
     }),
   });
-  let r = await send(!!style);
-  // لو الموديل مش بيقبل تعليمات منفصلة، بنبعت النص لوحده
-  if (style && r.status === 400) r = await send(false);
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(ttsError(r.status, j.error?.message || r.statusText, model));
+  let r, j, model;
+  for (model of models) {
+    r = await send(model, !!style);
+    // لو الموديل مش بيقبل تعليمات منفصلة، بنبعت النص لوحده
+    if (style && r.status === 400) r = await send(model, false);
+    j = await r.json().catch(() => ({}));
+    if (r.status !== 429) break; // الحد خلص في الموديل ده: نجرّب اللي بعده
+  }
+  if (!r.ok) throw new Error(ttsError(r.status, j.error?.message || r.statusText, model, models.length));
   const part = (j.candidates?.[0]?.content?.parts || []).find(p => p.inlineData?.data);
   if (!part) throw new Error('Gemini مارجّعش صوت' + (j.candidates?.[0]?.finishReason ? ` (${j.candidates[0].finishReason})` : ''));
   const rate = Number(/rate=(\d+)/.exec(part.inlineData.mimeType || '')?.[1]) || 24000;
@@ -116,11 +121,19 @@ function pcmToWav(pcm, rate) {
   return new Blob([h.buffer, pcm], { type: 'audio/wav' });
 }
 
-function ttsError(code, msg, model) {
+function ttsError(code, msg, model, tried = 1) {
   const m = String(msg || '');
-  if (/prepay|billing|credits|payment/i.test(m)) return `مشروع جوجل اللي طالع منه المفتاح مربوط بحساب دفع (Prepay)، فمش مجاني. اعمل مفتاح في مشروع جديد من غير Billing في aistudio.google.com/apikey. (${code})`;
-  if (code === 429) return `خلّصت الحد المجاني للصوت (الدقيقة أو اليوم). استنى شوية وجرّب تاني. (${m})`;
+  // 429 = الحد المجاني خلص (رسالة جوجل فيها كلمة billing بس مش معناها إنك هتدفع)
+  if (code === 429) return quotaMsg(m, tried > 1 ? `كل موديلات الصوت المجانية (${tried})` : `موديل الصوت ${model}`);
+  if (code === 402 || /prepay/i.test(m)) return `مشروع جوجل اللي طالع منه المفتاح مربوط بحساب دفع (Prepay)، فمش مجاني. اعمل مفتاح في مشروع جديد من غير Billing في aistudio.google.com/apikey. (${code})`;
   if (code === 404 || /not found|model name/i.test(m)) return `موديل الصوت ${model} مش متاح لمفتاحك. اختار «تلقائي» في ⚙️ الإعدادات ← 🔊 صوت Gemini. (${m})`;
   if (code === 400 && /api key/i.test(m)) return 'المفتاح غلط — انسخه تاني من aistudio.google.com/apikey';
   return `Gemini ${code}: ${m}`;
+}
+
+// رسالة الحد المجاني: لو جوجل قال استنى ثواني يبقى حد الدقيقة، غير كده حد اليوم
+export function quotaMsg(m, what) {
+  const wait = /retry in ([\d.]+)s/i.exec(m)?.[1];
+  if (wait && Number(wait) < 120) return `⏳ ${what}: حد الدقيقة خلص. استنى ${Math.ceil(Number(wait))} ثانية وجرّب تاني. (مش هيتخصم منك حاجة)`;
+  return `⏳ ${what}: الحد المجاني بتاع النهارده خلص — مش مشكلة دفع ومش هيتخصم منك حاجة. بيتجدد كل يوم الساعة 10 الصبح تقريبًا بتوقيت مصر (نص الليل في أمريكا). لحد ما يتجدد: سجّل بصوتك، أو استخدم ElevenLabs. (429)`;
 }
