@@ -369,3 +369,11 @@ details.adv { border-top: 1px dashed var(--line); padding-top: .4rem; }
 .live-table th, .live-table td { border: 1px solid var(--line); padding: .35rem .5rem; vertical-align: top; text-align: start; }
 @media (max-width: 640px) { .live-table { display: block; overflow-x: auto; } }
 .live-steps { padding-inline-start: 1.3rem; display: grid; gap: .3rem; }
+
+/* جزء من الآية */
+.part-words { display: flex; flex-wrap: wrap; gap: .3rem; padding: .4rem; border: 1px solid var(--line); border-radius: 10px; background: var(--field); font-family: UthmanicHafs, Amiri, serif; font-size: 1.25rem; line-height: 1.9; }
+.part-words button { font: inherit; border: 1px solid transparent; background: none; color: var(--text); border-radius: 8px; padding: 0 .3rem; cursor: pointer; }
+.part-words button:hover { border-color: var(--line); }
+.part-words button.sel { background: color-mix(in srgb, var(--primary) 22%, transparent); border-color: var(--primary); }
+.part-words button.stop { text-decoration: underline dotted var(--good); text-underline-offset: .35em; }
+.frag-row { background: color-mix(in srgb, var(--primary) 10%, transparent); border-radius: 10px; padding: .4rem .6rem; }

@@ -108,4 +108,36 @@ export function search(query, limit = 50) {
   return out;
 }
 
+// جزء من آية: بيدوّر على النص (3 كلمات أو أكتر) جوه آية واحدة، ويرجّع { s, a, w1, w2 } (أرقام الكلمات من 1)
+// المقارنة على «هيكل» الكلمة: من غير تشكيل ولا ألفات ولا همزات، عشان الرسم العثماني يطابق الإملاء العادي
+// (الصلوة/الصلاة، الزكوة/الزكاة، الحيوة/الحياة: الواو قبل التاء المربوطة بتتشال من الناحيتين)
+const skel = w => strip(w).replace(/[اءٱ]/g, '').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/[^\u0621-\u064A]/g, '').replace(/وه$/, 'ه');
+let wordIndex = null;
+export function findFragment(text) {
+  const u = String(text || '').split(/\s+/).map(skel).filter(Boolean);
+  if (u.length < 3 || u.length > 80) return null;
+  if (!wordIndex) {
+    wordIndex = [];
+    data.verses.forEach((vs, si) => vs.forEach((v, ai) => wordIndex.push({ s: si + 1, a: ai + 1, w: v[0].split(/\s+/).map(skel) })));
+  }
+  const allow = u.length >= 6 ? 1 : 0; // كلمة واحدة مختلفة مسموحة في النص الطويل (غلطة إملاء)
+  let best = null;
+  for (const it of wordIndex) {
+    const A = it.w;
+    for (let i = 0; i + u.length <= A.length; i++) {
+      let miss = 0;
+      for (let k = 0; k < u.length && miss <= allow; k++) if (A[i + k] !== u[k]) miss++;
+      if (miss <= allow && (!best || miss < best.miss)) {
+        best = { s: it.s, a: it.a, w1: i + 1, w2: i + u.length, miss, whole: u.length === A.length };
+        if (!miss) return best;
+      }
+    }
+  }
+  return best;
+}
+
+// علامات الوقف في المصحف: ۖ ۗ ۚ ۛ ۜ = وقف جائز أو لازم، ۙ = لا تقف
+export const WAQF_STOP = /[\u06D6\u06D7\u06D8\u06DA\u06DB\u06DC]/;
+export const WAQF_NO = /\u06D9/;
+
 export const arabicNum = n => String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);

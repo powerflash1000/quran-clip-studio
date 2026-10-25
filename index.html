@@ -6,7 +6,7 @@
   <title>استوديو مقاطع القرآن</title>
   <meta name="description" content="اختار الآيات والقارئ، وصدّر صوت MP3 أو M4A أو WAV أو فيديو جاهز للنشر — من المتصفح مباشرة وببلاش.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261025b">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261025c">
 </head>
 <body>
   <header class="topbar">
@@ -432,7 +432,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261025b</div>
+    <div class="muted" id="app-version">الإصدار 20261025c</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -600,6 +600,9 @@
         <label>تكرار كل آية <input type="number" data-f="repeatAyah" min="1" max="20"></label>
         <label>تكرار المقطع كله <input type="number" data-f="repeatRange" min="1" max="20"></label>
         <label class="check span2"><input type="checkbox" data-f="basmala"> البسملة في الأول</label>
+        <label class="check span3" data-el="partRow" hidden><input type="checkbox" data-f="partOn"> ✂️ جزء من الآية بس (كلمات معيّنة بصوت القارئ)</label>
+        <div class="span3 part-words" data-el="partBox" hidden></div>
+        <p class="muted span3" data-el="partInfo"></p>
       </div>
       <details class="adv custom-rec">
         <summary>🎙️ تلاوة من ملف (لقارئ مش في القايمة، زي الشيخ سيد سعيد)</summary>
@@ -952,6 +955,10 @@
         <button class="btn" data-act="polish" type="button" title="يصحّح الإملاء ويقسّم السطور — من غير ما يغيّر المعنى">✨ حسّن الصياغة</button>
         <span class="muted">💡 أو انسخ الصورة (كليك يمين ← Copy image) والصقها في خانة النص بـ Ctrl+V. ⚠️ لو النص حديث، استخدم «＋ حديث» عشان درجته تظهر. ولو آية، استخدم «＋ آيات».</span>
       </div>
+      <div class="btn-row frag-row" data-el="fragRow" hidden>
+        <span class="grow" data-el="fragText"></span>
+        <button class="btn primary" data-act="fragUse" type="button" title="يحوّل الكارت لآيات: نفس الكلمات من المصحف بصوت القارئ اللي مختاره">📖 اقراها بصوت القارئ</button>
+      </div>
       <div class="muted" data-el="meta"></div>
       <label class="check"><input type="checkbox" data-f="showCount"> اكتب عدد المرات على الشاشة (مثلًا: ٣ مرات)</label>
       <fieldset>
@@ -988,6 +995,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261025b"></script>
+  <script type="module" src="js/main.js?v=20261025c"></script>
 </body>
 </html>

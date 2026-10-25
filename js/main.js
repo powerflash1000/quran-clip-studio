@@ -99,15 +99,19 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
             : { kind: 'basmala', qs: 1, qa: 1, text: Q.BASMALA, sub: '', label: `سورة ${s.ar}`, footer, audioUrls: ayahAudioUrls(reciter, 1, 1, 1) });
           u++;
         }
+        // جزء من آية (كلمات معيّنة): بيتقص من صوت القارئ بتوقيت الكلمات
+        const part = !rec && from === to && ayahPart(b);
         for (let a = from; a <= to; a++, u++) {
           for (let k = 0; k < Math.max(1, b.repeatAyah); k++) {
+            const full = `${Q.ayahText(b.surah, a)}\u00A0${Q.arabicNum(a)}`;
             const seg = {
               kind: 'ayah', s: b.surah, a, qs: b.surah, qa: a,
-              text: `${Q.ayahText(b.surah, a)}\u00A0${Q.arabicNum(a)}`,
+              text: part ? WT.words(Q.ayahText(b.surah, a)).slice(part.w1 - 1, part.w2).join(' ') : full,
               sub: '',
-              label: `سورة ${s.ar} • الآية ${Q.arabicNum(a)}`,
+              label: part ? `سورة ${s.ar} • من الآية ${Q.arabicNum(a)}` : `سورة ${s.ar} • الآية ${Q.arabicNum(a)}`,
               footer,
             };
+            if (part) Object.assign(seg, { part, fullText: full });
             if (rec) Object.assign(seg, { audio: pieces?.[u] || null, silence: 4, custom: true, noGap: a < to || k < b.repeatAyah - 1 });
             else seg.audioUrls = ayahAudioUrls(reciter, b.surah, a, Q.globalAyah(b.surah, a));
             segs.push(seg);
@@ -173,7 +177,7 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
 
   // الترجمة
   if (st.showTranslation && st.translation) {
-    await Promise.all(segs.filter(s => s.kind === 'ayah').map(async s => {
+    await Promise.all(segs.filter(s => s.kind === 'ayah' && !s.part).map(async s => {
       try { s.sub = await Q.translation(st.translation, s.s, s.a); } catch { s.sub = ''; }
     }));
   }
@@ -190,14 +194,15 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
           // ١) توقيت quran-align المحفوظ جوه البرنامج (لنفس ملفات EveryAyah) — أضمن، ومن غير API
           // ٢) توقيت Quran.com (بملف الصوت بتاعهم عشان التوقيت يطابق)
           let qc = null;
-          const af = wordSync && s.qs ? WT.alignFolder(reciter) : null;
+          const needTimes = wordSync || s.part;
+          const af = needTimes && s.qs ? WT.alignFolder(reciter) : null;
           if (af) {
             try {
               const segments = await WT.alignSegments(af, s.qs, s.qa);
               if (segments) { s.audio = await loadAudio(s.audioUrls); qc = { segments, align: true }; }
             } catch { qc = null; }
           }
-          if (!qc && wordSync && reciter.qurancom && s.qs) {
+          if (!qc && needTimes && reciter.qurancom && s.qs) {
             try {
               qc = (await WT.quranComChapter(reciter.qurancom, s.qs)).get(s.qa) || null;
               if (qc) s.audio = await loadAudio([qc.url]);
@@ -206,7 +211,20 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
           if (!s.audio) s.audio = await loadAudio(s.audioUrls);
           // ملفات التلاوة فيها سكوت في أولها وآخرها؛ بنقصه عشان الآيات تبان متصلة
           if (st.trimSilence && s.kind !== 'title') s.audio = trimSilence(s.audio, { threshold: 0.008, pad: 0.06 });
-          if (wordSync) {
+          if (s.part) {
+            // نقص الكلمات المطلوبة: من بداية أول كلمة لبداية الكلمة اللي بعد آخر كلمة
+            const n = WT.words(s.fullText).length;
+            const exact = qc && WT.timesFromSegments(qc.segments, n, s.audio.trimStart || 0);
+            if (!exact) throw new Error(`القارئ ${reciter.name} مالوش توقيت كلمات للآية دي، فمش هقدر أقص «جزء من الآية». اختار قارئ عليه ⏱️.`);
+            const t1 = Math.max(0, exact[s.part.w1 - 1] - 0.06);
+            const t2 = s.part.w2 < n ? Math.max(t1 + 0.3, exact[s.part.w2] - 0.03) : s.audio.duration;
+            s.audio = sliceBuffer(s.audio, t1, t2);
+            if (wordSync) {
+              s.wordTimes = exact.slice(s.part.w1 - 1, s.part.w2).map(t => Math.max(0, t - t1));
+              s.wordExact = true;
+              s.wordSource = qc.align ? 'quran-align' : 'Quran.com';
+            }
+          } else if (wordSync) {
             const n = WT.words(s.text).length;
             const exact = qc && WT.timesFromSegments(qc.segments, n, s.audio.trimStart || 0);
             s.wordTimes = exact || WT.approxTimes(s.text, s.audio.duration);
@@ -214,6 +232,7 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
             s.wordSource = exact ? (qc.align ? 'quran-align' : 'Quran.com') : 'تقريبي';
           }
         } catch (e) {
+          if (s.part && /توقيت كلمات/.test(e.message)) throw e;
           const err = new Error(`تعذر تحميل تلاوة ${s.label}.\nجرّب قارئ تاني، أو اضبط «رابط الوسيط» من الإعدادات.`);
           err.cause = e;
           throw err;
@@ -236,6 +255,16 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
 }
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, Number(v) || a));
+// جزء الآية المختار (لو صالح): { w1, w2 } أرقام الكلمات من 1
+function ayahPart(b) {
+  const p = b.part;
+  if (!p || b.from !== b.to) return null;
+  const n = WT.words(Q.ayahText(b.surah, b.from)).length;
+  const w1 = clamp(p.w1, 1, n), w2 = clamp(p.w2, w1, n);
+  return w1 === 1 && w2 === n ? null : { w1, w2 };
+}
+// القارئ ده عنده توقيت كلمات دقيق؟ (لازم عشان «جزء من الآية»)
+const exactWords = r => !!(WT.alignFolder(r) || r?.qurancom);
 
 async function buildProject(blocks = state.blocks, series = state.activeSeries) {
   status('تحميل التلاوات…', 0);
@@ -614,10 +643,51 @@ function quranBlockEl(b, i) {
   const f = name => li.querySelector(`[data-f=${name}]`);
   surahOptions(f('surah'));
   const title = li.querySelector('.block-title');
+  const el = name => li.querySelector(`[data-el=${name}]`);
+  // ✂️ جزء من الآية: اضغط أول كلمة وبعدين آخر كلمة
+  let pickEnd = false;
+  const partUi = () => {
+    const single = b.from === b.to && !b.rec;
+    el('partRow').hidden = !single;
+    const on = single && !!b.part;
+    f('partOn').checked = on;
+    el('partBox').hidden = !on;
+    if (!on) { el('partInfo').textContent = ''; return; }
+    const ws = WT.words(Q.ayahText(b.surah, b.from));
+    const p = ayahPart(b) || { w1: 1, w2: ws.length };
+    const box = el('partBox');
+    box.innerHTML = '';
+    ws.forEach((w, i) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = w;
+      if (i + 1 >= p.w1 && i + 1 <= p.w2) btn.classList.add('sel');
+      if (Q.WAQF_STOP.test(w)) { btn.classList.add('stop'); btn.title = 'علامة وقف — ينفع تقف هنا'; }
+      if (Q.WAQF_NO.test(w)) btn.title = 'علامة «لا» — ماتقفش هنا';
+      btn.onclick = () => {
+        const k = i + 1;
+        if (!pickEnd) { b.part = { w1: k, w2: k }; pickEnd = true; }
+        else { b.part = { w1: Math.min(b.part.w1, k), w2: Math.max(b.part.w1, k) }; pickEnd = false; }
+        partUi(); sync(); persist(); refreshPreview();
+      };
+      box.appendChild(btn);
+    });
+    const notes = [pickEnd ? '👆 دلوقتي اضغط آخر كلمة.' : 'اضغط أول كلمة وبعدين آخر كلمة. الكلمات اللي تحتها نقط عندها علامة وقف.'];
+    if (!exactWords(findReciter(state.style.reciter))) notes.push('⚠️ القارئ الحالي مالوش توقيت كلمات — اختار قارئ عليه ⏱️ عشان القص يشتغل.');
+    if (p.w2 < ws.length && Q.WAQF_NO.test(ws[p.w2 - 1])) notes.push('⛔ آخر كلمة عليها «لا» — ماينفعش تقف هنا.');
+    else if (p.w2 < ws.length && !Q.WAQF_STOP.test(ws[p.w2 - 1])) notes.push('⚠️ آخر كلمة مش عند علامة وقف — اتأكد إن المعنى مكتمل.');
+    if (p.w1 > 1 && !Q.WAQF_STOP.test(ws[p.w1 - 2])) notes.push('⚠️ البداية مش بعد علامة وقف — اتأكد إن المعنى مايتغيّرش.');
+    el('partInfo').textContent = notes.join(' ');
+  };
+  f('partOn').onchange = () => {
+    if (f('partOn').checked) { b.part = { w1: 1, w2: WT.words(Q.ayahText(b.surah, b.from)).length }; pickEnd = false; }
+    else delete b.part;
+    partUi(); sync(); persist(); refreshPreview();
+  };
   const sync = () => {
     const s = Q.surah(b.surah);
     f('from').max = f('to').max = s.count;
-    title.textContent = `${s.ar}: ${Q.arabicNum(b.from)}${b.to > b.from ? ' – ' + Q.arabicNum(b.to) : ''}`;
+    title.textContent = `${s.ar}: ${Q.arabicNum(b.from)}${b.to > b.from ? ' – ' + Q.arabicNum(b.to) : ''}${ayahPart(b) ? ' (جزء)' : ''}`;
     f('basmala').disabled = b.surah === 1 || b.surah === 9;
     f('basmala').parentElement.title = b.surah === 1 ? 'البسملة هي أول آية في الفاتحة' : b.surah === 9 ? 'سورة التوبة من غير بسملة' : '';
   };
@@ -630,14 +700,17 @@ function quranBlockEl(b, i) {
   f('surah').onchange = () => {
     b.surah = Number(f('surah').value);
     b.from = 1; b.to = Math.min(Q.surah(b.surah).count, 3);
+    delete b.part;
     f('from').value = b.from; f('to').value = b.to;
-    sync(); persist(); refreshPreview();
+    partUi(); sync(); persist(); refreshPreview();
   };
   const num = (name, after) => {
     f(name).oninput = () => {
       const s = Q.surah(b.surah);
+      const old = b[name];
       b[name] = clamp(f(name).value, 1, name.startsWith('repeat') ? 20 : s.count);
       after?.();
+      if ((name === 'from' || name === 'to') && old !== b[name]) { delete b.part; partUi(); }
       sync(); persist(); refreshPreview();
     };
     f(name).onchange = () => { f(name).value = b[name]; };
@@ -649,6 +722,8 @@ function quranBlockEl(b, i) {
   f('basmala').onchange = () => { b.basmala = f('basmala').checked; persist(); refreshPreview(); recSync(); };
   const recSync = wireRecitation(li, b);
   li.addEventListener('input', e => { if (['from', 'to'].includes(e.target.dataset.f)) recSync(); });
+  li.addEventListener('change', e => { if (e.target.dataset.f === 'recFile') setTimeout(partUi, 500); });
+  partUi();
   sync();
   return li;
 }
@@ -1181,6 +1256,7 @@ function zikrBlockEl(b, i) {
       if (r.source && !b.ref) { b.ref = r.source.slice(0, 60); f('customRef').value = b.ref; }
       if (!b.secondsManual) { b.seconds = estimateSeconds(b.text); f('seconds').value = b.seconds; }
       sync(); persist(); refreshPreview();
+      checkFragment();
       f('text').focus();
       const warn = r.kind === 'quran' ? ' ⚠️ ده شكله آيات — الأفضل «＋ آيات» عشان النص يبقى من المصحف بالظبط.'
         : r.kind === 'hadith' ? ' ⚠️ ده شكله حديث — الأفضل «＋ حديث» عشان درجته تظهر.' : '';
@@ -1250,7 +1326,35 @@ function zikrBlockEl(b, i) {
     // النص الخاص: المدة بتتظبط لوحدها على طول النص لحد ما المستخدم يغيّرها بإيده
     if (b.custom && !b.secondsManual) { b.seconds = estimateSeconds(b.text); f('seconds').value = b.seconds; }
     persist(); refreshPreview();
+    if (b.custom) checkFragment();
   };
+  // النص الخاص لو طلع آية أو جزء من آية: نعرض «اقراها بصوت القارئ»
+  let fragTimer = null, frag = null;
+  function checkFragment() {
+    clearTimeout(fragTimer);
+    fragTimer = setTimeout(() => {
+      frag = b.custom ? Q.findFragment(b.text) : null;
+      el('fragRow').hidden = !frag;
+      if (!frag) return;
+      const sName = Q.surah(frag.s).ar, ws = WT.words(Q.ayahText(frag.s, frag.a));
+      el('fragText').textContent = frag.whole ? `📖 ده آية كاملة: سورة ${sName} • الآية ${Q.arabicNum(frag.a)}`
+        : `📖 ده جزء من سورة ${sName} • الآية ${Q.arabicNum(frag.a)} (من «${ws[frag.w1 - 1]}» لـ «${ws[frag.w2 - 1]}»)${frag.miss ? ' — فيه كلمة مختلفة، اتأكد' : ''}`;
+    }, 350);
+  }
+  act('fragUse').onclick = () => {
+    if (!frag) return;
+    const i = state.blocks.indexOf(b);
+    if (i < 0) return;
+    const q = newQuranBlock(frag.s, frag.a, frag.a);
+    if (!frag.whole) q.part = { w1: frag.w1, w2: frag.w2 };
+    state.blocks[i] = q;
+    hadithAudio.delete(b.id);
+    renderBlocks();
+    refreshPublish(true);
+    const r = findReciter(state.style.reciter);
+    status(`✅ اتحوّل لآيات بنص المصحف بصوت ${r.name}.${!frag.whole && !exactWords(r) ? ' ⚠️ القارئ ده مالوش توقيت كلمات — اختار قارئ عليه ⏱️ عشان الجزء يتقص صح.' : ''}`);
+  };
+  if (b.custom) checkFragment();
   f('showCount').onchange = () => { b.showCount = f('showCount').checked; persist(); refreshPreview(); };
   f('seconds').oninput = () => { b.seconds = clamp(f('seconds').value, 2, 120); b.secondsManual = true; persist(); };
   wireAudioControls(li, b, sync);
