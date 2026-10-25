@@ -6,7 +6,7 @@
   <title>استوديو مقاطع القرآن</title>
   <meta name="description" content="اختار الآيات والقارئ، وصدّر صوت MP3 أو M4A أو WAV أو فيديو جاهز للنشر — من المتصفح مباشرة وببلاش.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261025e">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261025f">
 </head>
 <body>
   <header class="topbar">
@@ -208,6 +208,8 @@
           <div class="muted" id="bg-timing" hidden></div>
           <div class="btn-row" id="bg-list-actions" hidden>
             <input type="file" id="bg-add" accept="image/*,video/*" multiple hidden>
+            <button class="btn ghost" id="bg-shuffle" type="button" title="رتّب الخلفيات عشوائي">🔀 عشوائي</button>
+            <button class="btn ghost" id="bg-reverse" type="button" title="اقلب الترتيب">⇅ اقلب</button>
             <button class="btn ghost" id="bg-clear" type="button">🗑 امسح كل الخلفيات</button>
           </div>
           <div class="grid2" id="bg-switch-row" hidden>
@@ -432,7 +434,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261025e</div>
+    <div class="muted" id="app-version">الإصدار 20261025f</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -995,6 +997,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261025e"></script>
+  <script type="module" src="js/main.js?v=20261025f"></script>
 </body>
 </html>

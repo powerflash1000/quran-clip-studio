@@ -1780,6 +1780,13 @@ function setupStyle() {
     for (const f of $('#bg-file').files) setMedia(f, true);
     $('#bg-file').value = '';
   };
+  $('#bg-shuffle').onclick = () => {
+    const list = state.mediaList;
+    for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
+    state.media = list[0];
+    persistMedia(); renderBgList(); refreshPreview();
+  };
+  $('#bg-reverse').onclick = () => { state.mediaList.reverse(); state.media = state.mediaList[0]; persistMedia(); renderBgList(); refreshPreview(); };
   $('#bg-clear').onclick = () => {
     if (!confirm(`تمسح الـ ${Q.arabicNum(state.mediaList.length)} خلفيات؟`)) return;
     for (const m of state.mediaList) URL.revokeObjectURL(m.url);
@@ -1884,7 +1891,9 @@ function setMedia(file, append = false, secs = null) {
   refreshPreview();
 }
 
+let bgDragging = false; // وقت السحب ماينفعش القايمة تترسم من جديد (حساب المدة بيرسمها لوحده)
 function renderBgList() {
+  if (bgDragging) return;
   const list = state.mediaList;
   const ol = $('#bg-list');
   ol.innerHTML = '';
@@ -1910,6 +1919,44 @@ function renderBgList() {
   list.forEach((m, i) => {
     const li = document.createElement('li');
     li.className = 'bg-item';
+    // ⠿ اسحب وحط: بالماوس أو بالصباع (pointer events عشان يشتغل على الموبايل كمان)
+    if (list.length > 1) {
+      const h = document.createElement('span');
+      h.className = 'bg-drag';
+      h.textContent = '⠿';
+      h.title = 'اسحبها لفوق أو لتحت';
+      h.onpointerdown = e => {
+        e.preventDefault();
+        ol.querySelectorAll('.bg-peek').forEach(x => x.remove());
+        bgDragging = true;
+        li.classList.add('dragging');
+        // خط بيوضح هتنزل فين (العنصر نفسه مابيتحركش لحد ما تسيب، عشان السحب مايتقطعش)
+        const mark = document.createElement('li');
+        mark.className = 'bg-drop';
+        let to = i;
+        const move = ev => {
+          const items = [...ol.querySelectorAll('.bg-item')];
+          let k = items.findIndex(it => ev.clientY < it.getBoundingClientRect().top + it.offsetHeight / 2);
+          if (k < 0) k = items.length;
+          if (k < items.length) ol.insertBefore(mark, items[k]); else ol.appendChild(mark);
+          to = k > i ? k - 1 : k;
+          if (ev.clientY < 70) scrollBy(0, -14); else if (ev.clientY > innerHeight - 70) scrollBy(0, 14);
+        };
+        const end = () => {
+          removeEventListener('pointermove', move);
+          removeEventListener('pointerup', end);
+          removeEventListener('pointercancel', end);
+          mark.remove();
+          li.classList.remove('dragging');
+          bgDragging = false;
+          moveBg(i, to);
+        };
+        addEventListener('pointermove', move);
+        addEventListener('pointerup', end);
+        addEventListener('pointercancel', end);
+      };
+      li.appendChild(h);
+    }
     let th;
     if (m.thumb) { th = document.createElement('img'); th.src = m.thumb; th.className = 'bg-thumb'; th.alt = ''; }
     else { th = document.createElement('span'); th.className = 'bg-thumb-ph'; th.textContent = m.kind === 'video' ? '🎞️' : '🖼️'; }
@@ -1952,11 +1999,23 @@ function renderBgList() {
       r.textContent = mine.length ? mine.slice(0, 2).map(c => `${fmtDur(c.from)}–${fmtDur(c.to)}`).join('، ') + (mine.length > 2 ? '…' : '') : 'مش هتظهر';
       li.appendChild(r);
     }
+    if (list.length > 2) mk('⤒', 'خليها الأولى', () => moveBg(i, 0), i === 0);
     mk('▲', 'لفوق', () => swap(i - 1), i === 0);
     mk('▼', 'لتحت', () => swap(i + 1), i === list.length - 1);
+    if (list.length > 2) mk('⤓', 'خليها الأخيرة', () => moveBg(i, list.length - 1), i === list.length - 1);
     mk('✕', 'شيلها', () => { URL.revokeObjectURL(m.url); list.splice(i, 1); state.media = list[0] || null; persistMedia(); renderBgList(); refreshPreview(); });
     ol.appendChild(li);
   });
+}
+
+// نقل خلفية من مكان لمكان (السحب، أو ⤒ ⤓)
+function moveBg(from, to) {
+  const list = state.mediaList;
+  if (to < 0 || to === from || from < 0 || from >= list.length) { renderBgList(); return; }
+  const [m] = list.splice(from, 1);
+  list.splice(Math.min(to, list.length), 0, m);
+  state.media = list[0];
+  persistMedia(); renderBgList(); refreshPreview();
 }
 
 function setAmbient(name, buffer) {

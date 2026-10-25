@@ -377,3 +377,10 @@ details.adv { border-top: 1px dashed var(--line); padding-top: .4rem; }
 .part-words button.sel { background: color-mix(in srgb, var(--primary) 22%, transparent); border-color: var(--primary); }
 .part-words button.stop { text-decoration: underline dotted var(--good); text-underline-offset: .35em; }
 .frag-row { background: color-mix(in srgb, var(--primary) 10%, transparent); border-radius: 10px; padding: .4rem .6rem; }
+
+/* ترتيب الخلفيات بالسحب */
+.bg-drag { cursor: grab; touch-action: none; user-select: none; padding: .2rem .35rem; font-size: 1.15rem; color: var(--muted); border-radius: 6px; }
+.bg-drag:hover { background: var(--card); color: var(--text); }
+.bg-item.dragging { opacity: .7; outline: 2px dashed var(--primary); }
+.bg-item.dragging .bg-drag { cursor: grabbing; }
+.bg-drop { height: 0; border-top: 3px solid var(--primary); border-radius: 2px; margin: -2px 0; list-style: none; }
