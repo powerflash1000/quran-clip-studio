@@ -6,7 +6,7 @@
   <title>استوديو مقاطع القرآن</title>
   <meta name="description" content="اختار الآيات والقارئ، وصدّر صوت MP3 أو M4A أو WAV أو فيديو جاهز للنشر — من المتصفح مباشرة وببلاش.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261024b">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261025a">
 </head>
 <body>
   <header class="topbar">
@@ -432,7 +432,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261024b</div>
+    <div class="muted" id="app-version">الإصدار 20261025a</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -709,6 +709,12 @@
           <option value="9:16">رأسي 9:16 (تيك توك، إنستجرام، شورتس)</option>
           <option value="1:1">مربع 1:1</option>
         </select></label>
+        <label>المحتوى <select id="live-mode">
+          <option value="text">📖 القايمة والكتابة ظاهرة</option>
+          <option value="notext">🌿 مناظر + تلاوة القايمة (من غير كتابة)</option>
+          <option value="ambient">🌿 مناظر + صوت الطبيعة بس</option>
+          <option value="silent">🌿 مناظر بس (من غير صوت)</option>
+        </select></label>
         <label>لما القايمة تخلص <select id="live-after">
           <option value="loop">يعيد القايمة من الأول</option>
           <option value="next">يكمّل اللي بعده في المصحف (نفس القارئ)</option>
@@ -721,6 +727,7 @@
         <label class="check"><input type="checkbox" id="live-next" checked> اعرض «التالي»</label>
         <label class="grow">اسم البث (شاشة الانتظار) <input type="text" id="live-title" placeholder="قرآن يريح القلب 🤍"></label>
       </div>
+      <p class="hint" id="live-mode-hint" hidden>🌿 الخلفيات بتتبدّل لوحدها (من «الشكل» ← الخلفيات: ضيف كذا فيديو أو صورة طبيعة). صوت الطبيعة من «الصوت» ← صوت الخلفية (مطر، عصافير…) وبيتكرر على طول. مفيش كتابة ولا علامات على الشاشة.</p>
       <h3>القايمة</h3>
       <ol class="parts" id="live-list"></ol>
       <p class="muted" id="live-empty">القايمة فاضية — ضيف سور أو مقاطع من تحت.</p>
@@ -940,8 +947,10 @@
         <textarea data-f="text" rows="4"></textarea>
       </label>
       <div class="btn-row" data-el="customTools" hidden>
+        <label class="btn file-btn" title="صورة فيها دعاء (سكرين شوت من بنترست أو فيسبوك…) — النص بيتنسخ منها">📷 من صورة<input type="file" accept="image/*" data-f="ocrFile" hidden></label>
+        <button class="btn" data-act="ocrUrl" type="button" title="رابط صورة أو صفحة فيها الدعاء">🔗 من رابط</button>
         <button class="btn" data-act="polish" type="button" title="يصحّح الإملاء ويقسّم السطور — من غير ما يغيّر المعنى">✨ حسّن الصياغة</button>
-        <span class="muted">⚠️ لو النص حديث، استخدم «＋ حديث» عشان درجته تظهر. ولو آية، استخدم «＋ آيات».</span>
+        <span class="muted">💡 أو انسخ الصورة (كليك يمين ← Copy image) والصقها في خانة النص بـ Ctrl+V. ⚠️ لو النص حديث، استخدم «＋ حديث» عشان درجته تظهر. ولو آية، استخدم «＋ آيات».</span>
       </div>
       <div class="muted" data-el="meta"></div>
       <label class="check"><input type="checkbox" data-f="showCount"> اكتب عدد المرات على الشاشة (مثلًا: ٣ مرات)</label>
@@ -979,6 +988,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261024b"></script>
+  <script type="module" src="js/main.js?v=20261025a"></script>
 </body>
 </html>

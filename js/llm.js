@@ -76,7 +76,7 @@ async function openRouterModels() {
   // الموديلات الكبيرة المعروفة بتكتب عربي أحسن، فبتيجي الأول
   const rank = id => (/(deepseek|qwen|llama-3\.3-70b|llama-4|gemini|gemma-3-27b|mistral-small)/.test(id) ? 0 : 1);
   const list = (j.data || []).filter(m => (m.architecture?.output_modalities || ['text']).includes('text'))
-    .map(m => ({ id: m.id, tag: free(m) ? { free: true, label: '🆓 مجاني' } : { free: false, label: '💳 مدفوع' } }));
+    .map(m => ({ id: m.id, vision: (m.architecture?.input_modalities || []).includes('image'), tag: free(m) ? { free: true, label: '🆓 مجاني' } : { free: false, label: '💳 مدفوع' } }));
   orCache = list.sort((a, b) => (a.tag.free !== b.tag.free ? (a.tag.free ? -1 : 1) : rank(a.id) - rank(b.id) || a.id.localeCompare(b.id)));
   return orCache;
 }
@@ -258,4 +258,116 @@ export async function ping() {
   const j = await askJson('رجّع {"ok": true} بس.');
   if (!j || j.ok !== true) throw new Error('الرد مش متوقع');
   return true;
+}
+
+// ===== استخلاص النص من صورة (OCR بالذكاء الاصطناعي) =====
+// بيستخدم مزوّد مساعد الكتابة، ولو مش متضبط: مفتاح صوت Gemini (نفس مفتاح جوجل المجاني)
+function visionConfig() {
+  const c = config();
+  if (c.provider && c.key) return c;
+  const k = (getSettings().gttsKey || '').trim();
+  if (k) return { provider: 'gemini', key: k, model: PROVIDERS.gemini.model };
+  return null;
+}
+export const canRead = () => !!visionConfig();
+
+const OCR_RULES = `أنت أداة نسخ نصوص من الصور (OCR) بس.
+- انسخ النص العربي الرئيسي اللي في الصورة حرفيًا زي ما هو مكتوب، بالتشكيل لو موجود. ماتصححش وماتكمّلش وماتزوّدش أي كلمة من عندك.
+- لو حرف أو كلمة مش واضحة، اكتب [؟] مكانها بدل ما تخمّن.
+- تجاهل اسم الحساب والعلامة المائية والهاشتاجات والأزرار.
+- رجّع JSON بس.`;
+
+const OCR_TASK = `انسخ النص اللي في الصورة.
+الشكل: {"title": "عنوان قصير لو مكتوب فوق النص، أو فاضي", "text": "النص بسطوره", "kind": "dua أو quran أو hadith أو other", "source": "المصدر لو مكتوب في الصورة، أو فاضي"}`;
+
+// تصغير الصورة قبل الإرسال (أسرع وأرخص)، بترجع base64 jpeg
+async function shrink(blob, max = 1600) {
+  const bmp = await createImageBitmap(blob);
+  const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+  g.drawImage(bmp, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.9).split(',')[1];
+}
+
+async function askImage(c, b64) {
+  if (c.provider === 'gemini') {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.model)}:generateContent?key=${encodeURIComponent(c.key)}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: OCR_RULES }] },
+        contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'image/jpeg', data: b64 } }, { text: OCR_TASK }] }],
+        generationConfig: { responseMimeType: 'application/json' },
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(geminiError(r.status, j.error?.message || r.statusText, c.model));
+    return (j.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
+  }
+  if (c.provider === 'anthropic') {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': c.key, 'anthropic-version': '2026-10-21', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({
+        model: c.model, max_tokens: 4000, system: OCR_RULES,
+        messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } }, { type: 'text', text: OCR_TASK }] }],
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(`Claude ${r.status}: ${j.error?.message || r.statusText}`);
+    return (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+  }
+  // OpenAI و OpenRouter: نفس الشكل
+  let model = c.model, url = 'https://api.openai.com/v1/chat/completions';
+  if (c.provider === 'openrouter') {
+    url = 'https://openrouter.ai/api/v1/chat/completions';
+    const list = await openRouterModels();
+    const cur = list.find(m => m.id === model);
+    if (!cur?.vision) model = list.find(m => m.tag.free && m.vision)?.id || model;
+    if (!model) throw new Error('مالقيتش موديل مجاني على OpenRouter بيقرا صور');
+  }
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${c.key}` },
+    body: JSON.stringify({ model, messages: [{ role: 'system', content: OCR_RULES }, { role: 'user', content: [{ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${b64}` } }, { type: 'text', text: OCR_TASK }] }] }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(c.provider === 'openrouter' ? openRouterError(r.status, j.error?.message || r.statusText, model) : `OpenAI ${r.status}: ${j.error?.message || r.statusText}`);
+  return j.choices?.[0]?.message?.content || '';
+}
+
+// صورة ← { title, text, kind, source }
+export async function readImage(blob) {
+  const c = visionConfig();
+  if (!c) throw new Error('محتاج مفتاح Gemini (مجاني) في ⚙️ الإعدادات ← ✨ مساعد الكتابة أو 🔊 صوت Gemini');
+  let raw;
+  let b64;
+  try { b64 = await shrink(blob); } catch { throw new Error('الصورة دي مش مدعومة أو بايظة — جرّب سكرين شوت ليها (PNG أو JPG).'); }
+  try { raw = await askImage(c, b64); } catch (e) {
+    if (e instanceof TypeError) throw new Error('الطلب ماوصلش للخدمة (النت أو الحجب). جرّب تاني.');
+    throw e;
+  }
+  const j = parseJson(raw);
+  const text = String(j.text || '').trim();
+  if (!text) throw new Error('مالقيتش نص واضح في الصورة');
+  return { title: clean(j.title), text, kind: String(j.kind || 'other'), source: clean(j.source) };
+}
+
+// نص صفحة (من غير صورة) ← نفس الشكل
+export async function readPageText(pageText) {
+  const c = visionConfig();
+  if (!c) throw new Error('محتاج مفتاح Gemini (مجاني) في ⚙️ الإعدادات ← ✨ مساعد الكتابة');
+  const text = pageText.slice(0, 12000);
+  const call = c.provider === 'openrouter' ? callOpenRouter : CALLERS[c.provider];
+  const raw = await call(c, OCR_RULES, `ده نص صفحة من النت. طلّع منه الدعاء أو الذكر الرئيسي حرفيًا (من غير قوائم الموقع والإعلانات والتعليقات).
+الشكل: {"title": "...", "text": "...", "kind": "dua أو quran أو hadith أو other", "source": "..."}
+النص:
+${text}`);
+  const j = parseJson(raw);
+  const out = String(j.text || '').trim();
+  if (!out) throw new Error('مالقيتش دعاء في الصفحة دي');
+  return { title: clean(j.title), text: out, kind: String(j.kind || 'other'), source: clean(j.source) };
 }

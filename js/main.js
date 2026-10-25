@@ -1104,6 +1104,28 @@ function newZikrBlock(cat = 'أذكار الصباح', index = 0) {
   return b;
 }
 
+// رابط ← نص: صورة مباشرة، أو صفحة فيها صورة رئيسية (og:image زي بنترست)، أو صفحة فيها النص نفسه
+async function readFromUrl(url) {
+  let blob;
+  try { blob = await fetchFirst([url], { as: 'blob' }); } catch {
+    throw new Error('الموقع ده مش بيسمح للبرنامج يفتحه (CORS).\nالأسهل: افتح الصورة ← كليك يمين ← Copy image ← والصقها في خانة النص بـ Ctrl+V. أو احفظها وارفعها بـ «📷 من صورة».\n(أو اضبط «رابط الوسيط» في الإعدادات.)');
+  }
+  if (blob.type.startsWith('image/')) return LLM.readImage(blob);
+  const html = await blob.text();
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const og = doc.querySelector('meta[property="og:image"], meta[name="og:image"], meta[name="twitter:image"]')?.content;
+  if (og) {
+    try {
+      const img = await fetchFirst([new URL(og, url).href], { as: 'blob' });
+      if (img.type.startsWith('image/')) return LLM.readImage(img);
+    } catch { /* نكمّل بنص الصفحة */ }
+  }
+  doc.querySelectorAll('script, style, noscript, nav, header, footer').forEach(n => n.remove());
+  const text = (doc.body?.textContent || '').replace(/\s+/g, ' ').trim();
+  if (text.length < 20) throw new Error('مالقيتش صورة ولا نص في الرابط ده. جرّب تنسخ الصورة وتلصقها بـ Ctrl+V.');
+  return LLM.readPageText(text);
+}
+
 // نص خاص: دعاء أو كلام من عند المستخدم مش موجود في المكتبة — نفس كتلة الذكر (صوت ومدة) من غير مكتبة
 function newCustomBlock() {
   return { id: uid(), type: 'zikr', custom: true, cat: '', index: 0, label: 'دعاء', text: '', count: 1, ref: '', desc: '', showCount: false, audioMode: 'none', seconds: 8, secondsManual: false, enhance: 'clean' };
@@ -1149,6 +1171,42 @@ function zikrBlockEl(b, i) {
     f('text').placeholder = 'اكتب النص هنا…';
     f('customLabel').oninput = () => { b.label = f('customLabel').value.trim(); sync(); persist(); refreshPreview(); };
     f('customRef').oninput = () => { b.ref = f('customRef').value.trim(); persist(); refreshPreview(); };
+    // استخلاص النص من صورة أو رابط (بدل الكتابة)
+    const useExtract = r => {
+      const warn = r.kind === 'quran' ? '\n\n⚠️ ده شكله آيات — الأفضل تستخدم «＋ آيات» عشان النص يبقى من المصحف بالظبط.'
+        : r.kind === 'hadith' ? '\n\n⚠️ ده شكله حديث — الأفضل تستخدم «＋ حديث» عشان درجته تظهر.' : '';
+      const q = b.text.trim() ? 'أحطه بدل النص الحالي؟' : 'أستخدمه؟';
+      if (!confirm(`النص اللي في الصورة:\n\n${r.text}${r.source ? `\n\n(المصدر: ${r.source})` : ''}${warn}\n\nراجعه كويس — ممكن يكون فيه حرف غلط (الكلمات المش واضحة عليها [؟]).\n${q}`)) return;
+      b.text = r.text; f('text').value = r.text;
+      if (r.title && (!b.label || b.label === 'دعاء')) { b.label = r.title.slice(0, 40); f('customLabel').value = b.label; }
+      if (r.source && !b.ref) { b.ref = r.source.slice(0, 60); f('customRef').value = b.ref; }
+      if (!b.secondsManual) { b.seconds = estimateSeconds(r.text); f('seconds').value = b.seconds; }
+      sync(); persist(); refreshPreview();
+    };
+    const extract = async (job, btn) => {
+      if (!LLM.canRead()) { needLLM(); return; }
+      const prev = btn?.textContent;
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ بيقرا…'; }
+      status('بيقرا النص…');
+      try { useExtract(await job()); status(''); } catch (err) { showError(err); }
+      if (btn) { btn.disabled = false; btn.textContent = prev; }
+    };
+    f('ocrFile').onchange = () => {
+      const file = f('ocrFile').files[0];
+      f('ocrFile').value = '';
+      if (file) extract(() => LLM.readImage(file));
+    };
+    f('text').addEventListener('paste', e => {
+      const file = [...(e.clipboardData?.files || [])].find(x => x.type.startsWith('image/'));
+      if (!file) return;
+      e.preventDefault();
+      extract(() => LLM.readImage(file));
+    });
+    act('ocrUrl').onclick = e => {
+      const url = (prompt('الصق رابط الصورة أو الصفحة اللي فيها الدعاء:') || '').trim();
+      if (!/^https?:\/\//i.test(url)) { if (url) alert('ده مش رابط'); return; }
+      extract(() => readFromUrl(url), e.currentTarget);
+    };
     li.querySelector('[data-act=polish]').onclick = async e => {
       const btn = e.currentTarget;
       if (!b.text.trim()) { status('اكتب النص الأول'); return; }
@@ -2879,8 +2937,8 @@ function setupQueue() {
 // والجزء الجاي بيتجهّز وهو الحالي شغال، فالبث مايقفش. الرسم ماشي على توقيت نافذة البث نفسها.
 const LIVE_CHUNK = 10; // أقصى عدد آيات في الجزء الواحد (عشان الذاكرة)
 const live = {
-  items: load('liveQueue', []), opts: { aspect: '16:9', after: 'loop', badge: true, next: true, title: '', ...load('liveOpts', {}) },
-  win: null, ac: null, canvas: document.createElement('canvas'), on: false,
+  items: load('liveQueue', []), opts: { aspect: '16:9', mode: 'text', after: 'loop', badge: true, next: true, title: '', ...load('liveOpts', {}) },
+  win: null, ac: null, canvas: document.createElement('canvas'), on: false, amb: null, t0: 0,
   pos: null, cur: null, nextJob: null, countdownEnd: 0, raf: 0, msg: '', session: 0,
 };
 const saveLive = () => { save('liveQueue', live.items.map(({ id, label, blocks, reciter }) => ({ id, label, blocks, reciter }))); save('liveOpts', live.opts); };
@@ -2999,6 +3057,24 @@ async function liveAdvance() {
   livePrepareNext();
 }
 
+// وضع المناظر من غير قايمة (صوت طبيعة أو سكوت)
+const liveScenicOnly = () => live.opts.mode === 'ambient' || live.opts.mode === 'silent';
+function liveScenicStart() {
+  if (!live.on) return;
+  live.t0 = live.ac.currentTime;
+  if (live.opts.mode === 'ambient' && state.ambient?.buffer) {
+    const src = live.ac.createBufferSource();
+    src.buffer = state.ambient.buffer;
+    src.loop = true;
+    const g = live.ac.createGain();
+    g.gain.value = Math.max(0.05, Math.min(1, state.ambientVolume * 3)); // لوحده من غير تلاوة: أعلى من مستوى الخلفية
+    src.connect(g).connect(live.ac.destination);
+    src.start();
+    live.amb = src;
+  }
+  renderLive();
+}
+
 // رسم فريم البث
 function liveDraw() {
   const win = live.win;
@@ -3015,6 +3091,16 @@ function liveDraw() {
   if (cur?.bgSched) {
     const p = pickBg(cur.bgSched, Math.max(0, t), state.style.bgFade !== false ? 0.6 : 0);
     bg = list[p.cur.k]; prev = p.prev && list[p.prev.k]; alpha = p.alpha;
+  } else if (liveScenicOnly() && list.length > 1 && live.t0) {
+    // من غير قايمة: كل خلفية بمدتها (أو كل «bgEvery» ثانية، أقل حاجة 8)، ودوران على طول
+    const every = Math.max(8, Number(state.style.bgEvery) || 15);
+    const durs = list.map(m => (m.kind === 'video' && m.secs ? Math.max(every, m.secs) : every));
+    const total = durs.reduce((a, b) => a + b, 0);
+    let x = (live.ac.currentTime - live.t0) % total, k = 0;
+    while (x >= durs[k]) { x -= durs[k]; k++; }
+    bg = list[k];
+    const fade = state.style.bgFade !== false ? 1.2 : 0;
+    if (fade && x < fade) { prev = list[(k - 1 + list.length) % list.length]; alpha = x / fade; }
   }
   g.clearRect(0, 0, W, H);
   if (prev) drawBackground(g, W, H, state.style, prev);
@@ -3022,7 +3108,11 @@ function liveDraw() {
   drawBackground(g, W, H, state.style, bg);
   g.globalAlpha = 1;
   const unit = Math.min(W, H) / 1080;
-  if (cur) {
+  const scenic = live.opts.mode !== 'text';
+  const counting = live.countdownEnd > Date.now();
+  if (scenic && !counting) {
+    // مناظر بس: من غير أي كتابة
+  } else if (cur) {
     let i = 0;
     for (let k = 0; k < cur.segs.length; k++) if (cur.segs[k].start <= t + 0.05) i = k;
     const seg = cur.segs[i];
@@ -3049,9 +3139,9 @@ function liveDraw() {
     g.fillText(text, x - w / 2, y + h / 2 + 2 * unit);
   };
   const m = 28 * unit;
-  if (live.opts.badge && cur) pill('● تلاوة مسجّلة', W - m, m, '#ffb4b4');
+  if (live.opts.badge && cur && !scenic) pill('● تلاوة مسجّلة', W - m, m, '#ffb4b4');
   const ni = live.nextJob && liveItemAt(live.nextJob.pos);
-  if (live.opts.next && cur && ni && ni.id !== live.pos?.id) pill(`التالي: ${ni.label}`, W - m, H - m - 52 * unit, '#ffffff');
+  if (live.opts.next && cur && !scenic && ni && ni.id !== live.pos?.id) pill(`التالي: ${ni.label}`, W - m, H - m - 52 * unit, '#ffffff');
   g.restore();
   // للنافذة (بحجمها)
   const out = win.document.getElementById('c');
@@ -3089,8 +3179,13 @@ async function liveStart() {
   live.countdownEnd = Date.now() + mins * 60000;
   liveDraw();
   renderLive();
-  if (live.items.length) livePrepareNext(); // بيجهّز أول جزء وقت العد التنازلي
-  setTimeout(() => { if (live.session === ses) liveAdvance(); }, mins * 60000);
+  if (liveScenicOnly()) {
+    if (live.opts.mode === 'ambient' && !state.ambient?.buffer) status('⚠️ مفيش صوت طبيعة مختار — اختاره من «٢ الصوت» ← صوت الخلفية. البث شغال من غير صوت لحد ما تختار.', null, true);
+    setTimeout(() => { if (live.session === ses) liveScenicStart(); }, mins * 60000);
+  } else {
+    if (live.items.length) livePrepareNext(); // بيجهّز أول جزء وقت العد التنازلي
+    setTimeout(() => { if (live.session === ses) liveAdvance(); }, mins * 60000);
+  }
 }
 
 function liveStop() {
@@ -3098,6 +3193,8 @@ function liveStop() {
   live.on = false;
   live.session++;
   try { live.cur?.src.stop(); } catch { /* اتوقف */ }
+  try { live.amb?.stop(); } catch { /* اتوقف */ }
+  live.amb = null; live.t0 = 0;
   live.ac?.close();
   live.ac = null; live.cur = null; live.pos = null; live.nextJob = null; live.msg = '';
   if (live.win && !live.win.closed) live.win.close();
@@ -3157,7 +3254,10 @@ function renderLive() {
   $('#live-stop').disabled = !live.on;
   $('#live-state').textContent = live.on ? '— 🔴 شغّال' : '';
   const cur = live.cur;
-  $('#live-now').textContent = !live.on ? '' : cur ? `🔴 دلوقتي: ${cur.label}${live.msg ? ' — ' + live.msg : ''}` : live.countdownEnd > Date.now() ? '⏳ عد تنازلي…' : live.msg || (live.items.length ? '' : 'القايمة فاضية — شاشة الانتظار ظاهرة. ضيف حاجة وهتبدأ لوحدها.');
+  $('#live-mode').disabled = live.on;
+  $('#live-mode-hint').hidden = live.opts.mode === 'text';
+  $('#live-after').disabled = liveScenicOnly();
+  $('#live-now').textContent = !live.on ? '' : liveScenicOnly() ? (live.countdownEnd > Date.now() ? '⏳ عد تنازلي…' : `🌿 مناظر شغّالة${live.amb ? ` + ${state.ambient?.name || 'صوت الطبيعة'}` : live.opts.mode === 'ambient' ? ' (من غير صوت — اختار صوت الخلفية واعمل وقّف وابدأ تاني)' : ''}`) : cur ? `🔴 دلوقتي: ${cur.label}${live.msg ? ' — ' + live.msg : ''}` : live.countdownEnd > Date.now() ? '⏳ عد تنازلي…' : live.msg || (live.items.length ? '' : 'القايمة فاضية — شاشة الانتظار ظاهرة. ضيف حاجة وهتبدأ لوحدها.');
 }
 
 // القايمة اتغيّرت: الجزء الجاي المتجهّز ممكن مايبقاش هو اللي بعده
@@ -3167,13 +3267,14 @@ function liveQueueChanged() {
     const want = liveNextPos(live.pos);
     if (!want || want.id !== live.nextJob.pos.id || want.part !== live.nextJob.pos.part) { live.nextJob = null; if (live.cur) livePrepareNext(); }
   }
-  if (live.on && !live.cur && !live.nextJob && live.countdownEnd <= Date.now() && !live.msg) liveAdvance();
+  if (live.on && !liveScenicOnly() && !live.cur && !live.nextJob && live.countdownEnd <= Date.now() && !live.msg) liveAdvance();
   renderLive();
 }
 
 function setupLive() {
   const o = live.opts;
-  $('#live-aspect').value = o.aspect; $('#live-after').value = o.after;
+  $('#live-aspect').value = o.aspect; $('#live-after').value = o.after; $('#live-mode').value = o.mode;
+  $('#live-mode').onchange = () => { o.mode = $('#live-mode').value; saveLive(); renderLive(); };
   $('#live-badge').checked = o.badge; $('#live-next').checked = o.next; $('#live-title').value = o.title;
   $('#live-aspect').onchange = () => {
     o.aspect = $('#live-aspect').value; saveLive();
