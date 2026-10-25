@@ -16,7 +16,7 @@ import * as SND from './sounds.js';
 import * as WT from './words.js';
 import { fetchFirst } from './net.js';
 import { bgSchedule, pickBg } from './bglist.js';
-import { saveMediaList, loadMediaList } from './mediastore.js';
+import { saveMediaList, loadMediaList, saveLiveVideo, loadLiveVideo, deleteLiveVideo } from './mediastore.js';
 import { splitRange, chaptersText, chaptersWarnings } from './series.js';
 import { parseRefs, embedFor, surahInText } from './automation.js';
 import * as PL from './planner.js';
@@ -3285,10 +3285,17 @@ const live = {
   win: null, ac: null, canvas: document.createElement('canvas'), on: false, amb: null, t0: 0,
   pos: null, cur: null, nextJob: null, countdownEnd: 0, raf: 0, msg: '', session: 0,
 };
-const saveLive = () => { save('liveQueue', live.items.map(({ id, label, blocks, reciter }) => ({ id, label, blocks, reciter }))); save('liveOpts', live.opts); };
+const saveLive = () => { save('liveQueue', live.items.map(({ id, label, blocks, reciter, video, dur }) => ({ id, label, blocks, reciter, video, dur }))); save('liveOpts', live.opts); };
+// فيديوهات القايمة (ملفات MP4 متصدّرة قبل كده) — الملفات نفسها في IndexedDB
+const liveFiles = new Map();
+async function liveVideoFile(it) {
+  if (!liveFiles.has(it.id)) liveFiles.set(it.id, await loadLiveVideo(it.id));
+  return liveFiles.get(it.id);
+}
 
 // أجزاء العنصر: السورة الطويلة بتتقسم كل LIVE_CHUNK آية (البسملة مع أول جزء بس)
 function liveParts(it) {
+  if (it.video) return [[]]; // الفيديو جزء واحد
   const parts = [];
   let other = [];
   for (const b of it.blocks) {
@@ -3304,6 +3311,11 @@ function liveParts(it) {
 
 // بيجهّز جزء (تحميل التلاوة وبناء الصوت) — بقارئ العنصر نفسه
 async function liveBuild(it, part) {
+  if (it.video) {
+    const file = await liveVideoFile(it);
+    if (!file) throw new Error(`ملف الفيديو «${it.label}» مش موجود في المتصفح ده — ارفعه تاني`);
+    return { video: file, label: it.label };
+  }
   const saved = state.style;
   state.style = { ...saved, reciter: it.reciter || saved.reciter };
   const p = buildSegments(true, null, part, null);
@@ -3382,6 +3394,25 @@ async function liveAdvance() {
     setTimeout(() => { if (live.session === ses) liveAdvance(); }, 1500);
     return;
   }
+  if (proj.video) {
+    // فيديو جاهز: بيتعرض زي ما هو (بصوته)، ولما يخلص نكمّل
+    // الفيديو جوه نافذة البث نفسها (هي اللي لازم تفضل ظاهرة) عشان المتصفح مايوقفوش لو نافذة البرنامج اتصغّرت
+    const doc = live.win && !live.win.closed ? live.win.document : document;
+    const v = doc.createElement('video');
+    v.src = URL.createObjectURL(proj.video);
+    v.playsInline = true;
+    v.style.cssText = 'position:fixed;left:0;top:0;width:160px;height:90px;z-index:-1;pointer-events:none'; // ورا الرسم (لو مخفي خالص المتصفح بيوقفه)
+    doc.body.appendChild(v);
+    const stopV = () => { v.pause(); v.remove(); URL.revokeObjectURL(v.src); };
+    v.onended = () => { if (live.cur?.video === v) { stopV(); liveAdvance(); } };
+    v.onerror = () => { if (live.cur?.video === v) { stopV(); live.msg = `⚠️ تعذر تشغيل «${proj.label}»`; live.cur = null; renderLive(); const ses = live.session; setTimeout(() => { if (live.session === ses) liveAdvance(); }, 1500); } };
+    live.cur = { label: proj.label, video: v, stopV, segs: [], src: { stop: stopV } };
+    live.msg = '';
+    try { await v.play(); } catch { v.muted = true; await v.play().catch(() => {}); live.msg = '⚠️ المتصفح منع الصوت — اضغط في صفحة البرنامج مرة'; }
+    renderLive();
+    livePrepareNext();
+    return;
+  }
   const ac = live.ac;
   const buf = ac.createBuffer(2, proj.timeline.left.length, 44100);
   buf.copyToChannel(proj.timeline.left, 0);
@@ -3454,7 +3485,17 @@ function liveDraw() {
   const unit = Math.min(W, H) / 1080;
   const scenic = live.opts.mode !== 'text';
   const counting = live.countdownEnd > Date.now();
-  if (scenic && !counting) {
+  if (cur?.video) {
+    // الفيديو الجاهز: لو مقاسه مختلف عن البث، بيتحط في النص وورا منه نفس الفيديو مكبّر وضبابي
+    const v = cur.video, vw = v.videoWidth || W, vh = v.videoHeight || H;
+    const fit = Math.min(W / vw, H / vh), cover = Math.max(W / vw, H / vh);
+    if (Math.abs(vw / vh - W / H) > 0.02) {
+      g.save(); g.filter = 'blur(40px) brightness(.6)';
+      g.drawImage(v, (W - vw * cover) / 2, (H - vh * cover) / 2, vw * cover, vh * cover);
+      g.restore();
+    }
+    g.drawImage(v, (W - vw * fit) / 2, (H - vh * fit) / 2, vw * fit, vh * fit);
+  } else if (scenic && !counting) {
     // مناظر بس: من غير أي كتابة
   } else if (cur) {
     let i = 0;
@@ -3569,12 +3610,13 @@ function renderLive() {
       <button class="btn icon" type="button" data-a="del" title="شيل من القايمة">✕</button>`;
     const parts = liveParts(it).length;
     li.querySelector('.pname').textContent = `${Q.arabicNum(i + 1)}. ${it.label}`;
-    li.querySelector('.pinfo').textContent = [findReciter(it.reciter || state.style.reciter)?.name, parts > 1 && (now ? `الجزء ${Q.arabicNum(live.pos.part + 1)} من ${Q.arabicNum(parts)}` : `${Q.arabicNum(parts)} أجزاء`), now && '🔴 شغّال'].filter(Boolean).join(' • ');
+    li.querySelector('.pinfo').textContent = [it.video ? `🎞️ فيديو${it.dur ? ` • ${fmtDur(it.dur)}` : ''}` : findReciter(it.reciter || state.style.reciter)?.name, parts > 1 && (now ? `الجزء ${Q.arabicNum(live.pos.part + 1)} من ${Q.arabicNum(parts)}` : `${Q.arabicNum(parts)} أجزاء`), now && '🔴 شغّال'].filter(Boolean).join(' • ');
     const mv = d => { const j = i + d; if (j < 0 || j >= live.items.length) return; [live.items[i], live.items[j]] = [live.items[j], live.items[i]]; liveQueueChanged(); };
     li.querySelector('[data-a=up]').onclick = () => mv(-1);
     li.querySelector('[data-a=down]').onclick = () => mv(1);
     li.querySelector('[data-a=del]').onclick = () => {
       live.items.splice(i, 1);
+      if (it.video) { deleteLiveVideo(it.id); liveFiles.delete(it.id); }
       // لو اتشال اللي شغّال: الجزء الحالي بيكمّل، وبعده اللي كان بعده في الترتيب
       if (live.pos?.id === it.id) {
         const p = live.items[i - 1];
@@ -3639,6 +3681,18 @@ function setupLive() {
     $('#live-input').value = bad.join('\n');
     liveQueueChanged();
     if (bad.length) status('السطور اللي فضلت في الخانة مش مفهومة — اكتبها زي «الكهف» أو «يوسف 4-6» أو «12:4-6»', null, true);
+  };
+  $('#live-files').onchange = async () => {
+    const files = [...$('#live-files').files].filter(f => f.type.startsWith('video/') || /\.(mp4|m4v|mov|webm)$/i.test(f.name));
+    $('#live-files').value = '';
+    for (const file of files) {
+      const id = uid();
+      const dur = await new Promise(res => { const v = document.createElement('video'); v.preload = 'metadata'; v.onloadedmetadata = () => { res(v.duration); URL.revokeObjectURL(v.src); }; v.onerror = () => res(0); v.src = URL.createObjectURL(file); });
+      liveFiles.set(id, file);
+      await saveLiveVideo(id, file);
+      live.items.push({ id, label: file.name.replace(/\.[^.]+$/, ''), blocks: [], video: true, dur });
+    }
+    if (files.length) { liveQueueChanged(); status(`✅ اتضاف ${Q.arabicNum(files.length)} فيديو لقايمة البث`); }
   };
   $('#live-add-current').onclick = () => {
     if (!state.blocks.length) return;
