@@ -1172,16 +1172,20 @@ function zikrBlockEl(b, i) {
     f('customLabel').oninput = () => { b.label = f('customLabel').value.trim(); sync(); persist(); refreshPreview(); };
     f('customRef').oninput = () => { b.ref = f('customRef').value.trim(); persist(); refreshPreview(); };
     // استخلاص النص من صورة أو رابط (بدل الكتابة)
+    // النص بيتحط في الخانة على طول (من غير نافذة تأكيد) — والتنبيهات في شريط الحالة
     const useExtract = r => {
-      const warn = r.kind === 'quran' ? '\n\n⚠️ ده شكله آيات — الأفضل تستخدم «＋ آيات» عشان النص يبقى من المصحف بالظبط.'
-        : r.kind === 'hadith' ? '\n\n⚠️ ده شكله حديث — الأفضل تستخدم «＋ حديث» عشان درجته تظهر.' : '';
-      const q = b.text.trim() ? 'أحطه بدل النص الحالي؟' : 'أستخدمه؟';
-      if (!confirm(`النص اللي في الصورة:\n\n${r.text}${r.source ? `\n\n(المصدر: ${r.source})` : ''}${warn}\n\nراجعه كويس — ممكن يكون فيه حرف غلط (الكلمات المش واضحة عليها [؟]).\n${q}`)) return;
-      b.text = r.text; f('text').value = r.text;
+      const old = b.text.trim();
+      b.text = old ? `${old}\n\n${r.text}` : r.text; // لو فيه نص قبل كده، الجديد بيتضاف تحته
+      f('text').value = b.text;
       if (r.title && (!b.label || b.label === 'دعاء')) { b.label = r.title.slice(0, 40); f('customLabel').value = b.label; }
       if (r.source && !b.ref) { b.ref = r.source.slice(0, 60); f('customRef').value = b.ref; }
-      if (!b.secondsManual) { b.seconds = estimateSeconds(r.text); f('seconds').value = b.seconds; }
+      if (!b.secondsManual) { b.seconds = estimateSeconds(b.text); f('seconds').value = b.seconds; }
       sync(); persist(); refreshPreview();
+      f('text').focus();
+      const warn = r.kind === 'quran' ? ' ⚠️ ده شكله آيات — الأفضل «＋ آيات» عشان النص يبقى من المصحف بالظبط.'
+        : r.kind === 'hadith' ? ' ⚠️ ده شكله حديث — الأفضل «＋ حديث» عشان درجته تظهر.' : '';
+      const unclear = r.text.includes('[؟]') ? ' فيه كلمات مش واضحة مكانها [؟] — صلّحها.' : '';
+      status(`✅ النص اتحط في الخانة${old ? ' (تحت النص اللي كان موجود)' : ''}. راجعه وعدّل براحتك.${unclear}${warn}`, null, !!(warn || unclear));
     };
     const extract = async (job, btn) => {
       if (!LLM.canRead()) { needLLM(); return; }
