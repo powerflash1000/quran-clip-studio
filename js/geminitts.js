@@ -2,6 +2,7 @@
 // بيستخدم مفتاحه الخاص لو متحط، أو مفتاح Gemini بتاع مساعد الكتابة. الطلب بيروح لجوجل مباشرة.
 // للأدعية والأذكار والنص الخاص بس — القرآن بيفضل بأصوات القرّاء.
 import { getSettings } from './storage.js';
+import { retryFetch } from './llm.js';
 
 const API = 'https://generativelanguage.googleapis.com/v1beta/models';
 
@@ -80,7 +81,7 @@ export async function speak(text, voice = '') {
   const models = await pickModels(k);
   const style = (s.gttsStyle || '').trim();
   const voiceName = voice || s.gttsVoice || 'Charon';
-  const send = (model, withStyle) => fetch(`${API}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(k)}`, {
+  const send = (model, withStyle) => retryFetch(`${API}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(k)}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -99,7 +100,7 @@ export async function speak(text, voice = '') {
     // لو الموديل مش بيقبل تعليمات منفصلة، بنبعت النص لوحده
     if (style && r.status === 400) r = await send(model, false);
     j = await r.json().catch(() => ({}));
-    if (r.status !== 429) break; // الحد خلص في الموديل ده: نجرّب اللي بعده
+    if (r.status !== 429 && r.status !== 503) break; // الحد خلص أو زحمة في الموديل ده: نجرّب اللي بعده
   }
   if (!r.ok) throw new Error(ttsError(r.status, j.error?.message || r.statusText, model, models.length));
   const part = (j.candidates?.[0]?.content?.parts || []).find(p => p.inlineData?.data);
@@ -124,6 +125,7 @@ function pcmToWav(pcm, rate) {
 function ttsError(code, msg, model, tried = 1) {
   const m = String(msg || '');
   // 429 = الحد المجاني خلص (رسالة جوجل فيها كلمة billing بس مش معناها إنك هتدفع)
+  if (code === 503 || code === 500) return `⏳ جوجل عليه زحمة دلوقتي في موديلات الصوت — حاولت كذا مرة. جرّب كمان دقيقة. (مش هيتخصم منك حاجة)`;
   if (code === 429) return quotaMsg(m, tried > 1 ? `كل موديلات الصوت المجانية (${tried})` : `موديل الصوت ${model}`);
   if (code === 402 || /prepay/i.test(m)) return `مشروع جوجل اللي طالع منه المفتاح مربوط بحساب دفع (Prepay)، فمش مجاني. اعمل مفتاح في مشروع جديد من غير Billing في aistudio.google.com/apikey. (${code})`;
   if (code === 404 || /not found|model name/i.test(m)) return `موديل الصوت ${model} مش متاح لمفتاحك. اختار «تلقائي» في ⚙️ الإعدادات ← 🔊 صوت Gemini. (${m})`;

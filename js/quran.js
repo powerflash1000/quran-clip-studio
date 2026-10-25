@@ -113,16 +113,15 @@ export function search(query, limit = 50) {
 // (الصلوة/الصلاة، الزكوة/الزكاة، الحيوة/الحياة: الواو قبل التاء المربوطة بتتشال من الناحيتين)
 const skel = w => strip(w).replace(/[اءٱ]/g, '').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/[^\u0621-\u064A]/g, '').replace(/وه$/, 'ه');
 let wordIndex = null;
-// بيدوّر على أطول جزء متصل (3 كلمات أو أكتر) من النص موجود في آية واحدة — حتى لو النص فيه كلام زيادة
-// (عنوان، «صدق الله العظيم»، مصدر…). بيرجّع { s, a, w1, w2, u1, u2, whole, all }:
-// w1..w2 أرقام الكلمات في الآية، u1..u2 مكانها في النص، all = النص كله هو الجزء ده
-export function findFragment(text) {
-  const u = String(text || '').split(/\s+/).map(skel).filter(Boolean);
-  if (u.length < 3 || u.length > 150) return null;
+function buildWordIndex() {
   if (!wordIndex) {
     wordIndex = [];
     data.verses.forEach((vs, si) => vs.forEach((v, ai) => wordIndex.push({ s: si + 1, a: ai + 1, w: v[0].split(/\s+/).map(skel) })));
   }
+}
+
+// أطول جزء متصل من u (مع تجاهل الكلمات المستخدمة) موجود جوه آية واحدة
+function longestRun(u, used) {
   let best = null;
   const prev = new Uint16Array(u.length + 1), cur = new Uint16Array(u.length + 1);
   for (const it of wordIndex) {
@@ -131,19 +130,48 @@ export function findFragment(text) {
     for (let i = 1; i <= A.length; i++) {
       cur[0] = 0;
       for (let j = 1; j <= u.length; j++) {
-        cur[j] = A[i - 1] === u[j - 1] ? prev[j - 1] + 1 : 0;
+        cur[j] = !used[j - 1] && A[i - 1] === u[j - 1] ? prev[j - 1] + 1 : 0;
         const len = cur[j];
         if (len >= 3 && (!best || len > best.len)) best = { s: it.s, a: it.a, w1: i - len + 1, w2: i, u1: j - len + 1, u2: j, len, n: A.length };
       }
       prev.set(cur);
     }
   }
-  if (!best) return null;
-  best.all = best.len === u.length;
-  // لو النص فيه كلام تاني كتير: لازم الجزء يبقى واضح (5 كلمات، أو أغلب النص) عشان مانقولش إن دعاء عادي آية
-  if (!best.all && best.len < 5 && best.len < u.length * 0.6) return null;
-  best.whole = best.w1 === 1 && best.w2 === best.n;
   return best;
+}
+
+const RABBANA = new Set(['ربن', 'رب']);
+// كل أجزاء القرآن اللي في النص (كل سطر لوحده عشان مانوصلش سطرين ببعض)، بترتيب ظهورها.
+// كل جزء: { s, a, w1, w2, whole } — ولو الكلمة اللي قبل الجزء في الآية «ربنا» أو «رب» بنضمها
+// (صور الأدعية بتكتب «ربنا» في عمود لوحده). rest = عدد الكلمات اللي مش من القرآن
+export function findFragments(text) {
+  const lines = String(text || '').split(/\n+/).map(l => l.split(/\s+/).map(skel).filter(Boolean)).filter(l => l.length);
+  const total = lines.reduce((a, l) => a + l.length, 0);
+  if (total < 3 || total > 400) return { frags: [], rest: total };
+  buildWordIndex();
+  const frags = [];
+  let used = 0, order = 0;
+  for (const u of lines) {
+    const mask = new Uint8Array(u.length);
+    const found = [];
+    for (;;) {
+      const r = longestRun(u, mask);
+      // جزء قصير جوه سطر أغلبه مش قرآن: غالبًا دعاء عادي فيه كلمات تشبه آية
+      if (!r || (r.len < 5 && r.len < u.length * 0.6)) break;
+      for (let k = r.u1 - 1; k < r.u2; k++) mask[k] = 1;
+      const A = wordIndex.find(x => x.s === r.s && x.a === r.a).w;
+      if (r.w1 > 1 && RABBANA.has(A[r.w1 - 2])) {
+        r.w1--;
+        if (r.u1 > 1 && u[r.u1 - 2] === A[r.w1 - 1]) { mask[r.u1 - 2] = 1; r.u1--; }
+      }
+      found.push(r);
+    }
+    for (const r of found.sort((x, y) => x.u1 - y.u1)) frags.push({ s: r.s, a: r.a, w1: r.w1, w2: r.w2, whole: r.w1 === 1 && r.w2 === r.n, order: order++ });
+    used += mask.reduce((a, v) => a + v, 0);
+  }
+  // سطور «ربنا» لوحدها اتحسبت مع الأجزاء
+  const rest = lines.reduce((a, l) => a + l.filter(w => !RABBANA.has(w)).length, 0) - frags.reduce((a, f) => a + (f.w2 - f.w1 + 1), 0) + 0;
+  return { frags, rest: Math.max(0, rest), used };
 }
 
 // علامات الوقف في المصحف: ۖ ۗ ۚ ۛ ۜ = وقف جائز أو لازم، ۙ = لا تقف

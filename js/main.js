@@ -1328,32 +1328,46 @@ function zikrBlockEl(b, i) {
     persist(); refreshPreview();
     if (b.custom) checkFragment();
   };
-  // النص الخاص لو طلع آية أو جزء من آية: نعرض «اقراها بصوت القارئ»
-  let fragTimer = null, frag = null;
+  // النص الخاص لو فيه آيات أو أجزاء من آيات (حتى كذا واحدة، زي صور «ربنا…»): نعرض «اقراها بصوت القارئ»
+  let fragTimer = null, frags = [], fragRest = 0;
   function checkFragment() {
     clearTimeout(fragTimer);
     fragTimer = setTimeout(() => {
-      frag = b.custom ? Q.findFragment(b.text) : null;
-      el('fragRow').hidden = !frag;
-      if (!frag) return;
-      const sName = Q.surah(frag.s).ar, ws = WT.words(Q.ayahText(frag.s, frag.a));
-      el('fragText').textContent = frag.whole ? `📖 فيه آية كاملة: سورة ${sName} • الآية ${Q.arabicNum(frag.a)}`
-        : `📖 ده جزء من سورة ${sName} • الآية ${Q.arabicNum(frag.a)} (من «${ws[frag.w1 - 1]}» لـ «${ws[frag.w2 - 1]}»)`;
-      if (!frag.all) el('fragText').textContent += ' — الجزء ده بس من النص اللي كتبته هو اللي من الآية';
+      const r = b.custom ? Q.findFragments(b.text) : { frags: [], rest: 0 };
+      frags = r.frags;
+      fragRest = r.rest;
+      el('fragRow').hidden = !frags.length;
+      if (!frags.length) return;
+      const ref = x => `${Q.surah(x.s).ar} ${Q.arabicNum(x.a)}`;
+      if (frags.length === 1) {
+        const x = frags[0], ws = WT.words(Q.ayahText(x.s, x.a));
+        el('fragText').textContent = x.whole ? `📖 فيه آية كاملة: سورة ${Q.surah(x.s).ar} • الآية ${Q.arabicNum(x.a)}`
+          : `📖 فيه جزء من سورة ${Q.surah(x.s).ar} • الآية ${Q.arabicNum(x.a)} (من «${ws[x.w1 - 1]}» لـ «${ws[x.w2 - 1]}»)`;
+      } else {
+        el('fragText').textContent = `📖 لقيت ${Q.arabicNum(frags.length)} مقاطع من القرآن: ${frags.map(ref).join('، ')}`;
+      }
+      if (fragRest > 2) el('fragText').textContent += ' — وفيه كلام تاني مش من القرآن هيفضل في الكارت ده';
+      act('fragUse').textContent = frags.length > 1 ? `📖 اقراهم بصوت القارئ (${Q.arabicNum(frags.length)} كروت)` : '📖 اقراها بصوت القارئ';
     }, 350);
   }
   act('fragUse').onclick = () => {
-    if (!frag) return;
+    if (!frags.length) return;
     const i = state.blocks.indexOf(b);
     if (i < 0) return;
-    const q = newQuranBlock(frag.s, frag.a, frag.a);
-    if (!frag.whole) q.part = { w1: frag.w1, w2: frag.w2 };
-    state.blocks[i] = q;
-    hadithAudio.delete(b.id);
+    const qs = frags.map(x => {
+      const q = newQuranBlock(x.s, x.a, x.a);
+      if (!x.whole) q.part = { w1: x.w1, w2: x.w2 };
+      return q;
+    });
+    // لو فيه كلام تاني مش قرآن (عنوان، دعاء عادي) بنسيب الكارت ده بعد الآيات عشان تراجعه
+    const keep = fragRest > 2;
+    state.blocks.splice(i, keep ? 0 : 1, ...qs);
+    if (!keep) hadithAudio.delete(b.id);
     renderBlocks();
     refreshPublish(true);
     const r = findReciter(state.style.reciter);
-    status(`✅ اتحوّل لآيات بنص المصحف بصوت ${r.name}.${!frag.whole && !exactWords(r) ? ' ⚠️ القارئ ده مالوش توقيت كلمات — اختار قارئ عليه ⏱️ عشان الجزء يتقص صح.' : ''}`);
+    const parts = frags.some(x => !x.whole);
+    status(`✅ اتعمل ${Q.arabicNum(qs.length)} ${qs.length > 1 ? 'كروت آيات' : 'كارت آيات'} بنص المصحف بصوت ${r.name}.${keep ? ' الكارت الخاص فضل تحتهم فيه الكلام التاني — راجعه أو امسحه.' : ''}${parts && !exactWords(r) ? ' ⚠️ القارئ ده مالوش توقيت كلمات — اختار قارئ عليه ⏱️ عشان الأجزاء تتقص صح.' : ''}`);
   };
   if (b.custom) checkFragment();
   f('showCount').onchange = () => { b.showCount = f('showCount').checked; persist(); refreshPreview(); };

@@ -99,18 +99,34 @@ const RULES = `أنت كاتب محتوى قصير لحساب تلاوات قر�
 - رجّع JSON بس، من غير أي كلام قبله أو بعده.`;
 
 // ===== الاتصال بكل مزوّد =====
-async function callGemini({ key, model }, system, user) {
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: system }] },
-      contents: [{ role: 'user', parts: [{ text: user }] }],
-      generationConfig: { responseMimeType: 'application/json' },
-    }),
+// جوجل ساعات بيرجّع 503 (زحمة) أو 500 لثواني: نعيد لوحدنا مرتين قبل ما نقول للمستخدم
+export async function retryFetch(url, init, waits = [1500, 4000]) {
+  let r = await fetch(url, init);
+  for (const w of waits) {
+    if (r.status !== 503 && r.status !== 500) break;
+    await new Promise(res => setTimeout(res, w));
+    r = await fetch(url, init);
+  }
+  return r;
+}
+const LITE = 'gemini-flash-lite-latest'; // بديل أخف لو الموديل عليه زحمة
+
+async function geminiGenerate(c, body) {
+  const go = model => retryFetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(c.key)}`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
   });
+  let model = c.model, r = await go(model);
+  if ((r.status === 503 || r.status === 429) && model !== LITE) { model = LITE; r = await go(model); }
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(geminiError(r.status, j.error?.message || r.statusText, model));
+  return j;
+}
+async function callGemini(c, system, user) {
+  const j = await geminiGenerate(c, {
+    systemInstruction: { parts: [{ text: system }] },
+    contents: [{ role: 'user', parts: [{ text: user }] }],
+    generationConfig: { responseMimeType: 'application/json' },
+  });
   const text = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
   if (!text) throw new Error('Gemini رجّع رد فاضي' + (j.candidates?.[0]?.finishReason ? ` (${j.candidates[0].finishReason})` : ''));
   return text;
@@ -182,6 +198,7 @@ function geminiError(code, msg, model) {
     return wait && Number(wait) < 120 ? `⏳ حد الدقيقة خلص. استنى ${Math.ceil(Number(wait))} ثانية وجرّب تاني.`
       : `⏳ الحد المجاني بتاع النهارده خلص للموديل ${model} — مش مشكلة دفع. جرّب موديل 🆓 تاني من القايمة، أو استنى لبكرة الساعة 10 الصبح تقريبًا بتوقيت مصر.`;
   }
+  if (code === 503 || code === 500) return `⏳ جوجل عليه زحمة دلوقتي (${model}) — حاولت كذا مرة. جرّب كمان دقيقة. (مش مشكلة في مفتاحك ومش هيتخصم منك حاجة)`;
   if (code === 402 || /prepay/i.test(m)) {
     return `مشروع جوجل اللي طالع منه المفتاح ده مربوط بحساب دفع (Prepay)، فجوجل شالته من المجاني — حتى Flash بيتحاسب عليه. الحل: اعمل مفتاح في مشروع جديد من غير Billing (لازم تشوف «Free tier» جنبه في aistudio.google.com/apikey)، أو اختار المزوّد OpenRouter. (${code})`;
   }
@@ -294,17 +311,11 @@ async function shrink(blob, max = 1600) {
 
 async function askImage(c, b64) {
   if (c.provider === 'gemini') {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.model)}:generateContent?key=${encodeURIComponent(c.key)}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: OCR_RULES }] },
-        contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'image/jpeg', data: b64 } }, { text: OCR_TASK }] }],
-        generationConfig: { responseMimeType: 'application/json' },
-      }),
+    const j = await geminiGenerate(c, {
+      systemInstruction: { parts: [{ text: OCR_RULES }] },
+      contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'image/jpeg', data: b64 } }, { text: OCR_TASK }] }],
+      generationConfig: { responseMimeType: 'application/json' },
     });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(geminiError(r.status, j.error?.message || r.statusText, c.model));
     return (j.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
   }
   if (c.provider === 'anthropic') {
