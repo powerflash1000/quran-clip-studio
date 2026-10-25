@@ -508,7 +508,7 @@ async function doExport(kind) {
         return;
       }
       let stage = '';
-      const blob = await exportVideo(project, p => status(stage, p), onLoad, s => { stage = s; status(s, 0); });
+      const blob = await withProject(await exportVideo(project, p => status(stage, p), onLoad, s => { stage = s; status(s, 0); }));
       download(blob, `${baseName()}.mp4`);
       setLastExport(blob, `${baseName()}.mp4`, 'video/mp4');
       logExperiment(`${baseName()}.mp4`, d);
@@ -2823,7 +2823,7 @@ async function exportAllParts() {
       loadPart(i);
       const project = await buildProject();
       let stage = '';
-      const blob = await exportVideo(project, p => status(`الجزء ${i + 1} من ${n}: ${stage}`, p), onLoad, s => { stage = s; status(`الجزء ${i + 1} من ${n}: ${s}`, 0); });
+      const blob = await withProject(await exportVideo(project, p => status(`الجزء ${i + 1} من ${n}: ${stage}`, p), onLoad, s => { stage = s; status(`الجزء ${i + 1} من ${n}: ${s}`, 0); }));
       download(blob, `${baseName()}.mp4`);
       setLastExport(blob, `${baseName()}.mp4`, 'video/mp4');
       done.add(i);
@@ -2983,8 +2983,8 @@ async function blobToDataUrl(blob) {
   return new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(blob); });
 }
 
-function setupProject() {
-  $('#proj-save').onclick = async () => {
+// المشروع كله (المقاطع والشكل والأصوات) كـ object — للحفظ في ملف أو جوه الفيديو
+async function projectData() {
     const audios = {};
     const blocks = structuredClone(state.blocks);
     for (const [id, au] of hadithAudio) {
@@ -2999,18 +2999,49 @@ function setupProject() {
       }
       audios[id] = { name: au.name, kind: au.kind || '', data: await blobToDataUrl(bufferToWavBlob(buf)) };
     }
-    const proj = { app: 'quran-clip-studio', version: 1, savedAt: new Date().toISOString(), blocks, style: state.style, series: state.series, audios };
-    const first = state.blocks[0];
-    const name = first?.type === 'quran' ? `${Q.surah(first.surah).tr}_${first.from}-${first.to}` : baseName();
-    download(new Blob([JSON.stringify(proj)], { type: 'application/json' }), `مشروع_${name}.json`);
-    status('✅ المشروع اتحفظ. افتحه بعدين من «📂 فتح». (الخلفية وصوت الخلفية مش بيتحفظوا — اختارهم تاني)');
-  };
-  $('#proj-open').onchange = async () => {
-    const file = $('#proj-open').files[0];
-    $('#proj-open').value = '';
-    if (!file) return;
-    try {
-      const proj = JSON.parse(await file.text());
+    return { app: 'quran-clip-studio', version: 1, savedAt: new Date().toISOString(), blocks, style: state.style, series: state.series, audios };
+}
+
+// ===== المشروع جوه ملف الـ MP4 =====
+// بنحط المشروع في «free box» في آخر الملف: البرامج والمنصات بتتجاهله، والفيديو بيشتغل عادي.
+// ولما ترفع الفيديو تاني من «📂 فتح» البرنامج بيرجّع المشروع منه.
+const PROJ_MAGIC = 'QCSPROJ1';
+async function withProject(blob) {
+  try {
+    const head = new Uint8Array(await blob.slice(0, 12).arrayBuffer());
+    if (String.fromCharCode(...head.slice(4, 8)) !== 'ftyp') return blob; // مش MP4
+    const json = new TextEncoder().encode(PROJ_MAGIC + JSON.stringify(await projectData()));
+    const box = new Uint8Array(8 + json.length);
+    new DataView(box.buffer).setUint32(0, box.length);
+    box.set([0x66, 0x72, 0x65, 0x65], 4); // 'free'
+    box.set(json, 8);
+    return new Blob([blob, box], { type: blob.type || 'video/mp4' });
+  } catch (e) {
+    console.warn('تعذر حفظ المشروع جوه الفيديو', e);
+    return blob;
+  }
+}
+
+// بيمشي على صناديق الـ MP4 من غير ما يقرا الملف كله، ويدوّر على صندوق المشروع
+async function projectFromVideo(file) {
+  let off = 0;
+  for (let guard = 0; off + 8 <= file.size && guard < 10000; guard++) {
+    const h = new DataView(await file.slice(off, off + 16).arrayBuffer());
+    let size = h.getUint32(0);
+    const type = String.fromCharCode(h.getUint8(4), h.getUint8(5), h.getUint8(6), h.getUint8(7));
+    if (size === 1) size = Number(h.getBigUint64(8));
+    else if (size === 0) size = file.size - off;
+    if (size < 8) return null;
+    if (type === 'free' && size > 8 + PROJ_MAGIC.length) {
+      const magic = await file.slice(off + 8, off + 8 + PROJ_MAGIC.length).text();
+      if (magic === PROJ_MAGIC) return JSON.parse(await file.slice(off + 8 + PROJ_MAGIC.length, off + size).text());
+    }
+    off += size;
+  }
+  return null;
+}
+
+async function openProject(proj) {
       if (proj.app !== 'quran-clip-studio' || !Array.isArray(proj.blocks)) throw new Error('ده مش ملف مشروع من البرنامج');
       stop();
       state.blocks = proj.blocks;
@@ -3026,6 +3057,38 @@ function setupProject() {
       refreshPublish(true);
       persist();
       showTab('content');
+}
+
+function setupProject() {
+  $('#proj-save').onclick = async () => {
+    const proj = await projectData();
+    const first = state.blocks[0];
+    const name = first?.type === 'quran' ? `${Q.surah(first.surah).tr}_${first.from}-${first.to}` : baseName();
+    download(new Blob([JSON.stringify(proj)], { type: 'application/json' }), `مشروع_${name}.json`);
+    status('✅ المشروع اتحفظ. افتحه بعدين من «📂 فتح». (الخلفية وصوت الخلفية مش بيتحفظوا — اختارهم تاني)');
+  };
+  $('#proj-open').onchange = async () => {
+    const file = $('#proj-open').files[0];
+    $('#proj-open').value = '';
+    if (!file) return;
+    try {
+      // فيديو متصدّر من البرنامج: المشروع جواه
+      if (/^video\//.test(file.type) || /\.(mp4|m4v|mov)$/i.test(file.name)) {
+        const proj = await projectFromVideo(file).catch(() => null);
+        if (!proj) {
+          if (confirm(`الفيديو «${file.name}» مفيهوش بيانات مشروع (اتصدّر قبل التحديث ده، أو من برنامج تاني، أو اتنزّل من المنصة بعد ما اتعدّل).\n\nتحب تستخدمه كخلفية بدل كده؟`)) {
+            await setMedia(file, true);
+            showTab('look');
+            status(`✅ «${file.name}» اتضاف للخلفيات.`);
+          }
+          return;
+        }
+        await openProject(proj);
+        status(`✅ رجّعت المشروع من الفيديو «${file.name}» (${proj.blocks.length} مقطع) — عدّل وصدّر تاني.`);
+        return;
+      }
+      const proj = JSON.parse(await file.text());
+      await openProject(proj);
       status(`✅ اتفتح المشروع (${proj.blocks.length} مقطع)`);
     } catch (e) {
       showError(new Error('تعذر فتح المشروع: ' + e.message));
@@ -3135,7 +3198,7 @@ async function runQueue() {
         if (wantMp4) {
           if (d > MAX_VIDEO_SECONDS) throw new Error(`مدته ${fmtDur(d)}، أطول من ٣ دقايق — صدّره MP3 أو حزمة Filmora`);
           let stage = '';
-          const blob = await exportVideo(project, p => status(`${tag}: ${stage}`, p), onLoad, s => { stage = s; status(`${tag}: ${s}`, 0); });
+          const blob = await withProject(await exportVideo(project, p => status(`${tag}: ${stage}`, p), onLoad, s => { stage = s; status(`${tag}: ${s}`, 0); }));
           download(blob, `${name}.mp4`);
           setLastExport(blob, `${name}.mp4`, 'video/mp4');
           logExperiment(`${name}.mp4`, d);
@@ -4119,4 +4182,4 @@ async function init() {
 init().catch(showError);
 
 // للاختبار من الكونسول
-window.__qcs = { state, buildProject, buildSegments, live };
+window.__qcs = { state, buildProject, buildSegments, live, withProject, projectFromVideo };

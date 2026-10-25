@@ -6,7 +6,7 @@
   <title>استوديو مقاطع القرآن</title>
   <meta name="description" content="اختار الآيات والقارئ، وصدّر صوت MP3 أو M4A أو WAV أو فيديو جاهز للنشر — من المتصفح مباشرة وببلاش.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261025g">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261025h">
 </head>
 <body>
   <header class="topbar">
@@ -23,7 +23,7 @@
       <button class="btn ghost" id="btn-stats" type="button" title="إيه اللي بيجيب مشاهدات معاك">📊<span class="lbl"> الأرقام</span></button>
       <button class="btn ghost" id="btn-ref" type="button" title="شغّل فيديو من تيك توك أو إنستا أو فيسبوك جنب المحرر واعمل زيه">🎞️<span class="lbl"> فيديو مرجعي</span></button>
       <button class="btn ghost" id="proj-save" type="button" title="احفظ المشروع كله في ملف">💾<span class="lbl"> حفظ</span></button>
-      <label class="btn ghost file-btn" title="افتح مشروع محفوظ">📂<span class="lbl"> فتح</span><input type="file" id="proj-open" accept=".json,application/json" hidden></label>
+      <label class="btn ghost file-btn" title="افتح مشروع محفوظ (ملف .json) أو فيديو MP4 اتصدّر من البرنامج">📂<span class="lbl"> فتح</span><input type="file" id="proj-open" accept=".json,application/json,video/mp4,.mp4,.m4v,.mov" hidden></label>
       <button class="btn ghost" id="btn-settings" type="button" title="الإعدادات">⚙️<span class="lbl"> الإعدادات</span></button>
     </div>
   </header>
@@ -169,7 +169,7 @@
           <p class="hint">من Pixabay أو يوتيوب: نزّل الملف، وبعدين اختاره من «🎧 اختار ملف». في يوتيوب اختار <b>Sound effects</b> بس.</p>
           <div class="row">
             <label class="btn file-btn">🎧 اختار ملف
-              <input type="file" id="ambient-file" accept="audio/*" hidden>
+              <input type="file" id="ambient-file" accept="audio/*,video/*" hidden>
             </label>
             <span class="muted" id="ambient-name">مفيش</span>
           </div>
@@ -434,7 +434,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261025g</div>
+    <div class="muted" id="app-version">الإصدار 20261025h</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -610,7 +610,7 @@
         <summary>🎙️ تلاوة من ملف (لقارئ مش في القايمة، زي الشيخ سيد سعيد)</summary>
         <p class="hint">نزّل السورة من mp3quran.net أو أي موقع، وارفعها هنا. شغّلها، ولما توصل لأول الآيات اضغط «البداية = دلوقتي»، وفي آخرها «النهاية = دلوقتي». ولو عايز الآيات تتغير على الشاشة في وقتها بالظبط، اضغط «🪄 حدّد الآيات أوتوماتيك» واسمع النتيجة في المعاينة — أو شغّل من البداية واضغط «⏱ الآية اللي بعدها» مع بداية كل آية.</p>
         <div class="btn-row">
-          <label class="btn file-btn">📁 ارفع التلاوة<input type="file" accept="audio/*" data-f="recFile" hidden></label>
+          <label class="btn file-btn">📁 ارفع التلاوة<input type="file" accept="audio/*,video/*" data-f="recFile" hidden></label>
           <input type="text" data-f="recName" class="grow" placeholder="اسم القارئ (مثلًا: سيد سعيد)">
           <button class="btn ghost" data-act="recClear" type="button" title="ارجع لقارئ البرنامج">✕ شيل الملف</button>
         </div>
@@ -677,7 +677,7 @@
         <label class="check"><input type="radio" value="gtts" data-f="audioMode"> 🆓 صوت Gemini (مجاني)</label>
         <div class="btn-row">
           <button class="btn primary" data-act="record" type="button">🎙️ سجّل بصوتك (شاشة قراءة)</button>
-          <label class="btn file-btn">📁 ملف صوت<input type="file" accept="audio/*" data-f="audioFile" hidden></label>
+          <label class="btn file-btn">📁 ملف صوت<input type="file" accept="audio/*,video/*" data-f="audioFile" hidden></label>
           <button class="btn" data-act="audioLib" type="button" title="الأصوات اللي اتولّدت أو اتسجّلت قبل كده">📚 من المكتبة</button>
           <button class="btn" data-act="ai" type="button">🤖 ولّد بصوتي</button>
           <select data-f="elVoice" class="el-voice" title="أنهي صوت من ElevenLabs"></select>
@@ -987,7 +987,7 @@
         <label class="check"><input type="radio" value="gtts" data-f="audioMode"> 🆓 صوت Gemini (مجاني)</label>
         <div class="btn-row">
           <button class="btn primary" data-act="record" type="button">🎙️ سجّل بصوتك (شاشة قراءة)</button>
-          <label class="btn file-btn">📁 ملف صوت<input type="file" accept="audio/*" data-f="audioFile" hidden></label>
+          <label class="btn file-btn">📁 ملف صوت<input type="file" accept="audio/*,video/*" data-f="audioFile" hidden></label>
           <button class="btn" data-act="audioLib" type="button" title="الأصوات اللي اتولّدت أو اتسجّلت قبل كده">📚 من المكتبة</button>
           <button class="btn" data-act="ai" type="button">🤖 ولّد بصوتي</button>
           <select data-f="elVoice" class="el-voice" title="أنهي صوت من ElevenLabs"></select>
@@ -1012,6 +1012,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261025g"></script>
+  <script type="module" src="js/main.js?v=20261025h"></script>
 </body>
 </html>
