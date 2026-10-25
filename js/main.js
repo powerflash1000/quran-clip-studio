@@ -10,6 +10,7 @@ import * as T from './templates.js';
 import { getSettings, setSettings, load, save } from './storage.js';
 import * as EL from './elevenlabs.js';
 import * as GT from './geminitts.js';
+import * as AL from './audiolib.js';
 import * as LLM from './llm.js';
 import * as SND from './sounds.js';
 import * as WT from './words.js';
@@ -1040,10 +1041,11 @@ function wireAudioControls(li, b, sync) {
   act('record').onclick = async () => {
     const res = await openPrompter(b.text || '');
     if (!res) return;
-    setHadithAudio(b, res.buffer, 'تسجيل', res.blob);
+    setHadithAudio(b, res.buffer, 'تسجيل', res.blob, 'record');
     b.audioMode = 'record';
     li.querySelectorAll('[data-f=audioMode]').forEach(r => { r.checked = r.value === 'record'; });
     sync(); persist();
+    libSave(b, 'record', res.blob, res.buffer, 'تسجيل');
   };
   // اختيار الصوت من أصواتك في ElevenLabs (لكل مقطع لوحده)
   fillVoiceSelect(f('elVoice'), b.elVoice || '');
@@ -1068,7 +1070,27 @@ function wireAudioControls(li, b, sync) {
   };
   if (EL.hasKey() && !elVoices.length) refreshVoices(null, true);
   // قراءة بصوتك عن طريق ElevenLabs
-  act('ai').onclick = async () => {
+  const useAudio = (kind, buffer, name, blob, id, msg) => {
+    setHadithAudio(b, buffer, name, blob, kind);
+    b.audioMode = kind;
+    b.audioId = id;
+    li.querySelectorAll('[data-f=audioMode]').forEach(r => { r.checked = r.value === b.audioMode; });
+    sync(); persist(); refreshPublish(true);
+    el('audio-preview').hidden = false;
+    el('audio-preview').play().catch(() => {});
+    if (msg) status(msg);
+  };
+  // صوت اتولّد قبل كده لنفس النص بنفس الصوت: نستخدمه بدل ما نولّد تاني (من غير رصيد)
+  const reuse = async (kind, text, voice) => {
+    const c = await AL.findSame(kind, text, voice);
+    const full = c && await AL.getClip(c.id);
+    if (!full) return false;
+    const buffer = await decode(await full.blob.arrayBuffer());
+    useAudio(kind, trimSilence(buffer), kind === 'gtts' ? 'Gemini' : 'ElevenLabs', full.blob, full.id, '♻️ الصوت ده اتولّد قبل كده لنفس النص — استخدمته من المكتبة (من غير ما يتخصم حاجة). عايز نسخة جديدة؟ اضغط «🔁 ولّد تاني».');
+    return true;
+  };
+  act('ai').onclick = async e => {
+    const force = e?.detail === 'force';
     const voiceId = f('elVoice').value || getSettings().elevenVoiceId;
     if (!EL.hasKey() || !voiceId) {
       alert(EL.hasKey() ? 'اختار صوت من القايمة (أو اضغط ↻ عشان أجيب أصواتك).' : 'حط مفتاح ElevenLabs الأول من ⚙️ الإعدادات ← ElevenLabs.');
@@ -1076,19 +1098,15 @@ function wireAudioControls(li, b, sync) {
     }
     const text = EL.prepareText(b.text || '');
     if (text.length < 3) { alert('اكتب النص الأول.'); return; }
+    if (!force && await reuse('ai', text, voiceId)) return;
     if (!confirm(`هيتبعت ${text.length} حرف لـ ElevenLabs، وده هيتخصم من رصيدك هناك (تقريبًا حرف = كريديت).\n\nبعد التوليد لازم تسمع الصوت كله وتتأكد من النطق والتشكيل.\nتكمل؟`)) return;
     const btn = act('ai');
     btn.disabled = true; btn.textContent = '⏳ بيولّد…';
     try {
       const blob = await EL.speak(text, voiceId);
       const buffer = await decode(await blob.arrayBuffer());
-      setHadithAudio(b, trimSilence(buffer), 'ElevenLabs', blob, 'ai');
-      b.audioMode = 'ai';
-      li.querySelectorAll('[data-f=audioMode]').forEach(r => { r.checked = r.value === 'ai'; });
-      sync(); persist(); refreshPublish(true);
-      el('audio-preview').hidden = false;
-      el('audio-preview').play().catch(() => {});
-      status('✅ الصوت اتولّد. اسمعه كله وراجع النطق والتشكيل قبل التصدير. ولو فيه غلط، عدّل النص وولّد تاني.');
+      const id = await AL.addClip({ name: `ElevenLabs — ${elVoices.find(v => v.id === voiceId)?.name || 'صوتي'}`, kind: 'ai', text, voice: voiceId, dur: buffer.duration, blob });
+      useAudio('ai', trimSilence(buffer), 'ElevenLabs', blob, id, '✅ الصوت اتولّد واتحفظ في 📚 المكتبة. اسمعه كله وراجع النطق والتشكيل قبل التصدير. ولو فيه غلط، عدّل النص وولّد تاني.');
     } catch (e) {
       showError(e);
     } finally {
@@ -1099,22 +1117,20 @@ function wireAudioControls(li, b, sync) {
   f('gVoice').innerHTML = `<option value="">الافتراضي (من الإعدادات)</option>` + GT.VOICES.map(v => `<option value="${v.id}">${v.id} — ${v.desc}</option>`).join('');
   f('gVoice').value = b.gVoice || '';
   f('gVoice').onchange = () => { b.gVoice = f('gVoice').value; persist(); };
-  act('gtts').onclick = async () => {
-    if (!GT.hasKey()) { alert('حط مفتاح Gemini الأول من ⚙️ الإعدادات ← 🔊 صوت Gemini.'); return; }
+  act('gtts').onclick = async e => {
+    const force = e?.detail === 'force';
     const text = EL.prepareText(b.text || '');
     if (text.length < 3) { alert('اكتب النص الأول.'); return; }
+    const voice = b.gVoice || getSettings().gttsVoice || 'Charon';
+    if (!force && await reuse('gtts', text, voice)) return;
+    if (!GT.hasKey()) { alert('حط مفتاح Gemini الأول من ⚙️ الإعدادات ← 🔊 صوت Gemini.'); return; }
     const btn = act('gtts');
     btn.disabled = true; btn.textContent = '⏳ بيولّد…';
     try {
       const blob = await GT.speak(text, b.gVoice);
       const buffer = await decode(await blob.arrayBuffer());
-      setHadithAudio(b, trimSilence(buffer), 'Gemini', blob, 'gtts');
-      b.audioMode = 'gtts';
-      li.querySelectorAll('[data-f=audioMode]').forEach(r => { r.checked = r.value === 'gtts'; });
-      sync(); persist(); refreshPublish(true);
-      el('audio-preview').hidden = false;
-      el('audio-preview').play().catch(() => {});
-      status('✅ الصوت اتولّد. اسمعه كله وراجع النطق والتشكيل قبل التصدير. ولو فيه غلط، عدّل النص أو جرّب صوت تاني.');
+      const id = await AL.addClip({ name: `Gemini — ${voice}`, kind: 'gtts', text, voice, dur: buffer.duration, blob });
+      useAudio('gtts', trimSilence(buffer), 'Gemini', blob, id, '✅ الصوت اتولّد واتحفظ في 📚 المكتبة. اسمعه كله وراجع النطق والتشكيل قبل التصدير. ولو فيه غلط، عدّل النص أو جرّب صوت تاني.');
     } catch (e) {
       showError(e);
     } finally {
@@ -1124,14 +1140,16 @@ function wireAudioControls(li, b, sync) {
   // أدوات الصوت الجاهز: ولّد تاني (بنفس المزوّد) أو احذف
   act('regen').onclick = () => {
     const kind = hadithAudio.get(b.id)?.kind;
-    if (kind === 'gtts') act('gtts').click();
-    else if (kind === 'ai') act('ai').click();
+    // detail = 'force': ولّد نسخة جديدة فعلًا (مش من المكتبة)
+    if (kind === 'gtts') act('gtts').onclick({ detail: 'force' });
+    else if (kind === 'ai') act('ai').onclick({ detail: 'force' });
   };
   act('audioDel').onclick = () => {
     if (!confirm('تحذف الصوت ده؟')) return;
     const au = hadithAudio.get(b.id);
     if (au?.url) URL.revokeObjectURL(au.url);
     hadithAudio.delete(b.id);
+    delete b.audioId; // الصوت بيفضل في 📚 المكتبة لو احتجته تاني
     el('audio-preview').pause();
     el('audio-preview').removeAttribute('src');
     b.audioMode = 'none';
@@ -1139,15 +1157,17 @@ function wireAudioControls(li, b, sync) {
     sync(); persist(); refreshPublish(true); refreshPreview();
     status('🗑️ الصوت اتحذف — المقطع هيظهر بالمدة المكتوبة.');
   };
+  act('audioLib').onclick = () => openAudioLib(b, useAudio);
   f('audioFile').onchange = async () => {
     const file = f('audioFile').files[0];
     if (!file) return;
     try {
       const buffer = await decode(await file.arrayBuffer());
-      setHadithAudio(b, buffer, file.name, file);
+      setHadithAudio(b, buffer, file.name, file, 'upload');
       b.audioMode = 'upload';
       li.querySelectorAll('[data-f=audioMode]').forEach(r => { r.checked = r.value === 'upload'; });
       sync(); persist();
+      libSave(b, 'upload', file, buffer, file.name);
     } catch (e) {
       showError(new Error('الملف ده مش ملف صوت مدعوم'));
     }
@@ -1155,7 +1175,86 @@ function wireAudioControls(li, b, sync) {
 
 }
 
-// kind: 'ai' (ElevenLabs) أو 'gtts' (Gemini) — عشان زرار «ولّد تاني» يعرف يولّد بإيه
+// بيحفظ صوت المقطع في 📚 المكتبة، والمقطع بيفتكر رقمه (عشان يرجع بعد Refresh)
+async function libSave(b, kind, blob, buffer, name) {
+  b.audioId = await AL.addClip({ name, kind, text: b.text || '', voice: '', dur: buffer.duration, blob });
+  persist();
+}
+
+// الأصوات اللي اتحفظت للمقاطع بترجع لوحدها بعد ما الصفحة تتفتح تاني
+async function restoreBlockAudio() {
+  let n = 0;
+  for (const b of state.blocks) {
+    if (!b.audioId || hadithAudio.has(b.id)) continue;
+    const c = await AL.getClip(b.audioId);
+    if (!c) continue;
+    try {
+      const buf = await decode(await c.blob.arrayBuffer());
+      setHadithAudio(b, c.kind === 'ai' || c.kind === 'gtts' ? trimSilence(buf) : buf, c.kind === 'gtts' ? 'Gemini' : c.kind === 'ai' ? 'ElevenLabs' : c.name, c.blob, c.kind);
+      n++;
+    } catch { /* ملف بايظ */ }
+  }
+  if (n) { renderBlocks(); refreshPreview(); }
+}
+
+// 📚 مكتبة الأصوات: اختار صوت اتعمل قبل كده للمقطع ده
+const KIND_ICON = { gtts: '🆓 Gemini', ai: '🤖 ElevenLabs', record: '🎙️ تسجيل', upload: '📁 ملف' };
+let libPlayer = null;
+async function openAudioLib(b, useAudio) {
+  const dlg = $('#dlg-audiolib');
+  const all = await AL.listClips();
+  const key = AL.textKey(b.text);
+  const draw = () => {
+    const q = AL.textKey($('#al-search').value);
+    const ol = $('#al-list');
+    ol.innerHTML = '';
+    const items = all.filter(c => !q || c.key.includes(q) || (c.name || '').includes(q))
+      .sort((x, y) => (y.key === key) - (x.key === key) || y.date - x.date);
+    $('#al-empty').hidden = items.length > 0;
+    $('#al-count').textContent = `${Q.arabicNum(all.length)} صوت — ${(all.reduce((a, c) => a + (c.size || 0), 0) / 1048576).toFixed(1)} MB`;
+    for (const c of items) {
+      const li = document.createElement('li');
+      li.className = 'part';
+      li.innerHTML = `<button class="btn icon" type="button" data-a="play" title="اسمع">▶</button>
+        <span class="pname"></span><span class="pinfo"></span>
+        <button class="btn" type="button" data-a="use">استخدمه</button>
+        <button class="btn icon" type="button" data-a="del" title="امسحه من المكتبة">🗑</button>`;
+      li.querySelector('.pname').textContent = `${c.key === key ? '✅ ' : ''}${KIND_ICON[c.kind] || ''}${c.voice && c.kind === 'gtts' ? ` (${c.voice})` : ''}`;
+      li.querySelector('.pinfo').textContent = `${(c.text || c.name || '').slice(0, 70)}${(c.text || '').length > 70 ? '…' : ''} • ${fmtDur(c.dur || 0)} • ${((c.size || 0) / 1024).toFixed(0)} KB • ${new Date(c.date).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}`;
+      li.querySelector('[data-a=play]').onclick = async () => {
+        if (libPlayer) { libPlayer.pause(); URL.revokeObjectURL(libPlayer.src); libPlayer = null; }
+        const full = await AL.getClip(c.id);
+        if (!full) return;
+        libPlayer = new Audio(URL.createObjectURL(full.blob));
+        libPlayer.play().catch(() => {});
+      };
+      li.querySelector('[data-a=use]').onclick = async () => {
+        const full = await AL.getClip(c.id);
+        if (!full) return;
+        const buf = await decode(await full.blob.arrayBuffer());
+        const ai = c.kind === 'ai' || c.kind === 'gtts';
+        useAudio(c.kind, ai ? trimSilence(buf) : buf, c.kind === 'gtts' ? 'Gemini' : c.kind === 'ai' ? 'ElevenLabs' : c.name, full.blob, c.id,
+          `✅ اتحط الصوت من المكتبة${c.key !== key ? ' — ⚠️ النص بتاعه مختلف عن نص المقطع، اتأكد إنه مطابق' : ''}.`);
+        dlg.close();
+      };
+      li.querySelector('[data-a=del]').onclick = async () => {
+        if (!confirm('تمسح الصوت ده من المكتبة نهائيًا؟')) return;
+        await AL.deleteClip(c.id);
+        all.splice(all.indexOf(c), 1);
+        draw();
+      };
+      ol.appendChild(li);
+    }
+  };
+  $('#al-search').value = '';
+  $('#al-search').oninput = draw;
+  $('#al-close').onclick = () => dlg.close();
+  dlg.onclose = () => { if (libPlayer) { libPlayer.pause(); libPlayer = null; } };
+  draw();
+  dlg.showModal();
+}
+
+// kind: 'ai' (ElevenLabs) أو 'gtts' (Gemini) أو 'record' أو 'upload' — عشان «ولّد تاني» يعرف يولّد بإيه
 function setHadithAudio(b, buffer, name, blob, kind = '') {
   const old = hadithAudio.get(b.id);
   if (old?.url) URL.revokeObjectURL(old.url);
@@ -3987,6 +4086,7 @@ async function init() {
   setupTemplates();
   setupSettings();
   renderBlocks();
+  restoreBlockAudio();
 
   $('#add-quran').onclick = () => { state.blocks.push(newQuranBlock(1, 1, 1)); renderBlocks(); focusLastBlock(); };
   $('#add-hadith').onclick = () => { state.blocks.push(newHadithBlock()); renderBlocks(); focusLastBlock(); };

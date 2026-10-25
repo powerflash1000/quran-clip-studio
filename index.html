@@ -6,7 +6,7 @@
   <title>استوديو مقاطع القرآن</title>
   <meta name="description" content="اختار الآيات والقارئ، وصدّر صوت MP3 أو M4A أو WAV أو فيديو جاهز للنشر — من المتصفح مباشرة وببلاش.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261025f">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261025g">
 </head>
 <body>
   <header class="topbar">
@@ -434,7 +434,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261025f</div>
+    <div class="muted" id="app-version">الإصدار 20261025g</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -678,6 +678,7 @@
         <div class="btn-row">
           <button class="btn primary" data-act="record" type="button">🎙️ سجّل بصوتك (شاشة قراءة)</button>
           <label class="btn file-btn">📁 ملف صوت<input type="file" accept="audio/*" data-f="audioFile" hidden></label>
+          <button class="btn" data-act="audioLib" type="button" title="الأصوات اللي اتولّدت أو اتسجّلت قبل كده">📚 من المكتبة</button>
           <button class="btn" data-act="ai" type="button">🤖 ولّد بصوتي</button>
           <select data-f="elVoice" class="el-voice" title="أنهي صوت من ElevenLabs"></select>
           <button class="btn icon" data-act="elPreview" type="button" title="اسمع عينة من الصوت ده (ببلاش)">🔊</button>
@@ -774,6 +775,19 @@
         </table>
         <p class="hint">⚠️ صورة القارئ: ماتستخدمهاش (حقوقها للمصوّر). اسمه بيتكتب كنص بس. وحقوق الصوت: لو يوتيوب وقّف البث بسبب Claim، شيل القارئ ده من القايمة وجرّب غيره.</p>
       </details>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-audiolib">
+    <div class="dlg wide">
+      <div class="row">
+        <h2 class="grow">📚 مكتبة الأصوات <span class="muted" id="al-count"></span></h2>
+        <button class="btn icon" id="al-close" type="button">✕</button>
+      </div>
+      <p class="hint">كل صوت ولّدته (Gemini أو ElevenLabs) أو سجّلته أو رفعته بيتحفظ هنا في المتصفح ده. ✅ = نفس نص المقطع. وأي صوت اتولّد قبل كده لنفس النص بنفس الصوت بيتاخد من هنا لوحده من غير ما يتخصم رصيد.</p>
+      <input type="search" id="al-search" placeholder="دوّر بكلمة من النص…" style="width:100%">
+      <ol class="parts" id="al-list"></ol>
+      <p class="muted" id="al-empty" hidden>مفيش أصوات لسه.</p>
     </div>
   </dialog>
 
@@ -974,6 +988,7 @@
         <div class="btn-row">
           <button class="btn primary" data-act="record" type="button">🎙️ سجّل بصوتك (شاشة قراءة)</button>
           <label class="btn file-btn">📁 ملف صوت<input type="file" accept="audio/*" data-f="audioFile" hidden></label>
+          <button class="btn" data-act="audioLib" type="button" title="الأصوات اللي اتولّدت أو اتسجّلت قبل كده">📚 من المكتبة</button>
           <button class="btn" data-act="ai" type="button">🤖 ولّد بصوتي</button>
           <select data-f="elVoice" class="el-voice" title="أنهي صوت من ElevenLabs"></select>
           <button class="btn icon" data-act="elPreview" type="button" title="اسمع عينة من الصوت ده (ببلاش)">🔊</button>
@@ -997,6 +1012,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261025f"></script>
+  <script type="module" src="js/main.js?v=20261025g"></script>
 </body>
 </html>
