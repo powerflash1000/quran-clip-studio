@@ -1337,8 +1337,9 @@ function zikrBlockEl(b, i) {
       el('fragRow').hidden = !frag;
       if (!frag) return;
       const sName = Q.surah(frag.s).ar, ws = WT.words(Q.ayahText(frag.s, frag.a));
-      el('fragText').textContent = frag.whole ? `📖 ده آية كاملة: سورة ${sName} • الآية ${Q.arabicNum(frag.a)}`
-        : `📖 ده جزء من سورة ${sName} • الآية ${Q.arabicNum(frag.a)} (من «${ws[frag.w1 - 1]}» لـ «${ws[frag.w2 - 1]}»)${frag.miss ? ' — فيه كلمة مختلفة، اتأكد' : ''}`;
+      el('fragText').textContent = frag.whole ? `📖 فيه آية كاملة: سورة ${sName} • الآية ${Q.arabicNum(frag.a)}`
+        : `📖 ده جزء من سورة ${sName} • الآية ${Q.arabicNum(frag.a)} (من «${ws[frag.w1 - 1]}» لـ «${ws[frag.w2 - 1]}»)`;
+      if (!frag.all) el('fragText').textContent += ' — الجزء ده بس من النص اللي كتبته هو اللي من الآية';
     }, 350);
   }
   act('fragUse').onclick = () => {

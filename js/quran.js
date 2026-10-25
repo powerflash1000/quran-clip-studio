@@ -113,26 +113,36 @@ export function search(query, limit = 50) {
 // (الصلوة/الصلاة، الزكوة/الزكاة، الحيوة/الحياة: الواو قبل التاء المربوطة بتتشال من الناحيتين)
 const skel = w => strip(w).replace(/[اءٱ]/g, '').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/[^\u0621-\u064A]/g, '').replace(/وه$/, 'ه');
 let wordIndex = null;
+// بيدوّر على أطول جزء متصل (3 كلمات أو أكتر) من النص موجود في آية واحدة — حتى لو النص فيه كلام زيادة
+// (عنوان، «صدق الله العظيم»، مصدر…). بيرجّع { s, a, w1, w2, u1, u2, whole, all }:
+// w1..w2 أرقام الكلمات في الآية، u1..u2 مكانها في النص، all = النص كله هو الجزء ده
 export function findFragment(text) {
   const u = String(text || '').split(/\s+/).map(skel).filter(Boolean);
-  if (u.length < 3 || u.length > 80) return null;
+  if (u.length < 3 || u.length > 150) return null;
   if (!wordIndex) {
     wordIndex = [];
     data.verses.forEach((vs, si) => vs.forEach((v, ai) => wordIndex.push({ s: si + 1, a: ai + 1, w: v[0].split(/\s+/).map(skel) })));
   }
-  const allow = u.length >= 6 ? 1 : 0; // كلمة واحدة مختلفة مسموحة في النص الطويل (غلطة إملاء)
   let best = null;
+  const prev = new Uint16Array(u.length + 1), cur = new Uint16Array(u.length + 1);
   for (const it of wordIndex) {
     const A = it.w;
-    for (let i = 0; i + u.length <= A.length; i++) {
-      let miss = 0;
-      for (let k = 0; k < u.length && miss <= allow; k++) if (A[i + k] !== u[k]) miss++;
-      if (miss <= allow && (!best || miss < best.miss)) {
-        best = { s: it.s, a: it.a, w1: i + 1, w2: i + u.length, miss, whole: u.length === A.length };
-        if (!miss) return best;
+    prev.fill(0);
+    for (let i = 1; i <= A.length; i++) {
+      cur[0] = 0;
+      for (let j = 1; j <= u.length; j++) {
+        cur[j] = A[i - 1] === u[j - 1] ? prev[j - 1] + 1 : 0;
+        const len = cur[j];
+        if (len >= 3 && (!best || len > best.len)) best = { s: it.s, a: it.a, w1: i - len + 1, w2: i, u1: j - len + 1, u2: j, len, n: A.length };
       }
+      prev.set(cur);
     }
   }
+  if (!best) return null;
+  best.all = best.len === u.length;
+  // لو النص فيه كلام تاني كتير: لازم الجزء يبقى واضح (5 كلمات، أو أغلب النص) عشان مانقولش إن دعاء عادي آية
+  if (!best.all && best.len < 5 && best.len < u.length * 0.6) return null;
+  best.whole = best.w1 === 1 && best.w2 === best.n;
   return best;
 }
 
