@@ -82,6 +82,8 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
   const jobs = [];
 
   for (const [bi, b] of blocks.entries()) {
+    // كارت فاضي (نص خاص أو ذكر أو حديث من غير نص): الجملة الإرشادية بتظهر في المعاينة بس، مش في الفيديو ولا البث
+    if (withAudio && b.type !== 'quran' && !String(b.text || '').trim()) continue;
     const n0 = segs.length;
     if (b.type === 'quran') {
       const s = Q.surah(b.surah);
@@ -3698,14 +3700,16 @@ function setupLive() {
     if (!state.blocks.length) return;
     if (!confirmGrades()) return;
     // نسخة بأرقام جديدة، ومعاها الأصوات المسجّلة (عشان لو اتشالت من المحرر)
-    const blocks = structuredClone(state.blocks).map(b => {
+    const empty = state.blocks.filter(b => b.type !== 'quran' && !String(b.text || '').trim()).length;
+    const blocks = structuredClone(state.blocks.filter(b => b.type === 'quran' || String(b.text || '').trim())).map(b => {
       const id = uid(), au = hadithAudio.get(b.id);
       if (au) hadithAudio.set(id, { ...au });
       return { ...b, id };
     });
+    if (!blocks.length) { status('المحتوى فاضي — اكتب النص أو ضيف آيات الأول.', null, true); return; }
     live.items.push({ id: uid(), label: blocksLabel(blocks), blocks, reciter: state.style.reciter });
     liveQueueChanged();
-    status('✅ المحتوى الحالي اتضاف لقايمة البث');
+    status(`✅ المحتوى الحالي اتضاف لقايمة البث${empty ? ` (من غير ${Q.arabicNum(empty)} كارت فاضي)` : ''}`);
   };
   $('#live-start').onclick = liveStart;
   $('#live-stop').onclick = () => { if (confirm('توقّف البث؟')) liveStop(); };
