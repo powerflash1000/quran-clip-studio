@@ -11,6 +11,7 @@ import { getSettings, setSettings, load, save } from './storage.js';
 import * as EL from './elevenlabs.js';
 import * as GT from './geminitts.js';
 import * as AL from './audiolib.js';
+import * as CP from './competitors.js';
 import * as LLM from './llm.js';
 import * as SND from './sounds.js';
 import * as WT from './words.js';
@@ -3815,6 +3816,244 @@ function setupReference() {
   setupRecipe();
 }
 
+// ===== 📈 المنافسين والتقدير =====
+const comp = { list: load('comp', []), busy: false };
+const saveComp = () => save('comp', comp.list);
+
+async function compUpdate(entry) {
+  const key = getSettings().ytKey;
+  const ch = await CP.fetchChannel(entry.id, key);
+  Object.assign(entry, { title: ch.title, handle: ch.handle, thumb: ch.thumb, country: ch.country, data: ch });
+  entry.snaps = [...(entry.snaps || []), { t: Date.now(), subs: ch.subs, views: ch.views, count: ch.count }].slice(-60);
+  saveComp();
+}
+
+function renderComp() {
+  const box = $('#comp-list');
+  box.innerHTML = comp.list.length ? '' : '<p class="muted">لسه مفيش قنوات — الصق لينك قناة فوق.</p>';
+  for (const e of comp.list) {
+    if (!e.data) continue;
+    const a = CP.analyze(e.data, e.snaps.slice(0, -1), e.region);
+    const ch = e.data;
+    const card = document.createElement('div');
+    card.className = 'comp-card';
+    card.innerHTML = `<div class="comp-head"><img alt=""><b class="grow"></b>
+      <select data-a="region" title="جمهورها غالبًا منين"></select>
+      <button class="btn icon" type="button" data-a="upd" title="حدّث">🔄</button>
+      <button class="btn icon" type="button" data-a="del" title="شيلها">✕</button></div>
+      <div class="comp-stats"></div><div class="comp-money"></div><div class="muted" data-a="src"></div>
+      <details><summary>🔥 أكتر 10 فيديوهات مشاهدة (من آخر 50)</summary><table class="comp-top"><tbody></tbody></table></details>`;
+    card.querySelector('img').src = e.thumb || '';
+    card.querySelector('b').textContent = `${ch.title}${ch.handle ? '  ' + ch.handle : ''}`;
+    const sel = card.querySelector('[data-a=region]');
+    sel.innerHTML = Object.entries(CP.RPM).map(([k, r]) => `<option value="${k}">${r.name}</option>`).join('');
+    sel.value = e.region || 'mixed';
+    sel.onchange = () => { e.region = sel.value; saveComp(); renderComp(); };
+    const delta = a.subsDelta != null ? ` (${a.subsDelta >= 0 ? '+' : ''}${CP.fmtNum(a.subsDelta)} في ${Q.arabicNum(a.sinceDays)} يوم)` : '';
+    card.querySelector('.comp-stats').textContent = [
+      `👥 ${CP.fmtNum(ch.subs)} مشترك${delta}`,
+      `👁️ ${CP.fmtNum(ch.views)} مشاهدة`,
+      `🎬 ${CP.fmtNum(ch.count)} فيديو`,
+      `📅 ${a.perWeek.toFixed(1)} فيديو في الأسبوع`,
+      `⚡ ${Math.round(a.shortsShare * 100)}% من المشاهدات شورتس`,
+      `📊 متوسط ${CP.fmtNum(a.avgViews)} مشاهدة للفيديو`,
+      ch.country && `🌍 ${ch.country}`,
+    ].filter(Boolean).join('  •  ');
+    card.querySelector('.comp-money').textContent = `💰 تقدير الشهر: ${CP.fmtUsd(a.lo)} – ${CP.fmtUsd(a.hi)}  (حوالي ${CP.fmtNum(a.monthly)} مشاهدة في الشهر)`;
+    card.querySelector('[data-a=src]').textContent = `${a.source} • آخر تحديث ${new Date(e.snaps.at(-1).t).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}`;
+    const tb = card.querySelector('tbody');
+    for (const v of a.top) {
+      const tr = document.createElement('tr');
+      const url = `https://www.youtube.com/${v.short ? 'shorts/' : 'watch?v='}${v.id}`;
+      tr.innerHTML = `<td>${v.short ? '⚡' : v.live ? '🔴' : '▶️'}</td><td class="t"></td><td>${CP.fmtNum(v.views)}</td><td>${fmtDur(v.secs)}</td>
+        <td><a class="btn icon" target="_blank" rel="noopener" title="افتحه">↗</a> <button class="btn icon" type="button" title="افتحه كفيديو مرجعي وطلّع آياته">📥</button></td>`;
+      tr.querySelector('.t').textContent = v.title;
+      tr.querySelector('.t').title = `${v.title} — ${new Date(v.date).toLocaleDateString('ar-EG')} • 👍 ${CP.fmtNum(v.likes)} • 💬 ${CP.fmtNum(v.comments)}`;
+      tr.querySelector('a').href = url;
+      tr.querySelector('button').onclick = () => {
+        $('#dlg-comp').close();
+        $('#ref-url').value = url;
+        if (!$('#dlg-ref').open) $('#btn-ref').click();
+        showRef(url);
+        refExtract({ youtube: url });
+      };
+      tb.appendChild(tr);
+    }
+    card.querySelector('[data-a=upd]').onclick = () => compRun(async () => { await compUpdate(e); }, `بحدّث ${ch.title}…`);
+    card.querySelector('[data-a=del]').onclick = () => { if (!confirm(`تشيل «${ch.title}» من المتابعة؟`)) return; comp.list.splice(comp.list.indexOf(e), 1); saveComp(); renderComp(); };
+    box.appendChild(card);
+  }
+}
+
+async function compRun(job, msg) {
+  if (comp.busy) return;
+  if (!getSettings().ytKey) { $('#comp-key-box').open = true; $('#comp-status').textContent = '🔑 حط مفتاح YouTube Data API الأول (الخطوات تحت الخانة).'; return; }
+  comp.busy = true;
+  $('#comp-status').textContent = msg;
+  try { await job(); $('#comp-status').textContent = ''; } catch (e) { $('#comp-status').textContent = '❌ ' + e.message; }
+  comp.busy = false;
+  renderComp();
+}
+
+function renderEstimate() {
+  const p = $('#est-platform').value, views = Number($('#est-views').value) || 0, sh = Math.min(100, Math.max(0, Number($('#est-shorts').value) || 0)) / 100;
+  if (!views) { $('#est-out').textContent = ''; return; }
+  let lo, hi;
+  if (CP.OTHER_RPM[p]) [lo, hi] = CP.OTHER_RPM[p].rpm.map(x => views / 1000 * x);
+  else { const r = CP.RPM[p.replace('yt-', '')]; lo = views / 1000 * (r.long[0] * (1 - sh) + r.shorts[0] * sh); hi = views / 1000 * (r.long[1] * (1 - sh) + r.shorts[1] * sh); }
+  $('#est-out').textContent = `💰 تقريبًا ${CP.fmtUsd(lo)} – ${CP.fmtUsd(hi)} في الشهر`;
+}
+
+function setupCompetitors() {
+  const dlg = $('#dlg-comp');
+  $('#btn-comp').onclick = () => { $('#comp-key').value = getSettings().ytKey || ''; $('#comp-key-box').open = !getSettings().ytKey; renderComp(); renderEstimate(); dlg.showModal(); };
+  $('#comp-close').onclick = () => dlg.close();
+  $('#comp-key').onchange = () => setSettings({ ytKey: $('#comp-key').value.trim() });
+  $('#comp-region').innerHTML = Object.entries(CP.RPM).map(([k, r]) => `<option value="${k}">جمهور ${r.name}</option>`).join('');
+  $('#comp-region').value = 'mixed';
+  $('#comp-add').onclick = () => compRun(async () => {
+    const key = getSettings().ytKey;
+    const id = await CP.resolveChannel($('#comp-input').value, key);
+    let e = comp.list.find(x => x.id === id);
+    if (!e) { e = { id, region: $('#comp-region').value, snaps: [] }; comp.list.unshift(e); }
+    await compUpdate(e);
+    $('#comp-input').value = '';
+  }, 'بجيب بيانات القناة…');
+  $('#comp-input').onkeydown = ev => { if (ev.key === 'Enter') $('#comp-add').click(); };
+  $('#comp-refresh').onclick = () => compRun(async () => { for (const e of comp.list) await compUpdate(e); }, 'بحدّث كل القنوات…');
+  $('#est-platform').innerHTML = Object.entries(CP.RPM).map(([k, r]) => `<option value="yt-${k}">يوتيوب — جمهور ${r.name}</option>`).join('')
+    + Object.entries(CP.OTHER_RPM).map(([k, r]) => `<option value="${k}">${r.name}</option>`).join('');
+  ['est-platform', 'est-views', 'est-shorts'].forEach(id => { $('#' + id).oninput = renderEstimate; });
+}
+
+// ===== 📥 الآيات والأدعية من فيديو مرجعي =====
+let refCands = [];
+const b64 = buf => { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s); };
+
+// ملف فيديو ← صوت WAV صغير (16kHz مونو، أول 8 دقايق) + 3 لقطات للكلام المكتوب على الشاشة
+async function mediaFromFile(file) {
+  let audio = null;
+  try {
+    const buf = await decode(await file.arrayBuffer());
+    const dur = Math.min(buf.duration, 480);
+    const off = new OfflineAudioContext(1, Math.ceil(dur * 16000), 16000);
+    const src = off.createBufferSource();
+    src.buffer = buf; src.connect(off.destination); src.start();
+    audio = b64(await bufferToWavBlob(await off.startRendering()).arrayBuffer());
+  } catch { /* فيديو من غير صوت */ }
+  const images = [];
+  if (file.type.startsWith('video/')) {
+    const v = document.createElement('video');
+    v.muted = true; v.preload = 'auto'; v.src = URL.createObjectURL(file);
+    try {
+      await new Promise((res, rej) => { v.onloadeddata = res; v.onerror = rej; });
+      for (const f of [0.15, 0.5, 0.85]) {
+        v.currentTime = v.duration * f;
+        await new Promise(res => { v.onseeked = res; setTimeout(res, 3000); });
+        const k = Math.min(1, 720 / Math.max(v.videoWidth, v.videoHeight));
+        const c = document.createElement('canvas');
+        c.width = Math.round(v.videoWidth * k); c.height = Math.round(v.videoHeight * k);
+        c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+        images.push(c.toDataURL('image/jpeg', 0.8).split(',')[1]);
+      }
+    } catch { /* مش مشكلة */ }
+    URL.revokeObjectURL(v.src);
+  }
+  if (!audio && !images.length) throw new Error('مقدرتش أقرا الملف ده — جرّب MP4');
+  return { audio, images };
+}
+
+async function refExtract(src) {
+  const st = $('#ref-extract-status');
+  if (!LLM.canReadMedia()) { st.textContent = '🔑 محتاج مفتاح Gemini (مجاني): ⚙️ الإعدادات ← ✨ مساعد الكتابة (Gemini) أو 🔊 صوت Gemini'; return; }
+  st.textContent = '⏳ بيسمع ويقرا الفيديو…';
+  $('#ref-items').innerHTML = '';
+  $('#ref-items-actions').hidden = true;
+  try {
+    const r = await LLM.extractMedia(src.file ? await mediaFromFile(src.file) : src);
+    refCands = [];
+    for (const it of r.items) {
+      if (it.type === 'other') continue;
+      // أي حاجة (حتى لو اتصنّفت دعاء) فيها آيات بتتحوّل لآيات من المصحف — «ربنا…» كتير بتبقى قرآن
+      const fr = Q.findFragments(it.text);
+      if (fr.frags.length) {
+        for (const f of fr.frags) refCands.push({ kind: 'quran', f, on: true });
+        if (fr.rest > 4 && it.type !== 'quran') refCands.push({ kind: 'dua', text: it.text, on: false, note: 'فيه آيات وكلام تاني — الآيات فوق' });
+      } else if (it.type === 'quran') refCands.push({ kind: 'unknown', text: it.text, on: false });
+      else if (it.type === 'hadith') refCands.push({ kind: 'hadith', text: it.text, on: false });
+      else refCands.push({ kind: 'dua', text: it.text, on: true });
+    }
+    const rc = r.reciter && RECITERS.find(x => r.reciter.includes(x.name.split(' ')[0]) || x.name.includes(r.reciter));
+    st.textContent = `✅ لقيت ${Q.arabicNum(refCands.length)} عنصر${r.reciter ? ` — القارئ في الفيديو: ${r.reciter}${rc ? ` (موجود عندك: ${rc.name})` : ''}` : ''}`;
+    renderRefCands(rc);
+  } catch (e) { st.textContent = '❌ ' + e.message; }
+}
+
+function renderRefCands(rc) {
+  const ol = $('#ref-items');
+  ol.innerHTML = '';
+  refCands.forEach(c => {
+    const li = document.createElement('li');
+    li.className = 'part';
+    const ws = c.kind === 'quran' ? WT.words(Q.ayahText(c.f.s, c.f.a)) : null;
+    const txt = c.kind === 'quran' ? ws.slice(c.f.w1 - 1, c.f.w2).join(' ') : c.text;
+    const label = c.kind === 'quran' ? `📖 ${Q.surah(c.f.s).ar} ${Q.arabicNum(c.f.a)}${c.f.whole ? '' : ' (جزء)'} — بصوت القارئ`
+      : c.kind === 'dua' ? '🤲 دعاء — نص خاص تقراه بصوتك' : c.kind === 'hadith' ? '⚠️ حديث — استخدم «＋ حديث» ودوّر عليه عشان درجته تظهر'
+        : '⚠️ شكله قرآن بس مش لاقيه في المصحف — اتأكد منه';
+    li.innerHTML = `<label class="check"><input type="checkbox"></label><span class="pname"></span><span class="pinfo"></span>`;
+    const cb = li.querySelector('input');
+    cb.checked = c.on; cb.disabled = c.kind === 'hadith' || c.kind === 'unknown';
+    cb.onchange = () => { c.on = cb.checked; };
+    li.querySelector('.pname').textContent = label + (c.note ? ` (${c.note})` : '');
+    li.querySelector('.pinfo').textContent = txt.length > 140 ? txt.slice(0, 140) + '…' : txt;
+    ol.appendChild(li);
+  });
+  if (rc && rc.id !== state.style.reciter) {
+    const li = document.createElement('li');
+    li.className = 'part';
+    li.innerHTML = '<span class="grow"></span><button class="btn" type="button"></button>';
+    li.querySelector('span').textContent = `🎙️ القارئ في الفيديو موجود عندك: ${rc.name}`;
+    li.querySelector('button').textContent = 'استخدمه';
+    li.querySelector('button').onclick = () => { state.style.reciter = rc.id; applyStyleToInputs(); T.rememberStyle(state.style); li.remove(); status(`✅ القارئ بقى ${rc.name}`); };
+    ol.appendChild(li);
+  }
+  $('#ref-items-actions').hidden = !refCands.some(c => !['hadith', 'unknown'].includes(c.kind));
+}
+
+function setupRefExtract() {
+  $('#ref-extract').onclick = () => {
+    const url = $('#ref-url').value.trim();
+    if (!/youtu\.?be/.test(url)) { $('#ref-extract-status').textContent = 'الصق لينك يوتيوب فوق. لتيك توك وإنستجرام وفيسبوك: احفظ الفيديو وارفعه بـ «📁 من ملف فيديو».'; return; }
+    refExtract({ youtube: url });
+  };
+  $('#ref-extract-file').onchange = () => {
+    const file = $('#ref-extract-file').files[0];
+    $('#ref-extract-file').value = '';
+    if (file) refExtract({ file });
+  };
+  $('#ref-items-add').onclick = () => {
+    const blocks = refCands.filter(c => c.on).map(c => {
+      if (c.kind === 'quran') {
+        const q = newQuranBlock(c.f.s, c.f.a, c.f.a);
+        if (!c.f.whole) q.part = { w1: c.f.w1, w2: c.f.w2 };
+        return q;
+      }
+      const b = newCustomBlock();
+      b.text = c.text;
+      b.seconds = estimateSeconds(c.text);
+      return b;
+    });
+    if (!blocks.length) return;
+    stop();
+    state.blocks = $('#ref-items-replace').checked ? blocks : [...state.blocks, ...blocks];
+    renderBlocks();
+    refreshPublish(true);
+    showTab('content');
+    const duas = blocks.filter(b => b.type === 'zikr').length;
+    status(`✅ اتضاف ${Q.arabicNum(blocks.length)} كارت${duas ? ` — ${Q.arabicNum(duas)} دعاء: سجّلهم بصوتك (🎙️) أو ولّد صوت` : ''}. راجع النص قبل النشر.`);
+  };
+}
+
 // ===== وصفة الريل =====
 const RC = { intro: 'rc-intro', wordMode: 'rc-wordMode', textSize: 'rc-size', reciter: 'rc-reciter', duration: 'rc-dur', bg: 'rc-bg', bgSwitch: 'rc-bgSwitch' };
 let recipeColors = null; // { color1, color2, textColor, accent }
@@ -4255,6 +4494,8 @@ async function init() {
   setupQueue();
   setupLive();
   setupReference();
+  setupRefExtract();
+  setupCompetitors();
   setupPlanner();
   setupStats();
   idleLoop();

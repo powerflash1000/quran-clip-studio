@@ -19,7 +19,7 @@ export function save(key, value) {
 }
 
 // الإعدادات: مفاتيح Pexels/Pixabay ورابط الوسيط (CORS proxy)
-const DEFAULT_SETTINGS = { pexelsKey: '', pixabayKey: '', proxyUrl: '', elevenKey: '', elevenVoiceId: '', elevenModel: 'eleven_multilingual_v2', freesoundKey: '', llmProvider: '', llmKey: '', llmModel: '', gttsKey: '', gttsModel: '', gttsVoice: 'Charon', gttsStyle: '' };
+const DEFAULT_SETTINGS = { pexelsKey: '', pixabayKey: '', proxyUrl: '', elevenKey: '', elevenVoiceId: '', elevenModel: 'eleven_multilingual_v2', freesoundKey: '', llmProvider: '', llmKey: '', llmModel: '', gttsKey: '', gttsModel: '', gttsVoice: 'Charon', gttsStyle: '', ytKey: '' };
 
 export function getSettings() {
   return { ...DEFAULT_SETTINGS, ...load('settings', {}) };

@@ -6,7 +6,7 @@
   <title>استوديو مقاطع القرآن</title>
   <meta name="description" content="اختار الآيات والقارئ، وصدّر صوت MP3 أو M4A أو WAV أو فيديو جاهز للنشر — من المتصفح مباشرة وببلاش.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261026b">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261026c">
 </head>
 <body>
   <header class="topbar">
@@ -20,6 +20,7 @@
     <div class="btn-row" style="margin:0">
       <button class="btn ghost" id="btn-live" type="button" title="بث مباشر مستمر: قايمة تلاوات وأدعية بتشتغل ورا بعض">🔴<span class="lbl"> بث</span></button>
       <button class="btn ghost" id="btn-plan" type="button" title="المواسم الجاية ومواعيد النشر وسجل اللي نشرته">📅<span class="lbl"> المخطط</span></button>
+      <button class="btn ghost" id="btn-comp" type="button" title="بيانات قنوات المنافسين وتقدير أرباحهم">📈<span class="lbl"> المنافسين</span></button>
       <button class="btn ghost" id="btn-stats" type="button" title="إيه اللي بيجيب مشاهدات معاك">📊<span class="lbl"> الأرقام</span></button>
       <button class="btn ghost" id="btn-ref" type="button" title="شغّل فيديو من تيك توك أو إنستا أو فيسبوك جنب المحرر واعمل زيه">🎞️<span class="lbl"> فيديو مرجعي</span></button>
       <button class="btn ghost" id="proj-save" type="button" title="احفظ المشروع كله في ملف">💾<span class="lbl"> حفظ</span></button>
@@ -434,7 +435,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261026b</div>
+    <div class="muted" id="app-version">الإصدار 20261026c</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -792,6 +793,43 @@
     </div>
   </dialog>
 
+  <dialog id="dlg-comp">
+    <div class="dlg wide">
+      <div class="row">
+        <h2 class="grow">📈 المنافسين والتقدير</h2>
+        <button class="btn icon" id="comp-close" type="button">✕</button>
+      </div>
+      <details class="adv" id="comp-key-box">
+        <summary>🔑 مفتاح YouTube Data API (مجاني — مرة واحدة)</summary>
+        <label>المفتاح <input type="password" id="comp-key" dir="ltr" autocomplete="off" placeholder="AIza..."></label>
+        <ol class="live-steps">
+          <li>ادخل <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">YouTube Data API v3</a> (بنفس حساب جوجل) واختار المشروع، واضغط <b>Enable</b>.</li>
+          <li>من <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Credentials</a> ← <b>Create credentials ← API key</b> ← انسخه هنا.</li>
+          <li>مجاني ومن غير فيزا: 10,000 وحدة في اليوم (تحديث القناة حوالي 3 وحدات، والبحث بالاسم 100).</li>
+        </ol>
+      </details>
+      <div class="row wrap">
+        <input type="text" id="comp-input" class="grow" dir="auto" placeholder="لينك قناة يوتيوب، أو @handle، أو لينك أي فيديو منها">
+        <select id="comp-region" title="جمهور القناة غالبًا منين — بيفرق جدًا في الأرباح"></select>
+        <button class="btn primary" id="comp-add" type="button">➕ تابع القناة</button>
+        <button class="btn" id="comp-refresh" type="button" title="حدّث كل القنوات">🔄 حدّث الكل</button>
+      </div>
+      <p class="muted" id="comp-status"></p>
+      <div id="comp-list"></div>
+      <details class="adv">
+        <summary>🧮 تقدير سريع (تيك توك / فيسبوك / أي أرقام عندك)</summary>
+        <div class="row wrap">
+          <select id="est-platform"></select>
+          <label>مشاهدات في الشهر <input type="number" id="est-views" min="0" step="1000" placeholder="مثلًا 500000"></label>
+          <label>نسبة الشورتس % <input type="number" id="est-shorts" min="0" max="100" value="50" style="width:5em"></label>
+        </div>
+        <p id="est-out" class="hint"></p>
+        <p class="hint">تيك توك وفيسبوك مش بيعرضوا مشاهدات الحسابات للعامة. لأرقام تيك توك التقريبية: <a href="https://socialblade.com/tiktok" target="_blank" rel="noopener">Social Blade</a>.</p>
+      </details>
+      <p class="hint">⚠️ الأرباح الحقيقية سرّية عند صاحب القناة — دي <b>تقديرات</b> (المشاهدات × متوسط الربح لكل 1000 مشاهدة لقنوات القرآن بالعربي)، والفيديوهات اللي عليها Claim أرباحها بتروح لصاحب الحق. البيانات بتتحفظ عندك، وكل ما تحدّث بيبقى التقدير أدق (من الفرق بين القراءات).</p>
+    </div>
+  </dialog>
+
   <dialog id="dlg-plan">
     <div class="dlg wide">
       <div class="row">
@@ -848,7 +886,7 @@
         <button class="btn icon" id="ref-close" type="button" title="اقفل">✕</button>
       </div>
       <div class="row">
-        <input type="url" id="ref-url" class="grow" placeholder="الصق لينك من تيك توك أو إنستجرام أو فيسبوك أو Pinterest" dir="ltr">
+        <input type="url" id="ref-url" class="grow" placeholder="الصق لينك من تيك توك أو إنستجرام أو فيسبوك أو يوتيوب أو Pinterest" dir="ltr">
         <button class="btn primary" id="ref-show" type="button">اعرض</button>
       </div>
       <p class="hint" id="ref-msg">الفيديو بيشتغل بالتضمين الرسمي وبيفضل على منصته، ولازم يكون عام. البرنامج مش بينزّله.</p>
@@ -856,6 +894,20 @@
         <iframe id="ref-frame" class="ref-frame" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" title="الفيديو المرجعي"></iframe>
         <a class="btn ghost" id="ref-open" href="#" target="_blank" rel="noopener">↗ افتح الأصلي</a>
       </div>
+      <details class="adv" open>
+        <summary>📥 طلّع الآيات والأدعية من الفيديو</summary>
+        <p class="hint">يوتيوب: من اللينك على طول. تيك توك وإنستجرام وفيسبوك: احفظ الفيديو على جهازك (Save video / تنزيل) وارفعه هنا. بيسمع الصوت ويقرا الكلام المكتوب بمفتاح Gemini المجاني. الآيات بتتحوّل لكروت بنص المصحف بصوت القارئ اللي تختاره، والأدعية لكروت نص خاص تقراها بصوتك.</p>
+        <div class="btn-row">
+          <button class="btn primary" id="ref-extract" type="button">📥 من لينك يوتيوب</button>
+          <label class="btn file-btn">📁 من ملف فيديو<input type="file" id="ref-extract-file" accept="video/*,audio/*" hidden></label>
+          <span class="muted" id="ref-extract-status"></span>
+        </div>
+        <ol class="parts" id="ref-items"></ol>
+        <div class="btn-row" id="ref-items-actions" hidden>
+          <label class="check"><input type="checkbox" id="ref-items-replace"> امسح المحتوى الحالي الأول</label>
+          <button class="btn primary" id="ref-items-add" type="button">➕ ضيف المختار للمحتوى</button>
+        </div>
+      </details>
       <details class="adv" open>
         <summary>📋 وصفة الريل (املاها وانت بتتفرج)</summary>
         <label>الافتتاحية (أول ثانيتين)
@@ -1013,6 +1065,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261026b"></script>
+  <script type="module" src="js/main.js?v=20261026c"></script>
 </body>
 </html>

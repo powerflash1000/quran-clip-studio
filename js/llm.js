@@ -382,3 +382,52 @@ ${text}`);
   if (!out) throw new Error('مالقيتش دعاء في الصفحة دي');
   return { title: clean(j.title), text: out, kind: String(j.kind || 'other'), source: clean(j.source) };
 }
+
+// ===== استخراج الآيات والأدعية من فيديو (مرجعي) =====
+// بيشتغل بـ Gemini بس (هو اللي بيسمع الصوت ويشوف الفيديو). المدخل: لينك يوتيوب، أو صوت WAV + لقطات من الفيديو
+const MEDIA_RULES = `أنت أداة تفريغ (نسخ) لمحتوى فيديو ديني قصير: بتسمع الصوت وبتقرا الكلام المكتوب على الشاشة.
+- انسخ الكلام زي ما اتقال أو اتكتب بالظبط. ماتصححش وماتكمّلش وماتزوّدش أي كلمة، وماتفسّرش.
+- قسّم المحتوى لعناصر حسب الترتيب: كل آية أو مقطع قرآن عنصر، وكل دعاء أو ذكر عنصر، وكل حديث عنصر.
+- النوع: quran (قرآن)، dua (دعاء أو ذكر)، hadith (حديث منسوب للنبي ﷺ)، other (كلام عادي أو تعليق أو اسم حساب).
+- لو مش متأكد من كلمة اكتب [؟] مكانها.
+- رجّع JSON بس.`;
+
+const MEDIA_TASK = `فرّغ الفيديو ده.
+الشكل: {"items": [{"type": "quran|dua|hadith|other", "text": "..."}], "reciter": "اسم القارئ لو اتقال أو اتكتب، أو فاضي"}`;
+
+function mediaConfig() {
+  const c = config();
+  if (c.provider === 'gemini' && c.key) return c;
+  const k = (getSettings().gttsKey || '').trim();
+  if (k) return { provider: 'gemini', key: k, model: PROVIDERS.gemini.model };
+  return null;
+}
+export const canReadMedia = () => !!mediaConfig();
+
+// src: { youtube: url } أو { audio: base64 wav, images: [base64 jpeg] }
+export async function extractMedia(src) {
+  const c = mediaConfig();
+  if (!c) throw new Error('محتاج مفتاح Gemini (مجاني) — من ⚙️ الإعدادات ← ✨ مساعد الكتابة (اختار Gemini) أو 🔊 صوت Gemini');
+  const parts = [];
+  if (src.youtube) parts.push({ fileData: { fileUri: src.youtube } });
+  if (src.audio) parts.push({ inlineData: { mimeType: 'audio/wav', data: src.audio } });
+  for (const im of src.images || []) parts.push({ inlineData: { mimeType: 'image/jpeg', data: im } });
+  parts.push({ text: MEDIA_TASK });
+  let j;
+  try {
+    j = await geminiGenerate(c, {
+      systemInstruction: { parts: [{ text: MEDIA_RULES }] },
+      contents: [{ role: 'user', parts }],
+      generationConfig: { responseMimeType: 'application/json' },
+    });
+  } catch (e) {
+    if (e instanceof TypeError) throw new Error('الطلب ماوصلش لجوجل (النت). جرّب تاني.');
+    throw e;
+  }
+  const out = parseJson((j.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join(''));
+  const items = (Array.isArray(out.items) ? out.items : [])
+    .map(it => ({ type: String(it.type || 'other'), text: String(it.text || '').trim() }))
+    .filter(it => it.text);
+  if (!items.length) throw new Error('مالقيتش كلام واضح في الفيديو');
+  return { items, reciter: clean(out.reciter) };
+}

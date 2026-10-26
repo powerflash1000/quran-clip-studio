@@ -384,3 +384,14 @@ details.adv { border-top: 1px dashed var(--line); padding-top: .4rem; }
 .bg-item.dragging { opacity: .7; outline: 2px dashed var(--primary); }
 .bg-item.dragging .bg-drag { cursor: grabbing; }
 .bg-drop { height: 0; border-top: 3px solid var(--primary); border-radius: 2px; margin: -2px 0; list-style: none; }
+
+/* المنافسين */
+.comp-card { border: 1px solid var(--line); border-radius: 12px; padding: .6rem .8rem; margin: .5rem 0; background: var(--field); }
+.comp-head { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.comp-head img { width: 40px; height: 40px; border-radius: 50%; }
+.comp-stats { display: flex; flex-wrap: wrap; gap: .3rem 1rem; margin: .4rem 0; font-size: .92rem; }
+.comp-money { font-weight: 700; color: var(--good); }
+.comp-top { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.comp-top td { border-top: 1px solid var(--line); padding: .25rem .3rem; vertical-align: middle; }
+.comp-top td.t { max-width: 22rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 640px) { .comp-top td.t { max-width: 11rem; } }
