@@ -3831,7 +3831,11 @@ async function compUpdate(entry) {
 function renderComp() {
   const box = $('#comp-list');
   box.innerHTML = comp.list.length ? '' : '<p class="muted">لسه مفيش قنوات — الصق لينك قناة فوق.</p>';
-  for (const e of comp.list) {
+  const favOnly = $('#comp-fav-only').checked;
+  $('#comp-count').textContent = comp.list.length ? `${Q.arabicNum(comp.list.length)} قناة محفوظة (⭐ ${Q.arabicNum(comp.list.filter(e => e.fav).length)})` : '';
+  // المفضلة فوق
+  const list = [...comp.list].sort((a, b) => (b.fav ? 1 : 0) - (a.fav ? 1 : 0)).filter(e => !favOnly || e.fav);
+  for (const e of list) {
     if (!e.data) continue;
     const a = CP.analyze(e.data, e.snaps.slice(0, -1), e.region);
     const ch = e.data;
@@ -3839,6 +3843,7 @@ function renderComp() {
     card.className = 'comp-card';
     card.innerHTML = `<div class="comp-head"><img alt=""><b class="grow"></b>
       <select data-a="region" title="جمهورها غالبًا منين"></select>
+      <button class="btn icon" type="button" data-a="fav" title="المفضلة"></button>
       <button class="btn icon" type="button" data-a="upd" title="حدّث">🔄</button>
       <button class="btn icon" type="button" data-a="del" title="شيلها">✕</button></div>
       <div class="comp-stats"></div><div class="comp-money"></div><div class="muted" data-a="src"></div>
@@ -3879,6 +3884,10 @@ function renderComp() {
       };
       tb.appendChild(tr);
     }
+    const fav = card.querySelector('[data-a=fav]');
+    fav.textContent = e.fav ? '⭐' : '☆';
+    fav.title = e.fav ? 'شيلها من المفضلة' : 'ضيفها للمفضلة';
+    fav.onclick = () => { e.fav = !e.fav; saveComp(); renderComp(); };
     card.querySelector('[data-a=upd]').onclick = () => compRun(async () => { await compUpdate(e); }, `بحدّث ${ch.title}…`);
     card.querySelector('[data-a=del]').onclick = () => { if (!confirm(`تشيل «${ch.title}» من المتابعة؟`)) return; comp.list.splice(comp.list.indexOf(e), 1); saveComp(); renderComp(); };
     box.appendChild(card);
@@ -3920,7 +3929,25 @@ function setupCompetitors() {
     $('#comp-input').value = '';
   }, 'بجيب بيانات القناة…');
   $('#comp-input').onkeydown = ev => { if (ev.key === 'Enter') $('#comp-add').click(); };
-  $('#comp-refresh').onclick = () => compRun(async () => { for (const e of comp.list) await compUpdate(e); }, 'بحدّث كل القنوات…');
+  $('#comp-refresh').onclick = () => compRun(async () => {
+    const todo = $('#comp-fav-only').checked ? comp.list.filter(e => e.fav) : comp.list;
+    for (const [i, e] of todo.entries()) { $('#comp-status').textContent = `بحدّث ${Q.arabicNum(i + 1)} من ${Q.arabicNum(todo.length)}…`; await compUpdate(e); }
+  }, 'بحدّث القنوات…');
+  $('#comp-fav-only').onchange = renderComp;
+  // نسخة احتياطية من القايمة (عشان تنقلها لجهاز أو متصفح تاني)
+  $('#comp-export').onclick = () => download(new Blob([JSON.stringify({ app: 'quran-clip-studio', comp: comp.list })], { type: 'application/json' }), 'قنوات_المنافسين.json');
+  $('#comp-import').onchange = async () => {
+    const f = $('#comp-import').files[0];
+    $('#comp-import').value = '';
+    if (!f) return;
+    try {
+      const j = JSON.parse(await f.text());
+      const add = (j.comp || []).filter(x => x.id && !comp.list.some(e => e.id === x.id));
+      comp.list.push(...add);
+      saveComp(); renderComp();
+      $('#comp-status').textContent = `✅ اتضاف ${Q.arabicNum(add.length)} قناة`;
+    } catch { $('#comp-status').textContent = '❌ الملف ده مش نسخة قايمة المنافسين'; }
+  };
   $('#est-platform').innerHTML = Object.entries(CP.RPM).map(([k, r]) => `<option value="yt-${k}">يوتيوب — جمهور ${r.name}</option>`).join('')
     + Object.entries(CP.OTHER_RPM).map(([k, r]) => `<option value="${k}">${r.name}</option>`).join('');
   ['est-platform', 'est-views', 'est-shorts'].forEach(id => { $('#' + id).oninput = renderEstimate; });

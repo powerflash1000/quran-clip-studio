@@ -6,7 +6,7 @@
   <title>استوديو مقاطع القرآن</title>
   <meta name="description" content="اختار الآيات والقارئ، وصدّر صوت MP3 أو M4A أو WAV أو فيديو جاهز للنشر — من المتصفح مباشرة وببلاش.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261026c">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261026d">
 </head>
 <body>
   <header class="topbar">
@@ -435,7 +435,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261026c</div>
+    <div class="muted" id="app-version">الإصدار 20261026d</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -814,6 +814,12 @@
         <button class="btn primary" id="comp-add" type="button">➕ تابع القناة</button>
         <button class="btn" id="comp-refresh" type="button" title="حدّث كل القنوات">🔄 حدّث الكل</button>
       </div>
+      <div class="row wrap">
+        <label class="check"><input type="checkbox" id="comp-fav-only"> ⭐ المفضلة بس</label>
+        <span class="muted grow" id="comp-count"></span>
+        <button class="btn ghost" id="comp-export" type="button" title="نسخة احتياطية من القايمة">💾 احفظ القايمة</button>
+        <label class="btn ghost file-btn" title="رجّع قايمة محفوظة">📂 رجّع قايمة<input type="file" id="comp-import" accept=".json,application/json" hidden></label>
+      </div>
       <p class="muted" id="comp-status"></p>
       <div id="comp-list"></div>
       <details class="adv">
@@ -1065,6 +1071,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261026c"></script>
+  <script type="module" src="js/main.js?v=20261026d"></script>
 </body>
 </html>
