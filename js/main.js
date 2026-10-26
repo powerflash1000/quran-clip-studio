@@ -3452,11 +3452,32 @@ function liveScenicStart() {
   renderLive();
 }
 
+// فيديوهات الخلفية بتاعة البث: نسخة جوه نافذة البث نفسها. النسخة اللي في صفحة البرنامج المتصفح بيبطّأها
+// أو يوقفها لما الصفحة تتصغّر أو تبقى ورا، فالمنظر كان بيقف في البث
+const liveBgEls = new Map();
+function liveBg(m) {
+  if (!m || m.kind !== 'video' || !live.win || live.win.closed) return m;
+  let v = liveBgEls.get(m.id);
+  if (!v || v.ownerDocument !== live.win.document) {
+    v = live.win.document.createElement('video');
+    Object.assign(v, { muted: true, loop: true, playsInline: true, src: m.url });
+    v.style.cssText = 'position:fixed;left:0;top:0;width:160px;height:90px;z-index:-1;pointer-events:none';
+    live.win.document.body.appendChild(v);
+    v.play().catch(() => {});
+    liveBgEls.set(m.id, v);
+  }
+  if (v.paused) v.play().catch(() => {});
+  return { ...m, el: v };
+}
+const LIVE_FPS = 30; // البث 30 فريم — الرسم أكتر من كده تقل على الجهاز من غير فايدة
+
 // رسم فريم البث
-function liveDraw() {
+function liveDraw(now) {
   const win = live.win;
   if (!live.on) return;
   if (!win || win.closed) { liveStop(); status('نافذة البث اتقفلت — البث وقف.'); return; }
+  if (now && live.lastFrame && now - live.lastFrame < 1000 / LIVE_FPS - 4) { live.raf = win.requestAnimationFrame(liveDraw); return; }
+  live.lastFrame = now || 0;
   const { w: W, h: H } = ASPECTS[live.opts.aspect] || ASPECTS['16:9'];
   const c = live.canvas;
   if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
@@ -3480,9 +3501,9 @@ function liveDraw() {
     if (fade && x < fade) { prev = list[(k - 1 + list.length) % list.length]; alpha = x / fade; }
   }
   g.clearRect(0, 0, W, H);
-  if (prev) drawBackground(g, W, H, state.style, prev);
+  if (prev) drawBackground(g, W, H, state.style, liveBg(prev));
   g.globalAlpha = alpha;
-  drawBackground(g, W, H, state.style, bg);
+  drawBackground(g, W, H, state.style, liveBg(bg));
   g.globalAlpha = 1;
   const unit = Math.min(W, H) / 1080;
   const scenic = live.opts.mode !== 'text';
@@ -3581,7 +3602,9 @@ function liveStop() {
   live.session++;
   try { live.cur?.src.stop(); } catch { /* اتوقف */ }
   try { live.amb?.stop(); } catch { /* اتوقف */ }
-  live.amb = null; live.t0 = 0;
+  live.amb = null; live.t0 = 0; live.lastFrame = 0;
+  for (const v of liveBgEls.values()) { v.pause(); v.remove(); }
+  liveBgEls.clear();
   live.ac?.close();
   live.ac = null; live.cur = null; live.pos = null; live.nextJob = null; live.msg = '';
   if (live.win && !live.win.closed) live.win.close();
