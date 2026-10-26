@@ -7,7 +7,7 @@ Working memory for Claude sessions on this repo. Read this first; README.md is t
 - Uses the app alone, mostly on desktop Chrome, sometimes mobile. Edits in Filmora.
 - Subscriptions: Filmora, Higgsfield, Gemini, ChatGPT, Claude, ElevenLabs (own voice clone).
 - Posts to **TikTok, Instagram, Facebook only** (not YouTube).
-- TikTok: username **`@tilawat.alaaa`** (three a's; locked until 2026-11-07), display name «قرآن يريح القلب 🤍» (changeable after 2026-10-15). Profile picture = «تلاوات» crescent (`assets/profile/tiktok-avatar-tilawat.png`). Default on-video handle = `@tilawat.alaaa` (`js/templates.js`).
+- TikTok: username **`@tilawat.alaa`** (two a's — confirmed by the user 2026-10-26, https://www.tiktok.com/@tilawat.alaa), display name «قرآن يريح القلب 🤍». Profile picture = «تلاوات» crescent (`assets/profile/tiktok-avatar-tilawat.png`). Default on-video handle = `@tilawat.alaa` (`js/templates.js`; saved styles/templates with the old `@tilawat.alaaa` are migrated on load). YouTube channel planned with the same handle.
 - Facebook Page: now «قرآن يريح القلب» (id 412303765486859, was «كيف دخل هؤلاء إلى الإسلام», ~1000 followers), switched to Creator page type 2026-10-15. IG↔Page linking was blocked by an ads restriction on the personal FB profile (since 2024-03-26; legacy 2014 ad account 74737627 with unsettled flag + missing payment method). 2026-10-15: Meta support cleared it after a Visa was added (account spending limit set to $1, balance $0). Retry linking via business.facebook.com as the personal profile after ~24h; fallback = trusted second full-control admin links IG.
 - Account is Quran-only; other content (e.g. the planned daily-news reels tool) goes to a separate repo + separate account.
 

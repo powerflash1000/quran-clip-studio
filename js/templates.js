@@ -24,7 +24,7 @@ export const DEFAULT_STYLE = {
   quality: '1080',
   intro: '',               // جملة افتتاحية في أول الفيديو (فاضية = من غير)
   introSeconds: 1.6,
-  handle: '@tilawat.alaaa',// @اسم_حسابك على الفيديو (فاضي = من غير علامة)
+  handle: '@tilawat.alaa',// @اسم_حسابك على الفيديو (فاضي = من غير علامة)
   handlePos: 'bottom',
   bgSwitch: 'ayah',         // ayah | seconds — لو فيه أكتر من خلفية
   bgEvery: 6,
@@ -71,8 +71,18 @@ export function importTemplates(json) {
   return n;
 }
 
+// اسم الحساب الصح @tilawat.alaa — اللي كان محفوظ بتلات حروف a بيتصلّح لوحده (في الشكل الأخير والقوالب)
+const OLD_HANDLE = '@tilawat.alaaa';
+const fixHandle = st => (st && st.handle === OLD_HANDLE ? { ...st, handle: DEFAULT_STYLE.handle } : st);
+
 export function lastStyle() {
-  return { ...DEFAULT_STYLE, ...load('lastStyle', {}) };
+  const st = load('lastStyle', {});
+  if (st.handle === OLD_HANDLE) save('lastStyle', fixHandle(st));
+  const user = load('templates', {});
+  if (Object.values(user).some(t => t?.handle === OLD_HANDLE)) {
+    save('templates', Object.fromEntries(Object.entries(user).map(([k, t]) => [k, fixHandle(t)])));
+  }
+  return { ...DEFAULT_STYLE, ...fixHandle(st) };
 }
 
 export function rememberStyle(style) {
