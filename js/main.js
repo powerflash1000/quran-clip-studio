@@ -3817,8 +3817,82 @@ function setupReference() {
 }
 
 // ===== 📈 المنافسين والتقدير =====
-const comp = { list: load('comp', []), busy: false };
-const saveComp = () => save('comp', comp.list);
+const comp = { list: load('comp', []), social: load('compSocial', []), busy: false };
+const saveComp = () => { save('comp', comp.list); save('compSocial', comp.social); };
+
+// ===== حسابات تيك توك / فيسبوك / إنستجرام (أرقام بإيد المستخدم) =====
+const SOC = {
+  tiktok: { icon: '🎵', name: 'تيك توك', url: h => `https://www.tiktok.com/@${h}`, blade: h => `https://socialblade.com/tiktok/user/${h}` },
+  facebook: { icon: '📘', name: 'فيسبوك', url: h => (/^\d+$/.test(h) ? `https://www.facebook.com/profile.php?id=${h}` : `https://www.facebook.com/${h}`), blade: null },
+  instagram: { icon: '📸', name: 'إنستجرام', url: h => `https://www.instagram.com/${h}`, blade: h => `https://socialblade.com/instagram/user/${h}` },
+};
+function parseSocial(input, platform) {
+  const s = String(input || '').trim();
+  let m;
+  if ((m = s.match(/tiktok\.com\/@([\w.]+)/i))) return { platform: 'tiktok', handle: m[1] };
+  if ((m = s.match(/instagram\.com\/([\w.]+)/i))) return { platform: 'instagram', handle: m[1] };
+  if ((m = s.match(/facebook\.com\/profile\.php\?id=(\d+)/i))) return { platform: 'facebook', handle: m[1] };
+  if ((m = s.match(/(?:facebook|fb)\.com\/([\w.\-]+)/i))) return { platform: 'facebook', handle: m[1] };
+  const h = s.replace(/^@/, '').replace(/\/+$/, '');
+  if (!/^[\w.\-]+$/.test(h)) return null;
+  return { platform: platform || 'tiktok', handle: h };
+}
+
+function renderSocial() {
+  const box = $('#soc-list');
+  box.innerHTML = '';
+  const favOnly = $('#comp-fav-only').checked;
+  const list = [...comp.social].sort((a, b) => (b.fav ? 1 : 0) - (a.fav ? 1 : 0)).filter(e => !favOnly || e.fav);
+  for (const e of list) {
+    const P = SOC[e.platform];
+    const last = e.snaps.at(-1), prev = e.snaps.at(-2);
+    const card = document.createElement('div');
+    card.className = 'comp-card';
+    card.innerHTML = `<div class="comp-head"><b class="grow"></b>
+      ${P.blade ? '<a class="btn" target="_blank" rel="noopener" data-a="blade" title="أرقامه على Social Blade">📊 Social Blade</a>' : ''}
+      <a class="btn icon" target="_blank" rel="noopener" data-a="open" title="افتح الحساب">↗</a>
+      <button class="btn icon" type="button" data-a="fav"></button>
+      <button class="btn icon" type="button" data-a="del" title="شيله">✕</button></div>
+      <div class="comp-stats"></div><div class="comp-money"></div>
+      <div class="row wrap">
+        <label>المتابعين <input type="number" min="0" data-f="followers" style="width:8em"></label>
+        <label>مشاهدات الشهر (تقريبًا) <input type="number" min="0" step="1000" data-f="views" style="width:9em" title="اختياري — مجموع مشاهدات اللي نزّله في الشهر، أو من Social Blade"></label>
+        <label>بينزّل في الأسبوع <input type="number" min="0" data-f="perWeek" style="width:5em"></label>
+        <button class="btn" type="button" data-a="snap">💾 سجّل الأرقام</button>
+      </div>
+      <details><summary>📜 الأرقام اللي سجّلتها</summary><ol class="muted" data-a="hist"></ol></details>`;
+    card.querySelector('b').textContent = `${P.icon} @${e.handle} — ${P.name}`;
+    if (P.blade) card.querySelector('[data-a=blade]').href = P.blade(e.handle);
+    card.querySelector('[data-a=open]').href = P.url(e.handle);
+    const fav = card.querySelector('[data-a=fav]');
+    fav.textContent = e.fav ? '⭐' : '☆';
+    fav.title = e.fav ? 'شيله من المفضلة' : 'ضيفه للمفضلة';
+    fav.onclick = () => { e.fav = !e.fav; saveComp(); renderSocial(); };
+    card.querySelector('[data-a=del]').onclick = () => { if (!confirm(`تشيل @${e.handle} من المتابعة؟`)) return; comp.social.splice(comp.social.indexOf(e), 1); saveComp(); renderSocial(); };
+    if (last) {
+      const days = prev ? Math.max(1, Math.round((last.t - prev.t) / 864e5)) : 0;
+      const d = prev && last.followers != null && prev.followers != null ? last.followers - prev.followers : null;
+      card.querySelector('.comp-stats').textContent = [
+        last.followers != null && `👥 ${CP.fmtNum(last.followers)} متابع${d != null ? ` (${d >= 0 ? '+' : ''}${CP.fmtNum(d)} في ${Q.arabicNum(days)} يوم — حوالي ${CP.fmtNum(d / days)} في اليوم)` : ''}`,
+        last.views && `👁️ ${CP.fmtNum(last.views)} مشاهدة في الشهر`,
+        last.perWeek && `📅 ${last.perWeek} في الأسبوع`,
+        `آخر تسجيل ${new Date(last.t).toLocaleDateString('ar-EG')}`,
+      ].filter(Boolean).join('  •  ');
+      const rpm = CP.OTHER_RPM[e.platform === 'instagram' ? 'facebook' : e.platform];
+      if (last.views && rpm) card.querySelector('.comp-money').textContent = `💰 تقدير الشهر: ${CP.fmtUsd(last.views / 1000 * rpm.rpm[0])} – ${CP.fmtUsd(last.views / 1000 * rpm.rpm[1])}${e.platform === 'instagram' ? ' (إنستجرام مالوش برنامج أرباح ثابت — تقدير زي فيسبوك)' : ''}`;
+      for (const k of ['followers', 'views', 'perWeek']) card.querySelector(`[data-f=${k}]`).value = last[k] ?? '';
+    } else card.querySelector('.comp-stats').textContent = 'اكتب الأرقام تحت واضغط «💾 سجّل الأرقام».';
+    card.querySelector('[data-a=hist]').innerHTML = [...e.snaps].reverse().map(s => `<li>${new Date(s.t).toLocaleDateString('ar-EG')}: 👥 ${CP.fmtNum(s.followers)}${s.views ? ` • 👁️ ${CP.fmtNum(s.views)}/شهر` : ''}${s.perWeek ? ` • 📅 ${s.perWeek}/أسبوع` : ''}</li>`).join('');
+    card.querySelector('[data-a=snap]').onclick = () => {
+      const v = k => { const x = card.querySelector(`[data-f=${k}]`).value; return x === '' ? null : Number(x); };
+      if (v('followers') == null && v('views') == null) { $('#comp-status').textContent = 'اكتب المتابعين أو المشاهدات الأول'; return; }
+      e.snaps.push({ t: Date.now(), followers: v('followers'), views: v('views'), perWeek: v('perWeek') });
+      e.snaps = e.snaps.slice(-120);
+      saveComp(); renderSocial();
+    };
+    box.appendChild(card);
+  }
+}
 
 async function compUpdate(entry) {
   const key = getSettings().ytKey;
@@ -3832,7 +3906,8 @@ function renderComp() {
   const box = $('#comp-list');
   box.innerHTML = comp.list.length ? '' : '<p class="muted">لسه مفيش قنوات — الصق لينك قناة فوق.</p>';
   const favOnly = $('#comp-fav-only').checked;
-  $('#comp-count').textContent = comp.list.length ? `${Q.arabicNum(comp.list.length)} قناة محفوظة (⭐ ${Q.arabicNum(comp.list.filter(e => e.fav).length)})` : '';
+  const all = [...comp.list, ...comp.social];
+  $('#comp-count').textContent = all.length ? `${Q.arabicNum(all.length)} حساب محفوظ (⭐ ${Q.arabicNum(all.filter(e => e.fav).length)})` : '';
   // المفضلة فوق
   const list = [...comp.list].sort((a, b) => (b.fav ? 1 : 0) - (a.fav ? 1 : 0)).filter(e => !favOnly || e.fav);
   for (const e of list) {
@@ -3915,7 +3990,7 @@ function renderEstimate() {
 
 function setupCompetitors() {
   const dlg = $('#dlg-comp');
-  $('#btn-comp').onclick = () => { $('#comp-key').value = getSettings().ytKey || ''; $('#comp-key-box').open = !getSettings().ytKey; renderComp(); renderEstimate(); dlg.showModal(); };
+  $('#btn-comp').onclick = () => { $('#comp-key').value = getSettings().ytKey || ''; $('#comp-key-box').open = !getSettings().ytKey; renderComp(); renderSocial(); renderEstimate(); dlg.showModal(); };
   $('#comp-close').onclick = () => dlg.close();
   $('#comp-key').onchange = () => setSettings({ ytKey: $('#comp-key').value.trim() });
   $('#comp-region').innerHTML = Object.entries(CP.RPM).map(([k, r]) => `<option value="${k}">جمهور ${r.name}</option>`).join('');
@@ -3933,9 +4008,18 @@ function setupCompetitors() {
     const todo = $('#comp-fav-only').checked ? comp.list.filter(e => e.fav) : comp.list;
     for (const [i, e] of todo.entries()) { $('#comp-status').textContent = `بحدّث ${Q.arabicNum(i + 1)} من ${Q.arabicNum(todo.length)}…`; await compUpdate(e); }
   }, 'بحدّث القنوات…');
-  $('#comp-fav-only').onchange = renderComp;
+  $('#comp-fav-only').onchange = () => { renderComp(); renderSocial(); };
+  $('#soc-add').onclick = () => {
+    const r = parseSocial($('#soc-input').value, $('#soc-platform').value);
+    if (!r) { $('#comp-status').textContent = 'الصق لينك الحساب أو اكتب @اسم_الحساب'; return; }
+    if (comp.social.some(e => e.platform === r.platform && e.handle.toLowerCase() === r.handle.toLowerCase())) { $('#comp-status').textContent = 'الحساب ده موجود عندك'; return; }
+    comp.social.unshift({ id: uid(), ...r, fav: false, snaps: [] });
+    $('#soc-input').value = '';
+    saveComp(); renderSocial();
+  };
+  $('#soc-input').onkeydown = ev => { if (ev.key === 'Enter') $('#soc-add').click(); };
   // نسخة احتياطية من القايمة (عشان تنقلها لجهاز أو متصفح تاني)
-  $('#comp-export').onclick = () => download(new Blob([JSON.stringify({ app: 'quran-clip-studio', comp: comp.list })], { type: 'application/json' }), 'قنوات_المنافسين.json');
+  $('#comp-export').onclick = () => download(new Blob([JSON.stringify({ app: 'quran-clip-studio', comp: comp.list, social: comp.social })], { type: 'application/json' }), 'قنوات_المنافسين.json');
   $('#comp-import').onchange = async () => {
     const f = $('#comp-import').files[0];
     $('#comp-import').value = '';
@@ -3943,9 +4027,11 @@ function setupCompetitors() {
     try {
       const j = JSON.parse(await f.text());
       const add = (j.comp || []).filter(x => x.id && !comp.list.some(e => e.id === x.id));
+      const addS = (j.social || []).filter(x => x.handle && !comp.social.some(e => e.platform === x.platform && e.handle === x.handle));
       comp.list.push(...add);
-      saveComp(); renderComp();
-      $('#comp-status').textContent = `✅ اتضاف ${Q.arabicNum(add.length)} قناة`;
+      comp.social.push(...addS);
+      saveComp(); renderComp(); renderSocial();
+      $('#comp-status').textContent = `✅ اتضاف ${Q.arabicNum(add.length)} قناة يوتيوب و${Q.arabicNum(addS.length)} حساب`;
     } catch { $('#comp-status').textContent = '❌ الملف ده مش نسخة قايمة المنافسين'; }
   };
   $('#est-platform').innerHTML = Object.entries(CP.RPM).map(([k, r]) => `<option value="yt-${k}">يوتيوب — جمهور ${r.name}</option>`).join('')
