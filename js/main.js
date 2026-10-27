@@ -1351,6 +1351,10 @@ function zikrBlockEl(b, i) {
     f('text').placeholder = 'اكتب النص هنا…';
     f('customLabel').oninput = () => { b.label = f('customLabel').value.trim(); sync(); persist(); refreshPreview(); };
     f('customRef').oninput = () => { b.ref = f('customRef').value.trim(); persist(); refreshPreview(); };
+    // الزرار بيقول «ضيف صورة تانية» لما يبقى فيه نص، عشان يبان إن الجديد بيتضاف تحت
+    const ocrLabel = () => { el('ocrLabel').textContent = f('text').value.trim() ? '📷 ＋ ضيف من صورة تانية' : '📷 من صورة'; };
+    ocrLabel();
+    f('text').addEventListener('input', ocrLabel);
     // استخلاص النص من صورة أو رابط (بدل الكتابة)
     // النص بيتحط في الخانة على طول (من غير نافذة تأكيد) — والتنبيهات في شريط الحالة
     const useExtract = r => {
@@ -1362,6 +1366,7 @@ function zikrBlockEl(b, i) {
       if (!b.secondsManual) { b.seconds = estimateSeconds(b.text); f('seconds').value = b.seconds; }
       sync(); persist(); refreshPreview();
       checkFragment();
+      ocrLabel();
       f('text').focus();
       const warn = r.kind === 'quran' ? ' ⚠️ ده شكله آيات — الأفضل «＋ آيات» عشان النص يبقى من المصحف بالظبط.'
         : r.kind === 'hadith' ? ' ⚠️ ده شكله حديث — الأفضل «＋ حديث» عشان درجته تظهر.' : '';
@@ -1376,10 +1381,14 @@ function zikrBlockEl(b, i) {
       try { useExtract(await job()); status(''); } catch (err) { showError(err); }
       if (btn) { btn.disabled = false; btn.textContent = prev; }
     };
-    f('ocrFile').onchange = () => {
-      const file = f('ocrFile').files[0];
+    // كذا صورة مرة واحدة: كل صورة بتتقري وتتضاف تحت اللي قبلها بالترتيب
+    f('ocrFile').onchange = async () => {
+      const files = [...f('ocrFile').files];
       f('ocrFile').value = '';
-      if (file) extract(() => LLM.readImage(file));
+      for (const [i, file] of files.entries()) {
+        if (files.length > 1) status(`بيقرا صورة ${i + 1} من ${files.length}…`);
+        await extract(() => LLM.readImage(file));
+      }
     };
     f('text').addEventListener('paste', e => {
       const file = [...(e.clipboardData?.files || [])].find(x => x.type.startsWith('image/'));

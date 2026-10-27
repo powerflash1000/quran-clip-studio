@@ -6,7 +6,7 @@
   <title>استوديو مقاطع القرآن</title>
   <meta name="description" content="اختار الآيات والقارئ، وصدّر صوت MP3 أو M4A أو WAV أو فيديو جاهز للنشر — من المتصفح مباشرة وببلاش.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261027c">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261027d">
 </head>
 <body>
   <header class="topbar">
@@ -436,7 +436,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261027c</div>
+    <div class="muted" id="app-version">الإصدار 20261027d</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -1161,10 +1161,10 @@
         <textarea data-f="text" rows="4"></textarea>
       </label>
       <div class="btn-row" data-el="customTools" hidden>
-        <label class="btn file-btn" title="صورة فيها دعاء (سكرين شوت من بنترست أو فيسبوك…) — النص بيتنسخ منها">📷 من صورة<input type="file" accept="image/*" data-f="ocrFile" hidden></label>
+        <label class="btn file-btn" title="صورة أو أكتر فيها دعاء (سكرين شوت من بنترست أو فيسبوك…) — النص بيتنسخ منها، ولو فيه نص قبل كده الجديد بيتضاف تحته"><span data-el="ocrLabel">📷 من صورة</span><input type="file" accept="image/*" multiple data-f="ocrFile" hidden></label>
         <button class="btn" data-act="ocrUrl" type="button" title="رابط صورة أو صفحة فيها الدعاء">🔗 من رابط</button>
         <button class="btn" data-act="polish" type="button" title="يصحّح الإملاء ويقسّم السطور — من غير ما يغيّر المعنى">✨ حسّن الصياغة</button>
-        <span class="muted">💡 أو انسخ الصورة (كليك يمين ← Copy image) والصقها في خانة النص بـ Ctrl+V. ⚠️ لو النص حديث، استخدم «＋ حديث» عشان درجته تظهر. ولو آية، استخدم «＋ آيات».</span>
+        <span class="muted">💡 تقدر تختار كذا صورة مرة واحدة، أو تضيف صورة ورا صورة: كل دعاء بيتضاف تحت اللي قبله. أو انسخ الصورة (كليك يمين ← Copy image) والصقها في خانة النص بـ Ctrl+V. ⚠️ لو النص حديث، استخدم «＋ حديث» عشان درجته تظهر. ولو آية، استخدم «＋ آيات».</span>
       </div>
       <div class="btn-row frag-row" data-el="fragRow" hidden>
         <span class="grow" data-el="fragText"></span>
@@ -1207,6 +1207,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261027c"></script>
+  <script type="module" src="js/main.js?v=20261027d"></script>
 </body>
 </html>
