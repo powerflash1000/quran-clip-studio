@@ -6,7 +6,7 @@
   <title>استوديو مقاطع القرآن</title>
   <meta name="description" content="اختار الآيات والقارئ، وصدّر صوت MP3 أو M4A أو WAV أو فيديو جاهز للنشر — من المتصفح مباشرة وببلاش.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261027a">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261027b">
 </head>
 <body>
   <header class="topbar">
@@ -74,6 +74,7 @@
           <button class="btn" id="add-quran" type="button">＋ آيات</button>
           <button class="btn" id="add-hadith" type="button">＋ حديث</button>
           <button class="btn" id="add-custom" type="button" title="دعاء أو كلام من عندك مش موجود في المكتبة">✍️ نص خاص</button>
+          <button class="btn primary" id="btn-reel" type="button" title="اختار موضوع والبرنامج يعمل الريل كله">🪄 ريل بضغطة</button>
           <button class="btn primary" id="add-zikr" type="button">📿 مكتبة الأذكار والأدعية</button>
         </div>
         <div class="btn-row">
@@ -435,7 +436,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261027a</div>
+    <div class="muted" id="app-version">الإصدار 20261027b</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -749,6 +750,7 @@
       <p class="hint">القارئ والخلفيات والألوان من إعدادات البرنامج. القارئ بيتحفظ مع كل مقطع وقت ما تضيفه، فممكن كل سورة تبقى بقارئ مختلف. السور الطويلة بتتقسم لوحدها لأجزاء صغيرة عشان الجهاز مايتقلش.</p>
       <div class="btn-row">
         <button class="btn primary" id="live-start" type="button">🔴 افتح شاشة البث وابدأ</button>
+        <button class="btn" id="live-ctrl" type="button" title="مشاهد ومؤثرات وطبقات وتحكم في OBS وانت بتبث">🎛️ غرفة التحكم</button>
         <button class="btn" id="live-skip" type="button" disabled>⏭ اللي بعده</button>
         <button class="btn" id="live-stop" type="button" disabled>⏹ وقّف البث</button>
       </div>
@@ -846,6 +848,127 @@
         <p class="hint">تيك توك وفيسبوك مش بيعرضوا مشاهدات الحسابات للعامة. لأرقام تيك توك التقريبية: <a href="https://socialblade.com/tiktok" target="_blank" rel="noopener">Social Blade</a>.</p>
       </details>
       <p class="hint">⚠️ الأرباح الحقيقية سرّية عند صاحب القناة — دي <b>تقديرات</b> (المشاهدات × متوسط الربح لكل 1000 مشاهدة لقنوات القرآن بالعربي)، والفيديوهات اللي عليها Claim أرباحها بتروح لصاحب الحق. البيانات بتتحفظ عندك، وكل ما تحدّث بيبقى التقدير أدق (من الفرق بين القراءات).</p>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-ctrl" class="ctrl-panel">
+    <div class="dlg">
+      <div class="row">
+        <h2 class="grow">🎛️ غرفة التحكم</h2>
+        <button class="btn icon" id="ctrl-close" type="button" title="اقفل اللوحة (البث بيكمّل)">✕</button>
+      </div>
+      <p class="hint">كل اللي هنا بيظهر على شاشة البث على طول. اللوحة دي مش بتوقف حاجة، وتقدر تسيبها مفتوحة جنب البث.</p>
+
+      <details class="adv" open>
+        <summary>🎬 المشاهد (أزرار 1–9 في الكيبورد)</summary>
+        <div class="row wrap" id="ctrl-scenes"></div>
+        <button class="btn" id="ctrl-scene-save" type="button">➕ احفظ الشكل الحالي كمشهد</button>
+        <p class="hint">المشهد بيحفظ: الألوان والخط وطريقة ظهور الآيات، والخلفيات المختارة، والمؤثرات والطبقات. التبديل بانتقال ناعم.</p>
+      </details>
+
+      <details class="adv" open>
+        <summary>🖼️ الخلفية دلوقتي</summary>
+        <div class="row wrap" id="ctrl-bgs"></div>
+        <p class="hint">ضغطة = الخلفية دي بس. Shift + ضغطة = تضيفها لمجموعة بتتبدّل.</p>
+      </details>
+
+      <details class="adv" open>
+        <summary>✨ المؤثرات</summary>
+        <div class="row wrap">
+          <label>جزيئات <select id="ctrl-particles"></select></label>
+          <label>الكثافة <input type="range" id="ctrl-density" min="0.3" max="2.5" step="0.1"></label>
+          <label class="check"><input type="checkbox" id="ctrl-kenburns"> 🔍 زووم بطيء على الخلفية</label>
+        </div>
+      </details>
+
+      <details class="adv">
+        <summary>🧾 الطبقات فوق البث</summary>
+        <div class="row wrap">
+          <label class="check"><input type="checkbox" id="ctrl-lower"> شريط سفلي</label>
+          <label class="check"><input type="checkbox" id="ctrl-lower-auto"> اسم السورة والقارئ لوحدهم</label>
+          <input type="text" id="ctrl-lower-title" placeholder="العنوان (لو مش أوتوماتيك)">
+          <input type="text" id="ctrl-lower-sub" placeholder="سطر تحته">
+        </div>
+        <div class="row wrap">
+          <label class="check"><input type="checkbox" id="ctrl-ticker"> شريط أخبار متحرك</label>
+          <input type="text" id="ctrl-ticker-text" class="grow">
+          <label>السرعة <input type="range" id="ctrl-ticker-speed" min="0.4" max="2.5" step="0.1"></label>
+          <label class="check"><input type="checkbox" id="ctrl-ticker-top"> فوق</label>
+        </div>
+        <div class="row wrap">
+          <label class="check"><input type="checkbox" id="ctrl-clock"> 🕐 الساعة</label>
+          <label class="check"><input type="checkbox" id="ctrl-prayer"> 🕌 الأذان الجاي</label>
+          <select id="ctrl-prayer-city"></select>
+          <span class="muted" id="ctrl-prayer-st"></span>
+        </div>
+        <div class="row wrap">
+          <label class="check"><input type="checkbox" id="ctrl-logo"> لوجو القناة</label>
+          <label class="btn file-btn">📁 اختار اللوجو<input type="file" id="ctrl-logo-file" accept="image/*" hidden></label>
+          <select id="ctrl-logo-pos"><option value="tl">فوق شمال</option><option value="tr">فوق يمين</option><option value="bl">تحت شمال</option><option value="br">تحت يمين</option></select>
+        </div>
+        <div class="row wrap">
+          <label class="check"><input type="checkbox" id="ctrl-qr"> كود QR</label>
+          <input type="url" id="ctrl-qr-url" class="grow" dir="ltr" placeholder="https://www.youtube.com/@Tilawat-alaa">
+          <select id="ctrl-qr-pos"><option value="bl">تحت شمال</option><option value="br">تحت يمين</option><option value="tl">فوق شمال</option><option value="tr">فوق يمين</option></select>
+        </div>
+      </details>
+
+      <details class="adv">
+        <summary>📢 اعرض دلوقتي (الشاشة كلها)</summary>
+        <input type="text" id="ctrl-card-title" placeholder="عنوان صغير (اختياري) — مثلًا: دعاء">
+        <textarea id="ctrl-card-text" rows="2" placeholder="الكلام اللي يظهر…"></textarea>
+        <div class="row wrap">
+          <label>المدة (ث) <input type="number" id="ctrl-card-sec" value="8" min="3" max="120" style="width:5em"></label>
+          <button class="btn primary" id="ctrl-card-show" type="button">📢 اعرض</button>
+          <button class="btn" id="ctrl-card-hide" type="button">إخفاء</button>
+        </div>
+        <div class="row wrap">
+          <button class="btn ghost" type="button" data-card="اشترك في القناة وفعّل الجرس 🔔 عشان يوصلك كل جديد" data-title="🤍">اشترك</button>
+          <button class="btn ghost" type="button" data-card="لا تنسونا من صالح دعائكم 🤍" data-title="">ادعوا لنا</button>
+          <button class="btn ghost" type="button" data-card="شارك البث مع حبايبك… لعله يكون صدقة جارية لك" data-title="📤">شارك</button>
+          <button class="btn ghost" type="button" data-card="اللهم صلِّ وسلم على نبينا محمد ﷺ" data-title="">الصلاة على النبي</button>
+        </div>
+      </details>
+
+      <details class="adv">
+        <summary>🎞️ ملصقات وعناوين متحركة (Lottie)</summary>
+        <p class="hint">نزّل أنيميشن مجاني من <a href="https://lottiefiles.com/free-animations" target="_blank" rel="noopener">LottieFiles</a> (Download ← Lottie JSON) وارفعه هنا.</p>
+        <label class="btn file-btn">📁 ارفع ملف Lottie (.json)<input type="file" id="ctrl-lottie" accept=".json,application/json" multiple hidden></label>
+        <div id="ctrl-stickers"></div>
+      </details>
+
+      <details class="adv">
+        <summary>🎚️ OBS من هنا</summary>
+        <p class="hint">في OBS: Tools ← WebSocket Server Settings ← علّم Enable WebSocket server، و«Show Connect Info» بيوريك الباسورد.</p>
+        <div class="row wrap">
+          <input type="text" id="obs-url" dir="ltr" style="width:13em">
+          <input type="password" id="obs-pass" dir="ltr" placeholder="الباسورد" autocomplete="off">
+          <button class="btn" id="obs-connect" type="button">🔌 اتصل</button>
+          <span class="muted" id="obs-status"></span>
+        </div>
+        <div class="row wrap obs-on" hidden>
+          <button class="btn primary" id="obs-stream" type="button">▶ ابدأ البث في OBS</button>
+          <label>المشهد في OBS <select id="obs-scene"></select></label>
+        </div>
+        <div class="row wrap obs-on" id="obs-mutes" hidden></div>
+        <p class="muted obs-on" id="obs-stats" hidden></p>
+      </details>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-reel">
+    <div class="dlg">
+      <div class="row">
+        <h2 class="grow">🪄 ريل بضغطة</h2>
+        <button class="btn icon" id="reel-close" type="button">✕</button>
+      </div>
+      <label>الموضوع <select id="reel-theme"></select></label>
+      <label>القارئ <select id="reel-reciter"><option value="current">القارئ الحالي</option><option value="random">قارئ عشوائي (من اللي عليهم ⏱️)</option></select></label>
+      <label class="check"><input type="checkbox" id="reel-hook" checked> افتتاحية تشد على الموضوع</label>
+      <label class="check"><input type="checkbox" id="reel-words" checked> الكلمات تظهر مع التلاوة</label>
+      <label class="check"><input type="checkbox" id="reel-bg" checked> خلفيات جديدة على الموضوع (Pexels أو Pixabay أو Openverse)</label>
+      <p class="hint">بيختار آيات على الموضوع من مقاطع معروفة ومكتملة المعنى (ومش بيكرر اللي اختاره قريب)، ويكمّل بالشكل اللي انت مختاره. راجع واسمع قبل ما تصدّر.</p>
+      <div class="btn-row end"><button class="btn primary" id="reel-go" type="button">🪄 اعمل الريل</button></div>
     </div>
   </dialog>
 
@@ -1084,6 +1207,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261027a"></script>
+  <script type="module" src="js/main.js?v=20261027b"></script>
 </body>
 </html>

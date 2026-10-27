@@ -12,6 +12,9 @@ import * as EL from './elevenlabs.js';
 import * as GT from './geminitts.js';
 import * as AL from './audiolib.js';
 import * as CP from './competitors.js';
+import * as FX from './livefx.js';
+import { OBS } from './obs.js';
+import { THEMES, pick as pickOne } from './themes.js';
 import * as LLM from './llm.js';
 import * as SND from './sounds.js';
 import * as WT from './words.js';
@@ -3483,11 +3486,21 @@ function liveDraw(now) {
   const c = live.canvas;
   if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
   const g = c.getContext('2d');
-  const list = state.style.bgType === 'media' ? state.mediaList : [];
+  const all = state.style.bgType === 'media' ? state.mediaList : [];
+  // 🎛️ خلفية أو مجموعة خلفيات مختارة من غرفة التحكم
+  const sub = ctrl.bgNames ? all.filter(m => ctrl.bgNames.has(m.file.name)) : null;
+  const list = sub?.length ? sub : all;
   const cur = live.cur;
   const t = cur ? live.ac.currentTime - cur.startAt : 0;
-  let bg = bgMedia(), prev = null, alpha = 1;
-  if (cur?.bgSched) {
+  let bg = list[0] || bgMedia(), prev = null, alpha = 1;
+  if (sub?.length) {
+    if (sub.length > 1) {
+      const every = Math.max(6, Number(state.style.bgEvery) || 12), sec = (now || 0) / 1000;
+      const k = Math.floor(sec / every) % sub.length, x = sec % every;
+      bg = sub[k];
+      if (state.style.bgFade !== false && x < 1) { prev = sub[(k - 1 + sub.length) % sub.length]; alpha = x; }
+    }
+  } else if (cur?.bgSched) {
     const p = pickBg(cur.bgSched, Math.max(0, t), state.style.bgFade !== false ? 0.6 : 0);
     bg = list[p.cur.k]; prev = p.prev && list[p.prev.k]; alpha = p.alpha;
   } else if (liveScenicOnly() && list.length > 1 && live.t0) {
@@ -3502,10 +3515,14 @@ function liveDraw(now) {
     if (fade && x < fade) { prev = list[(k - 1 + list.length) % list.length]; alpha = x / fade; }
   }
   g.clearRect(0, 0, W, H);
-  if (prev) drawBackground(g, W, H, state.style, liveBg(prev));
-  g.globalAlpha = alpha;
-  drawBackground(g, W, H, state.style, liveBg(bg));
-  g.globalAlpha = 1;
+  const drawBgs = () => {
+    if (prev) drawBackground(g, W, H, state.style, liveBg(prev));
+    g.globalAlpha = alpha;
+    drawBackground(g, W, H, state.style, liveBg(bg));
+    g.globalAlpha = 1;
+  };
+  if (ctrl.fx.kenburns && !cur?.video) FX.kenBurns(g, W, H, (now || 0) / 1000, drawBgs); else drawBgs();
+  if (!cur?.video) ctrl.particles.draw(g, W, H, now || performance.now());
   const unit = Math.min(W, H) / 1080;
   const scenic = live.opts.mode !== 'text';
   const counting = live.countdownEnd > Date.now();
@@ -3550,8 +3567,12 @@ function liveDraw(now) {
   const m = 28 * unit;
   if (live.opts.badge && cur && !scenic) pill('● تلاوة مسجّلة', W - m, m, '#ffb4b4');
   const ni = live.nextJob && liveItemAt(live.nextJob.pos);
-  if (live.opts.next && cur && !scenic && ni && ni.id !== live.pos?.id) pill(`التالي: ${ni.label}`, W - m, H - m - 52 * unit, '#ffffff');
+  const tickerBottom = ctrl.fx.ticker.on && !ctrl.fx.ticker.top ? 70 * unit : 0;
+  if (live.opts.next && cur && !scenic && ni && ni.id !== live.pos?.id) pill(`التالي: ${ni.label}`, W - m, H - m - 52 * unit - tickerBottom, '#ffffff');
   g.restore();
+  let curSeg = null;
+  if (cur && !cur.video && cur.segs.length) { curSeg = cur.segs[0]; for (const sg of cur.segs) if (sg.start <= t + 0.05) curSeg = sg; }
+  ctrlDrawOverlays(g, W, H, now || performance.now(), curSeg, cur);
   // للنافذة (بحجمها)
   const out = win.document.getElementById('c');
   if (out) {
@@ -3571,6 +3592,7 @@ function liveOpenWindow() {
 <style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{width:100vw;height:100vh;object-fit:contain;display:block}</style></head>
 <body><canvas id="c"></canvas></body></html>`);
   win.document.close();
+  win.addEventListener('keydown', ctrlHotkey); // أزرار المشاهد شغالة كمان لو نافذة البث هي اللي عليها التركيز
   return win;
 }
 
@@ -3814,6 +3836,389 @@ function setupReference() {
   };
   renderRefs();
   setupRecipe();
+}
+
+// ===== 🎛️ غرفة التحكم في البث =====
+// مشاهد جاهزة (بأزرار 1–9)، اختيار الخلفية فورًا، مؤثرات، طبقات فوق البث، كارت «اعرض دلوقتي»، ملصقات Lottie، والتحكم في OBS
+const FX_DEFAULT = {
+  particles: 'none', density: 1, kenburns: false,
+  lower: { on: false, auto: true, title: '', sub: '' },
+  ticker: { on: false, text: 'اشترك في القناة وفعّل الجرس 🔔 — وشارك البث لعله يكون صدقة جارية 🤍', speed: 1, top: false },
+  clock: { on: false },
+  prayer: { on: false, city: 'Makkah|SA' },
+  logo: { on: false, data: '', pos: 'tl', size: 0.1 },
+  qr: { on: false, url: '', pos: 'bl', size: 0.16 },
+};
+const ctrl = {
+  fx: { ...structuredClone(FX_DEFAULT), ...load('liveFx', {}) },
+  scenes: load('liveScenes', []),
+  particles: new FX.Particles(),
+  bgNames: null,
+  card: null,
+  stickers: [], // { id, name, json, pos, size, on, anim }
+  logoImg: null, qrImg: null, prayer: null, trans: null,
+  obs: new OBS(), obsTimer: 0,
+};
+for (const k of Object.keys(FX_DEFAULT)) if (typeof FX_DEFAULT[k] === 'object') ctrl.fx[k] = { ...FX_DEFAULT[k], ...(ctrl.fx[k] || {}) };
+ctrl.particles.set(ctrl.fx.particles, ctrl.fx.density);
+const saveFx = () => { try { save('liveFx', ctrl.fx); } catch { status('⚠️ اللوجو كبير — اختار صورة أصغر', null, true); } };
+const saveScenes = () => save('liveScenes', ctrl.scenes);
+const PRAYER_CITIES = { 'Makkah|SA': 'مكة المكرمة', 'Madinah|SA': 'المدينة المنورة', 'Riyadh|SA': 'الرياض', 'Jeddah|SA': 'جدة', 'Cairo|EG': 'القاهرة', 'Alexandria|EG': 'الإسكندرية', 'Dubai|AE': 'دبي', 'Kuwait City|KW': 'الكويت', 'Doha|QA': 'الدوحة' };
+
+function ctrlDrawOverlays(g, W, H, now, seg, cur) {
+  const f = ctrl.fx, acc = state.style.accent || '#f4d58d', u = Math.min(W, H) / 1080;
+  // تخطيط الأركان عشان الطبقات ماتركبش على بعض: الشريط المتحرك، وشارة «تلاوة مسجّلة» فوق يمين، والساعة فوق شمال
+  const tickT = f.ticker.on && f.ticker.top ? 70 * u : 0, tickB = f.ticker.on && !f.ticker.top ? 70 * u : 0;
+  const pillTR = live.opts.badge && cur && live.opts.mode === 'text' ? 70 * u : 0;
+  const prayer = f.prayer.on ? FX.nextPrayerText(ctrl.prayer) : '';
+  FX.drawTicker(g, W, H, f.ticker, acc, now);
+  const clockH = FX.drawClock(g, W, H, { on: f.clock.on }, acc, Date.now(), prayer, tickT);
+  const used = { tl: tickT + (clockH || 0), tr: tickT + pillTR, bl: tickB, br: tickB };
+  const place = pos => (pos === 'c' ? {} : pos.includes('t') ? { t: used[pos] } : { b: used[pos] });
+  const bump = (pos, h) => { if (pos !== 'c') used[pos] += h + 12 * u; };
+  if (f.logo.on && ctrl.logoImg?.naturalWidth) {
+    const r = FX.cornerRect(W, H, ctrl.logoImg.naturalWidth, ctrl.logoImg.naturalHeight, f.logo.pos, f.logo.size, place(f.logo.pos));
+    FX.drawCornerImage(g, W, H, ctrl.logoImg, f.logo.pos, f.logo.size, 0.92, place(f.logo.pos));
+    bump(f.logo.pos, r.h);
+  }
+  if (f.qr.on && ctrl.qrImg) {
+    const r = FX.cornerRect(W, H, ctrl.qrImg.width, ctrl.qrImg.height, f.qr.pos, f.qr.size, place(f.qr.pos));
+    FX.drawCornerImage(g, W, H, ctrl.qrImg, f.qr.pos, f.qr.size, 1, place(f.qr.pos));
+    bump(f.qr.pos, r.h);
+  }
+  for (const st of ctrl.stickers) {
+    if (!st.on || !st.anim) continue;
+    const c = st.anim.frameAt(now / 1000);
+    const r = FX.cornerRect(W, H, c.width, c.height, st.pos, st.size, place(st.pos));
+    g.drawImage(c, r.x, r.y, r.w, r.h);
+    bump(st.pos, r.h);
+  }
+  if (f.lower.on) {
+    let title = f.lower.title, sub = f.lower.sub;
+    if (f.lower.auto && seg) { title = (seg.label || '').split('•')[0].trim() || title; sub = seg.footer || sub; }
+    FX.drawLowerThird(g, W, H, { on: true, title, sub, since: ctrl.lowerSince || 0 }, acc, now);
+  }
+  FX.drawCard(g, W, H, ctrl.card, state.style, Date.now());
+  // انتقال ناعم بين المشاهد: الصورة القديمة بتختفي فوق الجديدة
+  if (ctrl.trans) {
+    const a = 1 - (now - ctrl.trans.t0) / 700;
+    if (a <= 0) ctrl.trans = null;
+    else { g.save(); g.globalAlpha = a; g.drawImage(ctrl.trans.c, 0, 0, W, H); g.restore(); }
+  }
+}
+
+function ctrlSnapshot() {
+  if (!live.on || !live.canvas.width) return;
+  const c = document.createElement('canvas');
+  c.width = live.canvas.width; c.height = live.canvas.height;
+  c.getContext('2d').drawImage(live.canvas, 0, 0);
+  ctrl.trans = { c, t0: live.win && !live.win.closed ? live.win.performance.now() : performance.now() };
+}
+
+// ===== المشاهد =====
+const SCENE_STYLE = ['bgType', 'color1', 'color2', 'dim', 'textColor', 'subColor', 'accent', 'textSize', 'labelScale', 'wordMode', 'showLabel', 'showFooter', 'waveform', 'bgSwitch', 'bgEvery', 'bgFade'];
+function saveScene() {
+  const name = (prompt('اسم المشهد (مثلًا: ليلي هادي، فجر، جمعة):', `مشهد ${ctrl.scenes.length + 1}`) || '').trim();
+  if (!name) return;
+  ctrl.scenes.push({
+    id: uid(), name,
+    style: Object.fromEntries(SCENE_STYLE.map(k => [k, state.style[k]])),
+    bgNames: ctrl.bgNames ? [...ctrl.bgNames] : null,
+    fx: structuredClone(ctrl.fx),
+  });
+  saveScenes(); renderCtrl();
+  status(`✅ اتحفظ «${name}» — اضغط ${Q.arabicNum(ctrl.scenes.length)} على الكيبورد وانت بتبث`);
+}
+function applyScene(i) {
+  const sc = ctrl.scenes[i];
+  if (!sc) return;
+  ctrlSnapshot();
+  Object.assign(state.style, sc.style);
+  T.rememberStyle(state.style);
+  applyStyleToInputs();
+  ctrl.bgNames = sc.bgNames?.length ? new Set(sc.bgNames) : null;
+  // اللوجو بيفضل زي ما هو (مش جزء من المشهد عشان الحجم)
+  ctrl.fx = { ...structuredClone(sc.fx), logo: { ...sc.fx.logo, data: ctrl.fx.logo.data } };
+  ctrl.particles.set(ctrl.fx.particles, ctrl.fx.density);
+  if (ctrl.fx.lower.on) ctrl.lowerSince = performance.now();
+  ctrlLoadAssets();
+  saveFx(); renderCtrl(); refreshPreview();
+  status(`🎬 ${sc.name}`);
+}
+function ctrlHotkey(e) {
+  if (!live.on || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName || '')) return;
+  const d = e.code?.match(/^(?:Digit|Numpad)([1-9])$/)?.[1];
+  if (d) { e.preventDefault(); applyScene(+d - 1); }
+}
+
+async function ctrlLoadAssets() {
+  const f = ctrl.fx;
+  if (f.logo.data && ctrl.logoSrc !== f.logo.data) {
+    const im = new Image(); im.src = f.logo.data; ctrl.logoImg = im; ctrl.logoSrc = f.logo.data;
+  }
+  if (f.qr.on && f.qr.url && ctrl.qrSrc !== f.qr.url) {
+    try { ctrl.qrImg = await FX.qrCanvas(f.qr.url, 480); ctrl.qrSrc = f.qr.url; } catch (e) { status('❌ ' + e.message, null, true); }
+  }
+  if (f.prayer.on) {
+    const [city, country] = f.prayer.city.split('|');
+    try { ctrl.prayer = await FX.loadPrayer(city, country); } catch (e) { $('#ctrl-prayer-st').textContent = '❌ ' + e.message; }
+  }
+}
+
+// ===== OBS =====
+async function obsConnect() {
+  const st = $('#obs-status');
+  const pw = $('#obs-pass').value;
+  save('obsConn', { url: $('#obs-url').value.trim(), pass: pw });
+  st.textContent = '…';
+  try {
+    await ctrl.obs.connect($('#obs-url').value.trim() || 'ws://127.0.0.1:4455', pw);
+    ctrl.obs.onClose = () => { $('#obs-status').textContent = '⚪ الاتصال بـ OBS اتقطع'; clearInterval(ctrl.obsTimer); renderObs(false); };
+    ctrl.obs.onEvent = (type) => { if (/StreamStateChanged|RecordStateChanged|CurrentProgramSceneChanged/.test(type)) obsRefresh(); };
+    st.textContent = '🟢 متوصّل بـ OBS';
+    renderObs(true);
+    await obsRefresh();
+    clearInterval(ctrl.obsTimer);
+    ctrl.obsTimer = setInterval(obsStats, 2000);
+  } catch (e) { st.textContent = '❌ ' + e.message; renderObs(false); }
+}
+function renderObs(on) { document.querySelectorAll('.obs-on').forEach(el => { el.hidden = !on; }); }
+async function obsRefresh() {
+  try {
+    const [stream, scenes, inputs] = await Promise.all([ctrl.obs.call('GetStreamStatus'), ctrl.obs.call('GetSceneList'), ctrl.obs.call('GetInputList')]);
+    $('#obs-stream').textContent = stream.outputActive ? '⏹ وقّف البث في OBS' : '▶ ابدأ البث في OBS';
+    $('#obs-stream').classList.toggle('danger', stream.outputActive);
+    const sel = $('#obs-scene');
+    sel.innerHTML = (scenes.scenes || []).slice().reverse().map(x => `<option>${escapeHtml(x.sceneName)}</option>`).join('');
+    sel.value = scenes.currentProgramSceneName;
+    const aud = (inputs.inputs || []).filter(i => /audio|wasapi|pulse|coreaudio|application/i.test(i.inputKind || '') || /audio|صوت|mic/i.test(i.inputName));
+    const box = $('#obs-mutes');
+    box.innerHTML = '';
+    for (const i of aud) {
+      const { inputMuted } = await ctrl.obs.call('GetInputMute', { inputName: i.inputName }).catch(() => ({}));
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'btn';
+      b.textContent = `${inputMuted ? '🔇' : '🔊'} ${i.inputName}`;
+      b.onclick = async () => { await ctrl.obs.call('ToggleInputMute', { inputName: i.inputName }).catch(err => status('❌ ' + err.message, null, true)); obsRefresh(); };
+      box.appendChild(b);
+    }
+  } catch (e) { $('#obs-status').textContent = '❌ ' + e.message; }
+}
+async function obsStats() {
+  if (!ctrl.obs.ready || !$('#dlg-ctrl').open) return;
+  try {
+    const [st, s] = await Promise.all([ctrl.obs.call('GetStats'), ctrl.obs.call('GetStreamStatus')]);
+    const drop = s.outputTotalFrames ? (s.outputSkippedFrames / s.outputTotalFrames * 100) : 0;
+    const prev = ctrl.obsBytes;
+    ctrl.obsBytes = { b: s.outputBytes, t: Date.now() };
+    const kbps = prev && s.outputActive ? Math.round((s.outputBytes - prev.b) * 8 / (ctrl.obsBytes.t - prev.t)) : 0;
+    $('#obs-stats').textContent = [
+      s.outputActive ? `🔴 بيبث ${s.outputTimecode?.split('.')[0] || ''}` : '⚪ مش بيبث',
+      s.outputActive && `📶 ${kbps} kbps`,
+      s.outputActive && `${drop > 1 ? '⚠️' : '✅'} فريمات ضايعة (النت) ${drop.toFixed(1)}%`,
+      `🖥️ CPU ${Math.round(st.cpuUsage || 0)}%`,
+      st.renderSkippedFrames ? `🎨 تأخير رسم ${st.renderSkippedFrames}` : '',
+      st.outputSkippedFrames ? `⚙️ تأخير تشفير ${st.outputSkippedFrames}` : '',
+    ].filter(Boolean).join('  •  ');
+  } catch { /* بيحاول تاني */ }
+}
+
+// ===== رسم اللوحة =====
+function renderCtrl() {
+  const f = ctrl.fx;
+  // المشاهد
+  const sb = $('#ctrl-scenes');
+  sb.innerHTML = '';
+  ctrl.scenes.forEach((sc, i) => {
+    const w = document.createElement('span');
+    w.className = 'scene-btn';
+    w.innerHTML = '<button class="btn" type="button"></button><button class="btn icon" type="button" title="امسح المشهد">✕</button>';
+    w.children[0].textContent = `${i < 9 ? Q.arabicNum(i + 1) + ' ' : ''}${sc.name}`;
+    w.children[0].onclick = () => applyScene(i);
+    w.children[1].onclick = () => { if (confirm(`تمسح «${sc.name}»؟`)) { ctrl.scenes.splice(i, 1); saveScenes(); renderCtrl(); } };
+    sb.appendChild(w);
+  });
+  if (!ctrl.scenes.length) sb.innerHTML = '<span class="muted">لسه مفيش مشاهد — ظبّط الشكل والمؤثرات واضغط «احفظ كمشهد».</span>';
+  // الخلفيات
+  const bb = $('#ctrl-bgs');
+  bb.innerHTML = '';
+  const allBtn = document.createElement('button');
+  allBtn.type = 'button'; allBtn.className = 'btn' + (!ctrl.bgNames ? ' primary' : '');
+  allBtn.textContent = '🔁 كل الخلفيات';
+  allBtn.onclick = () => { ctrlSnapshot(); ctrl.bgNames = null; renderCtrl(); };
+  bb.appendChild(allBtn);
+  if (state.style.bgType !== 'media' || !state.mediaList.length) bb.insertAdjacentHTML('beforeend', '<span class="muted">ضيف خلفيات صور أو فيديو من «٣ الشكل» الأول.</span>');
+  else for (const m of state.mediaList) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'bg-pick' + (ctrl.bgNames?.has(m.file.name) ? ' on' : '');
+    b.title = m.file.name + ' — Shift + ضغطة: ضيفها للمجموعة';
+    b.innerHTML = m.thumb ? `<img src="${m.thumb}" alt="">` : (m.kind === 'video' ? '🎞️' : '🖼️');
+    b.onclick = e => {
+      ctrlSnapshot();
+      if (e.shiftKey && ctrl.bgNames) { ctrl.bgNames.has(m.file.name) ? ctrl.bgNames.delete(m.file.name) : ctrl.bgNames.add(m.file.name); if (!ctrl.bgNames.size) ctrl.bgNames = null; }
+      else ctrl.bgNames = new Set([m.file.name]);
+      renderCtrl();
+    };
+    bb.appendChild(b);
+  }
+  // المؤثرات والطبقات
+  $('#ctrl-particles').value = f.particles;
+  $('#ctrl-density').value = f.density;
+  $('#ctrl-kenburns').checked = f.kenburns;
+  $('#ctrl-lower').checked = f.lower.on; $('#ctrl-lower-auto').checked = f.lower.auto;
+  $('#ctrl-lower-title').value = f.lower.title; $('#ctrl-lower-sub').value = f.lower.sub;
+  $('#ctrl-ticker').checked = f.ticker.on; $('#ctrl-ticker-text').value = f.ticker.text;
+  $('#ctrl-ticker-speed').value = f.ticker.speed; $('#ctrl-ticker-top').checked = f.ticker.top;
+  $('#ctrl-clock').checked = f.clock.on;
+  $('#ctrl-prayer').checked = f.prayer.on; $('#ctrl-prayer-city').value = f.prayer.city;
+  $('#ctrl-logo').checked = f.logo.on; $('#ctrl-logo-pos').value = f.logo.pos;
+  $('#ctrl-qr').checked = f.qr.on; $('#ctrl-qr-url').value = f.qr.url; $('#ctrl-qr-pos').value = f.qr.pos;
+  // الملصقات
+  const sl = $('#ctrl-stickers');
+  sl.innerHTML = '';
+  for (const st of ctrl.stickers) {
+    const row = document.createElement('div');
+    row.className = 'row wrap';
+    row.innerHTML = `<label class="check"><input type="checkbox"> <span></span></label>
+      <select><option value="tr">فوق يمين</option><option value="tl">فوق شمال</option><option value="br">تحت يمين</option><option value="bl">تحت شمال</option><option value="c">النص</option></select>
+      <input type="range" min="0.08" max="0.6" step="0.02" title="الحجم"><button class="btn icon" type="button" title="امسح">✕</button>`;
+    row.querySelector('span').textContent = st.name;
+    const cb = row.querySelector('input[type=checkbox]'), ps = row.querySelector('select'), sz = row.querySelector('input[type=range]');
+    cb.checked = st.on; ps.value = st.pos; sz.value = st.size;
+    cb.onchange = () => { st.on = cb.checked; };
+    ps.onchange = () => { st.pos = ps.value; };
+    sz.oninput = () => { st.size = +sz.value; };
+    row.querySelector('button').onclick = () => { st.anim?.destroy(); ctrl.stickers.splice(ctrl.stickers.indexOf(st), 1); renderCtrl(); };
+    sl.appendChild(row);
+  }
+}
+
+function setupCtrl() {
+  const dlg = $('#dlg-ctrl');
+  // لوحة عائمة (مش modal) عشان تفضل شغالة جنب البث — بنقفل لوحة البث الأول لأنها modal
+  $('#live-ctrl').onclick = () => { $('#dlg-live').close(); renderCtrl(); ctrlLoadAssets(); dlg.show(); };
+  $('#ctrl-close').onclick = () => dlg.close();
+  addEventListener('keydown', ctrlHotkey);
+  $('#ctrl-particles').innerHTML = Object.entries(FX.PARTICLES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  $('#ctrl-prayer-city').innerHTML = Object.entries(PRAYER_CITIES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  $('#ctrl-scene-save').onclick = saveScene;
+  const f = () => ctrl.fx;
+  const bind = (id, fn, ev = 'onchange') => { $('#' + id)[ev] = () => { fn($('#' + id)); saveFx(); }; };
+  bind('ctrl-particles', el => { f().particles = el.value; ctrl.particles.set(el.value, f().density); });
+  bind('ctrl-density', el => { f().density = +el.value; ctrl.particles.set(f().particles, f().density); }, 'oninput');
+  bind('ctrl-kenburns', el => { f().kenburns = el.checked; });
+  bind('ctrl-lower', el => { f().lower.on = el.checked; ctrl.lowerSince = performance.now(); });
+  bind('ctrl-lower-auto', el => { f().lower.auto = el.checked; });
+  bind('ctrl-lower-title', el => { f().lower.title = el.value.trim(); }, 'oninput');
+  bind('ctrl-lower-sub', el => { f().lower.sub = el.value.trim(); }, 'oninput');
+  bind('ctrl-ticker', el => { f().ticker.on = el.checked; });
+  bind('ctrl-ticker-text', el => { f().ticker.text = el.value; }, 'oninput');
+  bind('ctrl-ticker-speed', el => { f().ticker.speed = +el.value; }, 'oninput');
+  bind('ctrl-ticker-top', el => { f().ticker.top = el.checked; });
+  bind('ctrl-clock', el => { f().clock.on = el.checked; });
+  bind('ctrl-prayer', el => { f().prayer.on = el.checked; ctrlLoadAssets(); });
+  bind('ctrl-prayer-city', el => { f().prayer.city = el.value; ctrl.prayer = null; ctrlLoadAssets(); });
+  bind('ctrl-logo', el => { f().logo.on = el.checked; });
+  bind('ctrl-logo-pos', el => { f().logo.pos = el.value; });
+  bind('ctrl-qr', el => { f().qr.on = el.checked; ctrlLoadAssets(); });
+  bind('ctrl-qr-url', el => { f().qr.url = el.value.trim(); ctrlLoadAssets(); });
+  bind('ctrl-qr-pos', el => { f().qr.pos = el.value; });
+  // اللوجو: بنصغّره لـ 256 بكسل عشان يتحفظ
+  $('#ctrl-logo-file').onchange = async () => {
+    const file = $('#ctrl-logo-file').files[0];
+    $('#ctrl-logo-file').value = '';
+    if (!file) return;
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, 256 / Math.max(bmp.width, bmp.height)), c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    f().logo.data = c.toDataURL('image/png'); f().logo.on = true;
+    saveFx(); ctrlLoadAssets(); renderCtrl();
+  };
+  // 📢 اعرض دلوقتي
+  $('#ctrl-card-show').onclick = () => {
+    const text = $('#ctrl-card-text').value.trim();
+    if (!text) return;
+    const sec = Math.max(3, Number($('#ctrl-card-sec').value) || 8);
+    ctrl.card = { text, title: $('#ctrl-card-title').value.trim(), since: Date.now(), until: Date.now() + sec * 1000 };
+  };
+  $('#ctrl-card-hide').onclick = () => { if (ctrl.card) ctrl.card.until = Math.min(ctrl.card.until, Date.now() + 500); };
+  document.querySelectorAll('[data-card]').forEach(b => { b.onclick = () => { $('#ctrl-card-title').value = b.dataset.title || ''; $('#ctrl-card-text').value = b.dataset.card; $('#ctrl-card-show').click(); }; });
+  // ملصقات Lottie
+  $('#ctrl-lottie').onchange = async () => {
+    for (const file of $('#ctrl-lottie').files) {
+      try {
+        const json = JSON.parse(await file.text());
+        const anim = await FX.lottieSticker(json);
+        ctrl.stickers.push({ id: uid(), name: file.name.replace(/\.json$/i, ''), pos: 'tr', size: 0.18, on: true, anim });
+      } catch (e) { status(`❌ «${file.name}» مش ملف Lottie (.json) سليم`, null, true); }
+    }
+    $('#ctrl-lottie').value = '';
+    renderCtrl();
+  };
+  // OBS
+  const oc = load('obsConn', {});
+  $('#obs-url').value = oc.url || 'ws://127.0.0.1:4455';
+  $('#obs-pass').value = oc.pass || '';
+  $('#obs-connect').onclick = obsConnect;
+  $('#obs-stream').onclick = async () => { try { await ctrl.obs.call('ToggleStream'); setTimeout(obsRefresh, 800); } catch (e) { status('❌ ' + e.message, null, true); } };
+  $('#obs-scene').onchange = () => ctrl.obs.call('SetCurrentProgramScene', { sceneName: $('#obs-scene').value }).catch(e => status('❌ ' + e.message, null, true));
+  renderObs(false);
+}
+
+// ===== 🪄 ريل بضغطة =====
+async function oneClickReel() {
+  const theme = THEMES[$('#reel-theme').value];
+  if (!theme) return;
+  const used = load('reelUsed', []);
+  const fresh = theme.refs.filter(r => !used.includes(r.join(':')));
+  const ref = pickOne(fresh.length ? fresh : theme.refs);
+  save('reelUsed', [ref.join(':'), ...used.filter(x => x !== ref.join(':'))].slice(0, 40));
+  stop();
+  const b = newQuranBlock(ref[0], ref[1], ref[2]);
+  state.blocks = [b];
+  // القارئ: الحالي، أو واحد عشوائي من القرّاء اللي عندهم توقيت كلمات (⏱️)
+  if ($('#reel-reciter').value === 'random') {
+    const ok = RECITERS.filter(r => r.featured && exactWords(r));
+    state.style.reciter = pickOne(ok).id;
+  }
+  if ($('#reel-hook').checked) state.style.intro = pickOne(theme.hooks);
+  if ($('#reel-words').checked) state.style.wordMode = 'reveal';
+  T.rememberStyle(state.style);
+  applyStyleToInputs();
+  renderBlocks();
+  refreshPublish(true);
+  $('#dlg-reel').close();
+  showTab('content');
+  status(`🪄 ${theme.name}: ${Q.surah(ref[0]).ar} ${Q.arabicNum(ref[1])}${ref[2] > ref[1] ? '–' + Q.arabicNum(ref[2]) : ''} بصوت ${findReciter(state.style.reciter).name}${state.style.intro ? ` — «${state.style.intro}»` : ''}`);
+  // خلفيات جديدة على الموضوع
+  if ($('#reel-bg').checked) {
+    const s = getSettings();
+    const tries = [s.pexelsKey && ['pexels', 'video'], s.pixabayKey && ['pixabay', 'video'], ['openverse', 'image']].filter(Boolean);
+    for (const [prov, kind] of tries) {
+      try {
+        status(`🪄 بجيب خلفيات «${theme.bg}»…`);
+        const r = await PROVIDERS[prov].fn(theme.bg, kind, state.style.aspect, { page: 1 + Math.floor(Math.random() * 3) });
+        const items = r.items.sort(() => Math.random() - 0.5).slice(0, 3);
+        if (!items.length) continue;
+        let first = true;
+        for (const it of items) { await setMedia(await downloadStock(it), !first); first = false; }
+        state.style.bgType = 'media';
+        applyStyleToInputs();
+        status(`✅ الريل جاهز (${theme.name}) — اسمعه في المعاينة، وبعدين صدّره.`);
+        return;
+      } catch { /* جرّب المصدر اللي بعده */ }
+    }
+    status('🪄 الريل جاهز، بس مقدرتش أجيب خلفيات (حط مفتاح Pexels أو Pixabay) — هيستخدم خلفياتك الحالية.', null, true);
+  }
+}
+
+function setupReel() {
+  $('#reel-theme').innerHTML = Object.entries(THEMES).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join('');
+  $('#btn-reel').onclick = () => $('#dlg-reel').showModal();
+  $('#reel-close').onclick = () => $('#dlg-reel').close();
+  $('#reel-go').onclick = oneClickReel;
 }
 
 // ===== 📈 المنافسين والتقدير =====
@@ -4609,6 +5014,8 @@ async function init() {
   setupReference();
   setupRefExtract();
   setupCompetitors();
+  setupCtrl();
+  setupReel();
   setupPlanner();
   setupStats();
   idleLoop();
