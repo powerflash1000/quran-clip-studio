@@ -8,6 +8,8 @@ export class OBS {
 
   connect(url = 'ws://127.0.0.1:4455', password = '') {
     this.close();
+    for (const p of this.pending.values()) p.reject(new Error('اتصال جديد بـ OBS'));
+    this.pending.clear();
     return new Promise((resolve, reject) => {
       let ws;
       try { ws = new WebSocket(url); } catch (e) { reject(new Error('عنوان الاتصال غلط')); return; }
@@ -17,6 +19,7 @@ export class OBS {
       ws.onerror = () => { clearTimeout(timer); fail('مقدرتش أوصل لـ OBS. افتح OBS، وفعّل Tools ← WebSocket Server Settings ← Enable WebSocket server'); };
       ws.onclose = ev => {
         clearTimeout(timer);
+        if (this.ws !== ws) return; // اتصال قديم اتقفل بعد ما فتحنا واحد جديد
         const was = this.ready;
         this.ready = false;
         for (const p of this.pending.values()) p.reject(new Error('الاتصال بـ OBS اتقطع'));
@@ -27,7 +30,7 @@ export class OBS {
       ws.onmessage = async ev => {
         const m = JSON.parse(ev.data);
         if (m.op === 0) { // Hello
-          const d = { rpcVersion: 1, eventSubscriptions: 1 | 64 }; // General + Outputs
+          const d = { rpcVersion: 1, eventSubscriptions: 1 | 4 | 8 | 64 }; // General + Scenes + Inputs + Outputs
           if (m.d.authentication) {
             if (!password) { clearTimeout(timer); fail('OBS طالب باسورد — اكتبه (من Tools ← WebSocket Server Settings ← Show Connect Info)'); return; }
             const { challenge, salt } = m.d.authentication;
@@ -59,5 +62,9 @@ export class OBS {
     });
   }
 
-  close() { try { this.ws?.close(); } catch { /* */ } this.ws = null; this.ready = false; }
+  close() {
+    const ws = this.ws;
+    this.ws = null; this.ready = false;
+    if (ws) { ws.onmessage = ws.onerror = null; try { ws.close(); } catch { /* */ } }
+  }
 }

@@ -33,12 +33,16 @@ export async function resolveChannel(input, key) {
   const s = String(input || '').trim();
   let m = s.match(/(UC[\w-]{22})/);
   if (m) return m[1];
-  m = s.match(/@([\w.\-·]+)/) || s.match(/youtube\.com\/(?:c\/|user\/)?([\w.\-]+)\/?$/i);
+  let dec = s;
+  try { dec = decodeURIComponent(s); } catch { /* مش متشفّر */ }
+  // الـ handle ممكن يبقى عربي أو فيه رموز: بناخد اللي بعد @ لحد / أو ? أو مسافة
+  m = dec.match(/@([^\s/?#&]+)/) || dec.match(/youtube\.com\/(?:c\/|user\/)([^\s/?#&]+)/i);
   if (m) {
     const j = await get('channels', { part: 'id', forHandle: '@' + m[1] }, key);
     if (j.items?.[0]) return j.items[0].id;
     const u = await get('channels', { part: 'id', forUsername: m[1] }, key);
     if (u.items?.[0]) return u.items[0].id;
+    throw new Error(`مالقيتش القناة @${m[1]} — اتأكد من الاسم، أو الصق لينك أي فيديو منها`);
   }
   // فيديو: نجيب قناته
   m = s.match(/(?:v=|youtu\.be\/|shorts\/|live\/)([\w-]{11})/);
@@ -46,8 +50,10 @@ export async function resolveChannel(input, key) {
     const v = await get('videos', { part: 'snippet', id: m[1] }, key);
     if (v.items?.[0]) return v.items[0].snippet.channelId;
   }
-  // اسم: بحث (بيكلّف 100 وحدة من الحد اليومي)
-  const r = await get('search', { part: 'snippet', type: 'channel', q: s.replace(/^https?:\/\/\S+/, ''), maxResults: 1 }, key);
+  // اسم: بحث (بيكلّف 100 وحدة من الحد اليومي) — بس لو مكتوب اسم فعلًا مش لينك
+  const q = dec.replace(/https?:\/\/\S+/g, '').trim();
+  if (!q) throw new Error('اللينك ده مش لقناة يوتيوب — الصق لينك القناة (فيه @) أو لينك أي فيديو منها');
+  const r = await get('search', { part: 'snippet', type: 'channel', q, maxResults: 1 }, key);
   if (r.items?.[0]) return r.items[0].snippet.channelId;
   throw new Error('مالقيتش القناة دي — الصق لينك القناة أو لينك أي فيديو منها');
 }

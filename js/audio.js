@@ -77,14 +77,15 @@ export function buildTimeline(segments, { gap = 0.6, leadIn = 0.3, tail = 0.8, a
 }
 
 // ترميز WAV (16-bit PCM)
-export function encodeWav({ left, right }) {
+// rate: معدل العينات الحقيقي (التايملاين 44100، بس فيه بافرات بمعدلات تانية زي 16000)
+export function encodeWav({ left, right }, rate = SAMPLE_RATE) {
   const n = left.length;
   const buf = new ArrayBuffer(44 + n * 4);
   const v = new DataView(buf);
   const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
   str(0, 'RIFF'); v.setUint32(4, 36 + n * 4, true); str(8, 'WAVE');
   str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 2, true);
-  v.setUint32(24, SAMPLE_RATE, true); v.setUint32(28, SAMPLE_RATE * 4, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 4, true);
   v.setUint16(32, 4, true); v.setUint16(34, 16, true);
   str(36, 'data'); v.setUint32(40, n * 4, true);
   let o = 44;
@@ -136,7 +137,7 @@ export function trimSilence(buffer, { threshold = 0.02, pad = 0.2 } = {}) {
 export function bufferToWavBlob(buffer) {
   const left = buffer.getChannelData(0);
   const right = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : left;
-  return new Blob([encodeWav({ left, right })], { type: 'audio/wav' });
+  return new Blob([encodeWav({ left, right }, buffer.sampleRate)], { type: 'audio/wav' });
 }
 
 // قص جزء من ملف صوت (بالثواني)

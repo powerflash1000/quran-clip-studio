@@ -3459,6 +3459,12 @@ function liveScenicStart() {
 // فيديوهات الخلفية بتاعة البث: نسخة جوه نافذة البث نفسها. النسخة اللي في صفحة البرنامج المتصفح بيبطّأها
 // أو يوقفها لما الصفحة تتصغّر أو تبقى ورا، فالمنظر كان بيقف في البث
 const liveBgEls = new Map();
+function liveBgPrune() {
+  const keep = new Map(state.mediaList.map(m => [m.id, m.url]));
+  for (const [id, v] of liveBgEls) {
+    if (keep.get(id) !== v.src) { v.pause(); v.removeAttribute('src'); v.load(); v.remove(); liveBgEls.delete(id); }
+  }
+}
 function liveBg(m) {
   if (!m || m.kind !== 'video' || !live.win || live.win.closed) return m;
   let v = liveBgEls.get(m.id);
@@ -3482,6 +3488,8 @@ function liveDraw(now) {
   if (!win || win.closed) { liveStop(); status('نافذة البث اتقفلت — البث وقف.'); return; }
   if (now && live.lastFrame && now - live.lastFrame < 1000 / LIVE_FPS - 4) { live.raf = win.requestAnimationFrame(liveDraw); return; }
   live.lastFrame = now || 0;
+  // الخلفيات اللي اتشالت أو اتغيّرت: نوقف الفيديو بتاعها (كل 5 ثواني)
+  if (!live.lastPrune || live.lastFrame - live.lastPrune > 5000) { live.lastPrune = live.lastFrame; liveBgPrune(); }
   const { w: W, h: H } = ASPECTS[live.opts.aspect] || ASPECTS['16:9'];
   const c = live.canvas;
   if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
@@ -3861,8 +3869,8 @@ const ctrl = {
 };
 for (const k of Object.keys(FX_DEFAULT)) if (typeof FX_DEFAULT[k] === 'object') ctrl.fx[k] = { ...FX_DEFAULT[k], ...(ctrl.fx[k] || {}) };
 ctrl.particles.set(ctrl.fx.particles, ctrl.fx.density);
-const saveFx = () => { try { save('liveFx', ctrl.fx); } catch { status('⚠️ اللوجو كبير — اختار صورة أصغر', null, true); } };
-const saveScenes = () => save('liveScenes', ctrl.scenes);
+const saveFx = () => { if (!save('liveFx', ctrl.fx)) status('⚠️ مساحة التخزين في المتصفح اتملت — الإعدادات دي مش هتتحفظ. جرّب لوجو أصغر أو امسح مشاهد.', null, true); };
+const saveScenes = () => { if (!save('liveScenes', ctrl.scenes)) status('⚠️ مساحة التخزين في المتصفح اتملت — المشهد ده مش هيتحفظ.', null, true); };
 const PRAYER_CITIES = { 'Makkah|SA': 'مكة المكرمة', 'Madinah|SA': 'المدينة المنورة', 'Riyadh|SA': 'الرياض', 'Jeddah|SA': 'جدة', 'Cairo|EG': 'القاهرة', 'Alexandria|EG': 'الإسكندرية', 'Dubai|AE': 'دبي', 'Kuwait City|KW': 'الكويت', 'Doha|QA': 'الدوحة' };
 
 function ctrlDrawOverlays(g, W, H, now, seg, cur) {
@@ -3907,12 +3915,15 @@ function ctrlDrawOverlays(g, W, H, now, seg, cur) {
   }
 }
 
+// ساعة نافذة البث (الرسم هناك بيستخدمها) — مختلفة عن ساعة صفحة البرنامج
+const ctrlNow = () => (live.win && !live.win.closed ? live.win.performance.now() : performance.now());
+
 function ctrlSnapshot() {
   if (!live.on || !live.canvas.width) return;
   const c = document.createElement('canvas');
   c.width = live.canvas.width; c.height = live.canvas.height;
   c.getContext('2d').drawImage(live.canvas, 0, 0);
-  ctrl.trans = { c, t0: live.win && !live.win.closed ? live.win.performance.now() : performance.now() };
+  ctrl.trans = { c, t0: ctrlNow() };
 }
 
 // ===== المشاهد =====
@@ -3924,7 +3935,7 @@ function saveScene() {
     id: uid(), name,
     style: Object.fromEntries(SCENE_STYLE.map(k => [k, state.style[k]])),
     bgNames: ctrl.bgNames ? [...ctrl.bgNames] : null,
-    fx: structuredClone(ctrl.fx),
+    fx: { ...structuredClone(ctrl.fx), logo: { ...ctrl.fx.logo, data: '' } }, // اللوجو مش بيتكرر في كل مشهد
   });
   saveScenes(); renderCtrl();
   status(`✅ اتحفظ «${name}» — اضغط ${Q.arabicNum(ctrl.scenes.length)} على الكيبورد وانت بتبث`);
@@ -3940,7 +3951,7 @@ function applyScene(i) {
   // اللوجو بيفضل زي ما هو (مش جزء من المشهد عشان الحجم)
   ctrl.fx = { ...structuredClone(sc.fx), logo: { ...sc.fx.logo, data: ctrl.fx.logo.data } };
   ctrl.particles.set(ctrl.fx.particles, ctrl.fx.density);
-  if (ctrl.fx.lower.on) ctrl.lowerSince = performance.now();
+  if (ctrl.fx.lower.on) ctrl.lowerSince = ctrlNow();
   ctrlLoadAssets();
   saveFx(); renderCtrl(); refreshPreview();
   status(`🎬 ${sc.name}`);
@@ -3975,7 +3986,7 @@ async function obsConnect() {
   try {
     await ctrl.obs.connect($('#obs-url').value.trim() || 'ws://127.0.0.1:4455', pw);
     ctrl.obs.onClose = () => { $('#obs-status').textContent = '⚪ الاتصال بـ OBS اتقطع'; clearInterval(ctrl.obsTimer); renderObs(false); };
-    ctrl.obs.onEvent = (type) => { if (/StreamStateChanged|RecordStateChanged|CurrentProgramSceneChanged/.test(type)) obsRefresh(); };
+    ctrl.obs.onEvent = (type) => { if (/StreamStateChanged|RecordStateChanged|CurrentProgramSceneChanged|InputMuteStateChanged|SceneListChanged/.test(type)) obsRefresh(); };
     st.textContent = '🟢 متوصّل بـ OBS';
     renderObs(true);
     await obsRefresh();
@@ -4108,7 +4119,7 @@ function setupCtrl() {
   bind('ctrl-particles', el => { f().particles = el.value; ctrl.particles.set(el.value, f().density); });
   bind('ctrl-density', el => { f().density = +el.value; ctrl.particles.set(f().particles, f().density); }, 'oninput');
   bind('ctrl-kenburns', el => { f().kenburns = el.checked; });
-  bind('ctrl-lower', el => { f().lower.on = el.checked; ctrl.lowerSince = performance.now(); });
+  bind('ctrl-lower', el => { f().lower.on = el.checked; ctrl.lowerSince = ctrlNow(); });
   bind('ctrl-lower-auto', el => { f().lower.auto = el.checked; });
   bind('ctrl-lower-title', el => { f().lower.title = el.value.trim(); }, 'oninput');
   bind('ctrl-lower-sub', el => { f().lower.sub = el.value.trim(); }, 'oninput');
@@ -4404,8 +4415,14 @@ function setupCompetitors() {
     const key = getSettings().ytKey;
     const id = await CP.resolveChannel($('#comp-input').value, key);
     let e = comp.list.find(x => x.id === id);
-    if (!e) { e = { id, region: $('#comp-region').value, snaps: [] }; comp.list.unshift(e); }
-    await compUpdate(e);
+    if (e) await compUpdate(e);
+    else {
+      // بنضيفها بعد ما بياناتها توصل بس (لو الطلب فشل، ماتفضلش قناة فاضية في القايمة)
+      e = { id, region: $('#comp-region').value, snaps: [] };
+      await compUpdate(e);
+      comp.list.unshift(e);
+      saveComp();
+    }
     $('#comp-input').value = '';
   }, 'بجيب بيانات القناة…');
   $('#comp-input').onkeydown = ev => { if (ev.key === 'Enter') $('#comp-add').click(); };
@@ -4448,16 +4465,29 @@ function setupCompetitors() {
 let refCands = [];
 const b64 = buf => { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s); };
 
+// WAV مونو 16-bit بمعدل البافر الحقيقي
+function monoWav(buf) {
+  const d = buf.getChannelData(0), n = d.length, out = new DataView(new ArrayBuffer(44 + n * 2));
+  const str = (o, s) => { for (let i = 0; i < s.length; i++) out.setUint8(o + i, s.charCodeAt(i)); };
+  str(0, 'RIFF'); out.setUint32(4, 36 + n * 2, true); str(8, 'WAVE'); str(12, 'fmt ');
+  out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, 1, true);
+  out.setUint32(24, buf.sampleRate, true); out.setUint32(28, buf.sampleRate * 2, true);
+  out.setUint16(32, 2, true); out.setUint16(34, 16, true); str(36, 'data'); out.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) out.setInt16(44 + i * 2, Math.max(-1, Math.min(1, d[i])) * 0x7fff, true);
+  return out.buffer;
+}
+
 // ملف فيديو ← صوت WAV صغير (16kHz مونو، أول 8 دقايق) + 3 لقطات للكلام المكتوب على الشاشة
 async function mediaFromFile(file) {
   let audio = null;
   try {
     const buf = await decode(await file.arrayBuffer());
-    const dur = Math.min(buf.duration, 480);
+    // أول 5 دقايق بس، مونو 16kHz (‏32KB في الثانية) — عشان الطلب يفضل أقل من حد جوجل (20MB)
+    const dur = Math.min(buf.duration, 300);
     const off = new OfflineAudioContext(1, Math.ceil(dur * 16000), 16000);
     const src = off.createBufferSource();
     src.buffer = buf; src.connect(off.destination); src.start();
-    audio = b64(await bufferToWavBlob(await off.startRendering()).arrayBuffer());
+    audio = b64(monoWav(await off.startRendering()));
   } catch { /* فيديو من غير صوت */ }
   const images = [];
   if (file.type.startsWith('video/')) {
@@ -4481,6 +4511,21 @@ async function mediaFromFile(file) {
   return { audio, images };
 }
 
+// اسم القارئ من الفيديو ← القارئ عندك: بالكلمات المميزة بس (مش «عبد» و«محمد»…)
+const COMMON_NAME = new Set(['عبد', 'محمد', 'محمود', 'علي', 'احمد', 'الشيخ', 'القارئ', 'مرتل', 'مجود', 'المعلم', 'بن', 'ابن']);
+const nameWords = s => String(s || '').replace(/[()«»]/g, ' ').replace(/[\u064B-\u065F\u0670]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي')
+  .split(/\s+/).map(w => w.replace(/^ال(?=..)/, '')).filter(w => w.length > 2 && !COMMON_NAME.has(w) && !COMMON_NAME.has('ال' + w));
+function matchReciter(spoken) {
+  const said = new Set(nameWords(spoken));
+  if (!said.size) return null;
+  let best = null, bestScore = 0;
+  for (const r of RECITERS) {
+    const score = nameWords(r.name).filter(w => said.has(w)).length;
+    if (score > bestScore) { best = r; bestScore = score; }
+  }
+  return best;
+}
+
 async function refExtract(src) {
   const st = $('#ref-extract-status');
   if (!LLM.canReadMedia()) { st.textContent = '🔑 محتاج مفتاح Gemini (مجاني): ⚙️ الإعدادات ← ✨ مساعد الكتابة (Gemini) أو 🔊 صوت Gemini'; return; }
@@ -4501,7 +4546,7 @@ async function refExtract(src) {
       else if (it.type === 'hadith') refCands.push({ kind: 'hadith', text: it.text, on: false });
       else refCands.push({ kind: 'dua', text: it.text, on: true });
     }
-    const rc = r.reciter && RECITERS.find(x => r.reciter.includes(x.name.split(' ')[0]) || x.name.includes(r.reciter));
+    const rc = matchReciter(r.reciter);
     st.textContent = `✅ لقيت ${Q.arabicNum(refCands.length)} عنصر${r.reciter ? ` — القارئ في الفيديو: ${r.reciter}${rc ? ` (موجود عندك: ${rc.name})` : ''}` : ''}`;
     renderRefCands(rc);
   } catch (e) { st.textContent = '❌ ' + e.message; }
