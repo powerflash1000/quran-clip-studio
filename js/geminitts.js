@@ -74,12 +74,13 @@ async function pickModels(k) {
 }
 
 // تحويل نص لصوت؛ بيرجع Blob (wav)
-export async function speak(text, voice = '') {
+// extraStyle: أداء الصوت (المشاعر) بالإنجليزي — بيتضاف لطريقة القراءة اللي في الإعدادات
+export async function speak(text, voice = '', extraStyle = '') {
   const k = key();
   if (!k) throw new Error('حط مفتاح Gemini في ⚙️ الإعدادات ← 🔊 صوت Gemini (أو في مساعد الكتابة)');
   const s = getSettings();
   const models = await pickModels(k);
-  const style = (s.gttsStyle || '').trim();
+  const style = [s.gttsStyle, extraStyle].map(x => (x || '').trim()).filter(Boolean).join(' ');
   const voiceName = voice || s.gttsVoice || 'Charon';
   const send = (model, withStyle) => retryFetch(`${API}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(k)}`, {
     method: 'POST',

@@ -11,6 +11,7 @@ import { getSettings, setSettings, load, save } from './storage.js';
 import * as EL from './elevenlabs.js';
 import * as GT from './geminitts.js';
 import * as AL from './audiolib.js';
+import { EMOTIONS, emotion } from './emotions.js';
 import * as CP from './competitors.js';
 import * as FX from './livefx.js';
 import { OBS } from './obs.js';
@@ -1086,6 +1087,19 @@ function wireAudioControls(li, b, sync) {
     el('audio-preview').play().catch(() => {});
     if (msg) status(msg);
   };
+  // 🎭 أداء الصوت: المشاعر والثبات والسرعة (لـ ElevenLabs و Gemini)
+  f('emo').innerHTML = EMOTIONS.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+  f('emo').value = b.emo || '';
+  f('perfStab').value = b.perfStab ?? '';
+  f('perfSpeed').value = b.perfSpeed ?? 1;
+  f('perfStyle').value = b.perfStyle ?? 0;
+  const perfLabel = () => { el('perfInfo').textContent = `السرعة ${(+f('perfSpeed').value).toFixed(2)}× • التعبير ${Math.round(f('perfStyle').value * 100)}%${b.emo ? ' • في ElevenLabs المشاعر بتستخدم موديل Eleven v3' : ''}`; };
+  f('emo').onchange = () => { b.emo = f('emo').value; persist(); perfLabel(); };
+  f('perfStab').onchange = () => { b.perfStab = f('perfStab').value === '' ? undefined : +f('perfStab').value; persist(); };
+  f('perfSpeed').oninput = () => { b.perfSpeed = +f('perfSpeed').value; persist(); perfLabel(); };
+  f('perfStyle').oninput = () => { b.perfStyle = +f('perfStyle').value; persist(); perfLabel(); };
+  perfLabel();
+  const perfOf = () => ({ emotion: b.emo || '', stability: b.perfStab, speed: b.perfSpeed ?? 1, style: b.perfStyle ?? 0 });
   // صوت اتولّد قبل كده لنفس النص بنفس الصوت: نستخدمه بدل ما نولّد تاني (من غير رصيد)
   const reuse = async (kind, text, voice) => {
     const c = await AL.findSame(kind, text, voice);
@@ -1104,14 +1118,16 @@ function wireAudioControls(li, b, sync) {
     }
     const text = EL.prepareText(b.text || '');
     if (text.length < 3) { alert('اكتب النص الأول.'); return; }
-    if (!force && await reuse('ai', text, voiceId)) return;
+    const perf = perfOf();
+    const perfKey = `${voiceId}|${b.emo || ''}|${perf.stability ?? ''}|${perf.speed}|${perf.style}`;
+    if (!force && await reuse('ai', text, perfKey)) return;
     if (!confirm(`هيتبعت ${text.length} حرف لـ ElevenLabs، وده هيتخصم من رصيدك هناك (تقريبًا حرف = كريديت).\n\nبعد التوليد لازم تسمع الصوت كله وتتأكد من النطق والتشكيل.\nتكمل؟`)) return;
     const btn = act('ai');
     btn.disabled = true; btn.textContent = '⏳ بيولّد…';
     try {
-      const blob = await EL.speak(text, voiceId);
+      const blob = await EL.speak(text, voiceId, perf);
       const buffer = await decode(await blob.arrayBuffer());
-      const id = await AL.addClip({ name: `ElevenLabs — ${elVoices.find(v => v.id === voiceId)?.name || 'صوتي'}`, kind: 'ai', text, voice: voiceId, dur: buffer.duration, blob });
+      const id = await AL.addClip({ name: `ElevenLabs — ${elVoices.find(v => v.id === voiceId)?.name || 'صوتي'}${b.emo ? ' — ' + emotion(b.emo).name : ''}`, kind: 'ai', text, voice: perfKey, dur: buffer.duration, blob });
       useAudio('ai', trimSilence(buffer), 'ElevenLabs', blob, id, '✅ الصوت اتولّد واتحفظ في 📚 المكتبة. اسمعه كله وراجع النطق والتشكيل قبل التصدير. ولو فيه غلط، عدّل النص وولّد تاني.');
     } catch (e) {
       showError(e);
@@ -1128,14 +1144,15 @@ function wireAudioControls(li, b, sync) {
     const text = EL.prepareText(b.text || '');
     if (text.length < 3) { alert('اكتب النص الأول.'); return; }
     const voice = b.gVoice || getSettings().gttsVoice || 'Charon';
-    if (!force && await reuse('gtts', text, voice)) return;
+    const gKey = b.emo ? `${voice}|${b.emo}` : voice;
+    if (!force && await reuse('gtts', text, gKey)) return;
     if (!GT.hasKey()) { alert('حط مفتاح Gemini الأول من ⚙️ الإعدادات ← 🔊 صوت Gemini.'); return; }
     const btn = act('gtts');
     btn.disabled = true; btn.textContent = '⏳ بيولّد…';
     try {
-      const blob = await GT.speak(text, b.gVoice);
+      const blob = await GT.speak(text, b.gVoice, emotion(b.emo).say || '');
       const buffer = await decode(await blob.arrayBuffer());
-      const id = await AL.addClip({ name: `Gemini — ${voice}`, kind: 'gtts', text, voice, dur: buffer.duration, blob });
+      const id = await AL.addClip({ name: `Gemini — ${voice}${b.emo ? ' — ' + emotion(b.emo).name : ''}`, kind: 'gtts', text, voice: gKey, dur: buffer.duration, blob });
       useAudio('gtts', trimSilence(buffer), 'Gemini', blob, id, '✅ الصوت اتولّد واتحفظ في 📚 المكتبة. اسمعه كله وراجع النطق والتشكيل قبل التصدير. ولو فيه غلط، عدّل النص أو جرّب صوت تاني.');
     } catch (e) {
       showError(e);

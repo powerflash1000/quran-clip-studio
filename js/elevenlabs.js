@@ -1,6 +1,7 @@
 // قراءة النص بصوتك عن طريق ElevenLabs (اختياري — محتاج مفتاح API ورقم الصوت في الإعدادات)
 // المفتاح بيتحفظ على جهازك بس، والطلب بيروح لـ ElevenLabs مباشرة (أو عن طريق الوسيط لو متضبط)
 import { getSettings } from './storage.js';
+import { emotion } from './emotions.js';
 
 const API = 'https://api.elevenlabs.io';
 
@@ -48,15 +49,25 @@ export async function listVoices() {
 
 // تحويل نص لصوت؛ بيرجع Blob (mp3)
 // voiceId (اختياري): صوت معيّن للمقطع ده بدل الصوت الافتراضي اللي في الإعدادات
-export async function speak(text, voiceId = '') {
+// perf (أداء الصوت): { emotion, stability, style, speed }
+// المشاعر بتحتاج Eleven v3 (بيفهم تاجات زي [crying] و [whispers]) — فلو فيه مشاعر بنستخدمه للمقطع ده
+export async function speak(text, voiceId = '', perf = {}) {
   const { elevenVoiceId, elevenModel } = getSettings();
+  const em = emotion(perf.emotion);
+  // تاجات مكتوبة جوه النص نفسه ([sighs] …) برضه محتاجة v3، وإلا الموديل القديم هينطقها
+  const tagsInText = /\[[a-z][a-z \-]*\]/i.test(text);
+  const model = em.tag || tagsInText ? 'eleven_v3' : (elevenModel || MODELS[0].id);
+  const v3 = model === 'eleven_v3';
+  // v3 بيقبل الثبات 0 أو 0.5 أو 1 بس (Creative / Natural / Robust)
+  let stability = perf.stability ?? (em.tag ? 0.5 : 0.6);
+  if (v3) stability = [0, 0.5, 1].reduce((a, b) => (Math.abs(b - stability) < Math.abs(a - stability) ? b : a));
   const res = await call(`/v1/text-to-speech/${encodeURIComponent(voiceId || elevenVoiceId)}?output_format=mp3_44100_128`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
     body: JSON.stringify({
-      text,
-      model_id: elevenModel || MODELS[0].id,
-      voice_settings: { stability: 0.6, similarity_boost: 0.85, style: 0, use_speaker_boost: true },
+      text: em.tag ? `[${em.tag}] ${text}` : text,
+      model_id: model,
+      voice_settings: { stability, similarity_boost: 0.85, style: perf.style ?? 0, use_speaker_boost: true, speed: perf.speed ?? 1 },
     }),
   });
   if (!res.ok) throw new Error(`ElevenLabs ${res.status}: ${await errorText(res)}`);

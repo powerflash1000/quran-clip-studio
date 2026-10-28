@@ -691,6 +691,19 @@
           <button class="btn" data-act="gtts" type="button">🆓 ولّد بصوت Gemini</button>
           <select data-f="gVoice" title="أنهي صوت من أصوات Gemini"></select>
         </div>
+        <details class="adv perf">
+          <summary>🎭 أداء الصوت (مشاعر وسرعة) — لـ ElevenLabs و Gemini</summary>
+          <div class="row wrap">
+            <label>المشاعر <select data-f="emo"></select></label>
+            <label title="ElevenLabs: الأقل ثبات = تعبير أكتر وتغيير أكتر من مرة للتانية">الثبات <select data-f="perfStab">
+              <option value="">تلقائي</option><option value="0">تعبير أكتر (Creative)</option><option value="0.5">متوازن (Natural)</option><option value="1">ثابت جدًا (Robust)</option>
+            </select></label>
+            <label>السرعة <input type="range" data-f="perfSpeed" min="0.7" max="1.2" step="0.05"></label>
+            <label title="ElevenLabs: مبالغة في أسلوب الصوت">التعبير <input type="range" data-f="perfStyle" min="0" max="1" step="0.05"></label>
+          </div>
+          <p class="muted" data-el="perfInfo"></p>
+          <p class="hint">💡 في ElevenLabs تقدر كمان تكتب تاجات جوه النص نفسه في أي مكان، زي <code dir="ltr">[sighs]</code> أو <code dir="ltr">[whispers]</code> أو <code dir="ltr">[crying]</code> أو <code dir="ltr">[pause]</code>، وبتشتغل مع موديل Eleven v3. Gemini بياخد المشاعر كتعليمات، والسرعة والتعبير خاصين بـ ElevenLabs.</p>
+        </details>
         <audio controls data-el="audio-preview" hidden></audio>
         <div class="btn-row" data-el="audioTools" hidden>
           <button class="btn" data-act="regen" type="button" title="ولّد الصوت تاني بنفس الصوت المختار">🔁 ولّد تاني</button>
@@ -1194,6 +1207,19 @@
           <button class="btn" data-act="gtts" type="button">🆓 ولّد بصوت Gemini</button>
           <select data-f="gVoice" title="أنهي صوت من أصوات Gemini"></select>
         </div>
+        <details class="adv perf">
+          <summary>🎭 أداء الصوت (مشاعر وسرعة) — لـ ElevenLabs و Gemini</summary>
+          <div class="row wrap">
+            <label>المشاعر <select data-f="emo"></select></label>
+            <label title="ElevenLabs: الأقل ثبات = تعبير أكتر وتغيير أكتر من مرة للتانية">الثبات <select data-f="perfStab">
+              <option value="">تلقائي</option><option value="0">تعبير أكتر (Creative)</option><option value="0.5">متوازن (Natural)</option><option value="1">ثابت جدًا (Robust)</option>
+            </select></label>
+            <label>السرعة <input type="range" data-f="perfSpeed" min="0.7" max="1.2" step="0.05"></label>
+            <label title="ElevenLabs: مبالغة في أسلوب الصوت">التعبير <input type="range" data-f="perfStyle" min="0" max="1" step="0.05"></label>
+          </div>
+          <p class="muted" data-el="perfInfo"></p>
+          <p class="hint">💡 في ElevenLabs تقدر كمان تكتب تاجات جوه النص نفسه في أي مكان، زي <code dir="ltr">[sighs]</code> أو <code dir="ltr">[whispers]</code> أو <code dir="ltr">[crying]</code> أو <code dir="ltr">[pause]</code>، وبتشتغل مع موديل Eleven v3. Gemini بياخد المشاعر كتعليمات، والسرعة والتعبير خاصين بـ ElevenLabs.</p>
+        </details>
         <audio controls data-el="audio-preview" hidden></audio>
         <div class="btn-row" data-el="audioTools" hidden>
           <button class="btn" data-act="regen" type="button" title="ولّد الصوت تاني بنفس الصوت المختار">🔁 ولّد تاني</button>
