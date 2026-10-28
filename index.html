@@ -329,6 +329,7 @@
             <div class="btn-row">
               <button class="btn primary" data-export="mp4" type="button">🎬 فيديو MP4</button>
               <button class="btn" data-export="png" type="button">🖼️ صورة المقطع الحالي</button>
+              <button class="btn" id="btn-thumb" type="button" title="غلاف للشورتس والريلز وصورة يوتيوب">🖼️ صورة مصغّرة (Thumbnail)</button>
             </div>
             <label class="inline">الدقة
               <select id="quality">
@@ -982,6 +983,42 @@
       <label class="check"><input type="checkbox" id="reel-bg" checked> خلفيات جديدة على الموضوع (Pexels أو Pixabay أو Openverse)</label>
       <p class="hint">بيختار آيات على الموضوع من مقاطع معروفة ومكتملة المعنى (ومش بيكرر اللي اختاره قريب)، ويكمّل بالشكل اللي انت مختاره. راجع واسمع قبل ما تصدّر.</p>
       <div class="btn-row end"><button class="btn primary" id="reel-go" type="button">🪄 اعمل الريل</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-thumb">
+    <div class="dlg wide">
+      <div class="row">
+        <h2 class="grow">🖼️ صورة مصغّرة (Thumbnail)</h2>
+        <button class="btn icon" id="th-close" type="button">✕</button>
+      </div>
+      <div class="thumb-wrap">
+        <canvas id="th-canvas" class="thumb-canvas"></canvas>
+        <div class="thumb-ctrls">
+          <label>المقاس <select id="th-size"></select></label>
+          <label>الشكل <select id="th-style"></select></label>
+          <label>العنوان الكبير <input type="text" id="th-headline" placeholder="مثلًا: لو قلبك تعبان… اسمع دي 🤍"></label>
+          <div class="row wrap" style="margin:0">
+            <button class="btn ghost" id="th-ai" type="button">✨ اقترح عناوين</button>
+            <span class="muted" id="th-ai-st"></span>
+          </div>
+          <div class="chips" id="th-ai-list"></div>
+          <label class="check"><input type="checkbox" id="th-ayah-on" checked> كلمات من الآية</label>
+          <input type="text" id="th-ayah" dir="rtl">
+          <label>السطر الصغير <input type="text" id="th-sub"></label>
+          <label>الخلفية <select id="th-bg"></select></label>
+          <div class="row wrap" style="margin:0">
+            <label>التعتيم <input type="range" id="th-dim" min="0" max="0.7" step="0.05" value="0.3"></label>
+            <label>لون العنوان <input type="color" id="th-accent"></label>
+            <label class="check"><input type="checkbox" id="th-handle-on" checked> اسم الحساب</label>
+          </div>
+          <div class="btn-row">
+            <button class="btn primary" id="th-dl" type="button">⬇️ نزّل الصورة</button>
+            <button class="btn" id="th-dl-all" type="button">⬇️ كل المقاسات</button>
+          </div>
+          <p class="hint">📌 الغلاف الطولي: الكلام في النص عشان لما إنستجرام أو فيسبوك يقص مربع في صفحة البروفايل يفضل باين. ترفعه من: يوتيوب ← الشورت ← Edit ← Thumbnail (من الموبايل)، فيسبوك ريلز ← Edit cover، تيك توك ← Edit cover ← Upload، إنستجرام ← Cover ← Add from camera roll.</p>
+        </div>
+      </div>
     </div>
   </dialog>
 

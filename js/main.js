@@ -12,6 +12,7 @@ import * as EL from './elevenlabs.js';
 import * as GT from './geminitts.js';
 import * as AL from './audiolib.js';
 import { EMOTIONS, emotion } from './emotions.js';
+import { THUMB_SIZES, THUMB_STYLES, drawThumb } from './thumbs.js';
 import * as CP from './competitors.js';
 import * as FX from './livefx.js';
 import { OBS } from './obs.js';
@@ -4258,6 +4259,80 @@ function setupReel() {
   $('#reel-go').onclick = oneClickReel;
 }
 
+// ===== 🖼️ الصور المصغّرة =====
+function thumbOpts() {
+  const media = $('#th-bg').value === '' ? bgMedia() : state.mediaList[+$('#th-bg').value];
+  return {
+    style: $('#th-style').value,
+    headline: $('#th-headline').value.trim(),
+    ayah: $('#th-ayah-on').checked ? $('#th-ayah').value.trim() : '',
+    sub: $('#th-sub').value.trim(),
+    handle: $('#th-handle-on').checked ? state.style.handle : '',
+    accent: $('#th-accent').value,
+    textColor: state.style.textColor,
+    dim: +$('#th-dim').value,
+    media: state.style.bgType === 'media' ? media : null,
+    baseStyle: state.style,
+  };
+}
+function drawThumbInto(c, sizeKey) {
+  const { w, h } = THUMB_SIZES[sizeKey];
+  c.width = w; c.height = h;
+  drawThumb(c.getContext('2d'), w, h, thumbOpts());
+}
+const renderThumb = () => drawThumbInto($('#th-canvas'), $('#th-size').value);
+
+// القيم الأولية من المحتوى: الافتتاحية، وكلمات من أول آية، والسورة والقارئ
+function thumbDefaults() {
+  const ay = previewSegs.find(s => s.kind === 'ayah');
+  const q = state.blocks.find(b => b.type === 'quran');
+  const z = state.blocks.find(b => b.type === 'zikr');
+  const words = ay ? ay.text.replace(/\u00A0\S+$/, '').split(/\s+/) : [];
+  $('#th-ayah').value = words.slice(0, 9).join(' ') + (words.length > 9 ? '…' : '');
+  $('#th-ayah-on').checked = !!ay;
+  $('#th-headline').value = state.style.intro || (z && !q ? (z.custom ? z.label : z.cat) || '' : '');
+  $('#th-sub').value = q ? `سورة ${Q.surah(q.surah).ar} • ${(q.rec && hadithAudio.get(q.id) ? q.rec.name : findReciter(state.style.reciter).name) || ''}` : z?.ref || '';
+  $('#th-accent').value = state.style.accent || '#f4d58d';
+  $('#th-size').value = state.style.aspect === '16:9' ? 'yt' : state.style.aspect === '1:1' ? 'square' : 'cover';
+  $('#th-bg').innerHTML = '<option value="">الخلفية الحالية</option>' + state.mediaList.map((m, i) => `<option value="${i}">${Q.arabicNum(i + 1)}. ${escapeHtml(m.file.name)}</option>`).join('');
+}
+
+function setupThumbs() {
+  const dlg = $('#dlg-thumb');
+  $('#th-size').innerHTML = Object.entries(THUMB_SIZES).map(([k, s]) => `<option value="${k}">${s.name}</option>`).join('');
+  $('#th-style').innerHTML = Object.entries(THUMB_STYLES).map(([k, s]) => `<option value="${k}">${s}</option>`).join('');
+  $('#btn-thumb').onclick = () => { thumbDefaults(); dlg.showModal(); renderThumb(); };
+  $('#th-close').onclick = () => dlg.close();
+  for (const id of ['th-size', 'th-style', 'th-headline', 'th-ayah-on', 'th-ayah', 'th-sub', 'th-bg', 'th-dim', 'th-accent', 'th-handle-on']) $('#' + id).addEventListener('input', renderThumb);
+  const save1 = (c, key) => new Promise(res => c.toBlob(b => {
+    const name = `${baseName()}_thumb_${key}.png`;
+    download(b, name);
+    if (key === $('#th-size').value) setLastExport(b, name, 'image/png');
+    res();
+  }, 'image/png'));
+  $('#th-dl').onclick = () => save1($('#th-canvas'), $('#th-size').value);
+  $('#th-dl-all').onclick = async () => {
+    for (const key of Object.keys(THUMB_SIZES)) { const c = document.createElement('canvas'); drawThumbInto(c, key); await save1(c, key); }
+    status('✅ اتنزّلت 3 صور: غلاف طولي، ويوتيوب، ومربع');
+  };
+  // ✨ عناوين من مساعد الكتابة (نفس قواعده: من غير آيات ولا أحاديث)
+  $('#th-ai').onclick = async () => {
+    if (!LLM.isReady()) { needLLM(); return; }
+    $('#th-ai-st').textContent = '…';
+    try {
+      const hooks = await LLM.suggestHooks({ summary: contentSummary() });
+      $('#th-ai-list').innerHTML = '';
+      for (const h of hooks) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'chip'; b.textContent = h;
+        b.onclick = () => { $('#th-headline').value = h; renderThumb(); };
+        $('#th-ai-list').appendChild(b);
+      }
+      $('#th-ai-st').textContent = '';
+    } catch (e) { $('#th-ai-st').textContent = '❌ ' + e.message; }
+  };
+}
+
 // ===== 📈 المنافسين والتقدير =====
 const comp = { list: load('comp', []), social: load('compSocial', []), busy: false };
 const saveComp = () => { save('comp', comp.list); save('compSocial', comp.social); };
@@ -5086,6 +5161,7 @@ async function init() {
   setupRefExtract();
   setupCompetitors();
   setupCtrl();
+  setupThumbs();
   setupReel();
   setupPlanner();
   setupStats();
