@@ -73,6 +73,38 @@ function fit(ctx, text, font, size, minSize, maxWidth, maxHeight, lineH) {
   }
 }
 
+// أقواس خط أميري بتترسم مقلوبة في النص العربي (القوس اللي في أول «((الحديث))» بيبص لبره) — مشكلة في الخط نفسه.
+// الحل: كل قوس بيترسم لوحده بخط حفص (أقواسه سليمة) والكلام بالخط العادي، من اليمين للشمال.
+const BR = /([()[\]{}])/;
+const MIRROR = { '(': ')', ')': '(', '[': ']', ']': '[', '{': '}', '}': '{' };
+const parenFont = ctx => ctx.font.replace(/(\d+(?:\.\d+)?px)\s.*$/, `$1 ${QURAN_FONT}`);
+function rtlParts(ctx, text) {
+  const base = ctx.font, pf = parenFont(ctx);
+  const parts = String(text).split(BR).filter(Boolean).map(t => { const p = t.length === 1 && BR.test(t); ctx.font = p ? pf : base; return { t, p, w: ctx.measureText(t).width }; });
+  ctx.font = base;
+  return parts;
+}
+const needsFix = (ctx, text) => BR.test(text) && !ctx.font.includes(QURAN_FONT);
+export function measureRtl(ctx, text) {
+  return needsFix(ctx, text) ? rtlParts(ctx, text).reduce((a, b) => a + b.w, 0) : ctx.measureText(text).width;
+}
+export function fillRtl(ctx, text, x, y) {
+  if (!needsFix(ctx, text)) return ctx.fillText(text, x, y);
+  const base = ctx.font, pf = parenFont(ctx), align = ctx.textAlign, parts = rtlParts(ctx, text);
+  const total = parts.reduce((a, b) => a + b.w, 0);
+  let cur = align === 'center' ? x + total / 2 : align === 'left' || align === 'end' ? x + total : x;
+  ctx.textAlign = 'right';
+  const dir = ctx.direction;
+  // القوس بيترسم معكوس بإيدينا واتجاه ltr، عشان منعتمدش على عكس المتصفح (مش ثابت مع الكاش والأحجام)
+  for (const s of parts) {
+    ctx.font = s.p ? pf : base;
+    ctx.direction = s.p ? 'ltr' : dir;
+    ctx.fillText(s.p ? MIRROR[s.t] : s.t, cur, y);
+    cur -= s.w;
+  }
+  ctx.font = base; ctx.textAlign = align; ctx.direction = dir;
+}
+
 // رسم كلمة بكلمة في أماكنها الثابتة (عشان النص ميتحركش وهو بيظهر)
 // shown = عدد الكلمات اللي اتقرت؛ mode: 'reveal' (الباقي مخفي) أو 'highlight' (الباقي باهت والحالية ملوّنة)
 function drawWords(ctx, lines, cx, y, size, lineH, shown, mode, style) {
@@ -83,7 +115,7 @@ function drawWords(ctx, lines, cx, y, size, lineH, shown, mode, style) {
   let idx = 0;
   lines.forEach((line, li) => {
     const words = line.split(' ');
-    const widths = words.map(w => ctx.measureText(w).width);
+    const widths = words.map(w => measureRtl(ctx, w));
     const total = widths.reduce((a, b) => a + b, 0) + space * (words.length - 1);
     let x = cx + total / 2;
     const yy = y + size * lineH * (li + 0.5);
@@ -91,11 +123,11 @@ function drawWords(ctx, lines, cx, y, size, lineH, shown, mode, style) {
       if (idx < shown) {
         ctx.globalAlpha = 1;
         ctx.fillStyle = mode === 'highlight' && idx === shown - 1 ? style.accent : style.textColor;
-        ctx.fillText(w, x, yy);
+        fillRtl(ctx, w, x, yy);
       } else if (mode === 'highlight') {
         ctx.globalAlpha = 0.3;
         ctx.fillStyle = style.textColor;
-        ctx.fillText(w, x, yy);
+        fillRtl(ctx, w, x, yy);
       }
       x -= widths[k] + space;
       idx++;
@@ -108,7 +140,7 @@ function drawLines(ctx, lines, x, y, size, lineH, dir) {
   ctx.direction = dir;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  lines.forEach((l, i) => ctx.fillText(l, x, y + size * lineH * (i + 0.5)));
+  lines.forEach((l, i) => (dir === 'rtl' ? fillRtl : (c, t, a, b) => c.fillText(t, a, b))(ctx, l, x, y + size * lineH * (i + 0.5)));
 }
 
 // ===== طبقة النص (شفافة، بتتحط فوق الخلفية) =====
