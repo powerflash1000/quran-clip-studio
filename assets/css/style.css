@@ -252,6 +252,9 @@ dialog:has(.dlg.wide) { width: min(980px, calc(100vw - 32px)); }
 .az-cat { font: inherit; font-size: .9rem; text-align: start; cursor: pointer; padding: .35rem .6rem; border-radius: 8px; border: 1px solid var(--line); background: var(--field); color: var(--text); display: flex; justify-content: space-between; gap: .5rem; }
 .az-cat[aria-selected="true"] { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
 .az-cat .n { opacity: .7; font-size: .8rem; }
+.az-group { font-size: .8rem; font-weight: 700; color: var(--muted); padding: .5rem .2rem .1rem; white-space: nowrap; }
+.az-item.quran .txt { font-family: 'UthmanicHafs', 'Amiri', serif; font-size: 1.3rem; }
+.az-item .row { margin-top: .4rem; gap: .4rem; }
 .az-items { display: grid; gap: .5rem; max-height: 58vh; overflow-y: auto; }
 .az-item { border: 1px solid var(--line); border-radius: 10px; padding: .6rem .8rem; background: var(--field); }
 .az-item .txt { font-size: 1.05rem; line-height: 1.9; white-space: pre-wrap; }

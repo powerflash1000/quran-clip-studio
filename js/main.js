@@ -1588,7 +1588,7 @@ function setupLLM() {
 const AZ_FIRST = ['أذكار الصباح', 'أذكار المساء', 'أذكار النوم', 'أذكار الاستيقاظ من النوم', 'الرقية الشرعية من القرآن الكريم',
   'الرقية الشرعية من السنة النبوية', 'الأذكار بعد السلام من الصلاة', 'دعاء الهم والحزن', 'دعاء الكرب',
   'الاستغفار و التوبة', 'التسبيح، التحميد، التهليل، التكبير', 'فضل الصلاة على النبي صلى الله عليه و سلم', 'دعاء السفر'];
-const azNorm = t => (t || '').replace(/[\u0610-\u061A\u064B-\u065F\u0670]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه');
+const azNorm = t => (t || '').replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه');
 let azCat = 'أذكار الصباح';
 
 function focusLastBlock() {
@@ -1599,8 +1599,59 @@ function focusLastBlock() {
   setTimeout(() => li.classList.remove('flash'), 1700);
 }
 
-function openAzkarLibrary() {
+// أدعية إضافية (data/duas.json — بيتبني بـ tools/build_duas.py): أدعية القرآن بصوت القارئ + أدعية صحيحة من كتب السنة
+let DUAS = null;
+async function loadDuas() {
+  if (DUAS) return DUAS;
+  try { DUAS = await (await fetch('data/duas.json')).json(); } catch { DUAS = { quran: [], sunnah: [] }; }
+  return DUAS;
+}
+const DUA_Q = '📖 من القرآن: ', DUA_S = '🌿 من السنة: ';
+// نص دعاء القرآن من المصحف (جزء الآية لو محدد)
+function quranDuaText(it) {
+  return it.parts.map(p => {
+    if (p.b) return Array.from({ length: p.b - p.a + 1 }, (_, k) => Q.ayahText(p.s, p.a + k)).join(' ۝ ');
+    const ws = WT.words(Q.ayahText(p.s, p.a));
+    return p.w1 ? ws.slice(p.w1 - 1, p.w2).join(' ') : ws.join(' ');
+  }).join(' ۝ ');
+}
+const quranDuaRef = it => {
+  const p = it.parts[0], last = it.parts[it.parts.length - 1], end = last.b || last.a;
+  return `سورة ${Q.surah(p.s).ar} ${p.s === last.s && end !== p.a ? `${Q.arabicNum(p.a)}–${Q.arabicNum(end)}` : Q.arabicNum(p.a)}`;
+};
+const gradeNote = g => (/الألباني/.test(g) ? (/حسن/.test(g) ? 'حسّنه الألباني' : 'صحّحه الألباني') : '');
+// كل الأقسام: حصن المسلم + أقسام القرآن + أقسام السنة
+function allAzCats() {
+  const cats = sortedCats().map(c => ({ ...c, kind: 'azkar' }));
+  const group = (list, prefix, kind) => {
+    const by = new Map();
+    for (const it of list || []) { if (!by.has(it.topic)) by.set(it.topic, []); by.get(it.topic).push(it); }
+    return [...by].map(([topic, items]) => ({ name: prefix + topic, items, kind }));
+  };
+  return [...group(DUAS?.quran, DUA_Q, 'quran'), ...cats, ...group(DUAS?.sunnah, DUA_S, 'sunnah')];
+}
+const duaText = (c, it) => (c.kind === 'quran' ? quranDuaText(it) : it.t);
+
+// إضافة دعاء من أي قسم كـ كروت في الفيديو
+function addLibItem(c, k, it) {
+  if (c.kind === 'quran') {
+    for (const p of it.parts) {
+      const q = newQuranBlock(p.s, p.a, p.b || p.a);
+      if (p.w1) q.part = { w1: p.w1, w2: p.w2 };
+      state.blocks.push(q);
+    }
+  } else if (c.kind === 'sunnah') {
+    const b = newCustomBlock();
+    b.text = it.t;
+    b.ref = [it.r, gradeNote(it.g)].filter(Boolean).join(' — ');
+    b.seconds = estimateSeconds(it.t);
+    state.blocks.push(b);
+  } else state.blocks.push(newZikrBlock(c.name, k));
+}
+
+async function openAzkarLibrary() {
   if (!AZKAR?.categories.length) { alert('ملف الأذكار ماتحمّلش. اعمل Refresh للصفحة (Ctrl + Shift + R).'); return; }
+  await loadDuas();
   renderAzCats();
   renderAzItems();
   $('#dlg-azkar').showModal();
@@ -1615,13 +1666,21 @@ function sortedCats() {
 function renderAzCats() {
   const box = $('#az-cats');
   box.innerHTML = '';
-  for (const c of sortedCats()) {
+  let kind = '';
+  for (const c of allAzCats()) {
+    if (c.kind !== kind) {
+      kind = c.kind;
+      const h = document.createElement('div');
+      h.className = 'az-group';
+      h.textContent = { quran: '📖 أدعية القرآن — بصوت القارئ', azkar: '📿 حصن المسلم', sunnah: '🌿 أدعية صحيحة من السنة' }[kind];
+      box.appendChild(h);
+    }
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'az-cat';
     b.setAttribute('aria-selected', String(c.name === azCat && !$('#az-q').value.trim()));
     b.innerHTML = '<span></span><span class="n"></span>';
-    b.firstChild.textContent = c.name;
+    b.firstChild.textContent = c.name.replace(DUA_Q, '').replace(DUA_S, '');
     b.lastChild.textContent = c.items.length;
     b.onclick = () => { azCat = c.name; $('#az-q').value = ''; renderAzCats(); renderAzItems(); };
     box.appendChild(b);
@@ -1630,36 +1689,52 @@ function renderAzCats() {
 
 function renderAzItems() {
   const q = azNorm($('#az-q').value.trim());
+  const cats = allAzCats();
   let list;
   if (q.length >= 2) {
     list = [];
-    for (const c of AZKAR.categories) c.items.forEach((it, k) => {
-      if (azNorm(it.t).includes(q) || azNorm(c.name).includes(q)) list.push({ cat: c.name, k, it });
+    for (const c of cats) c.items.forEach((it, k) => {
+      if (azNorm(duaText(c, it)).includes(q) || azNorm(c.name).includes(q)) list.push({ c, k, it });
     });
     $('#az-title').textContent = `نتايج البحث (${list.length})`;
     $('#az-add-all').hidden = true;
   } else {
-    const c = AZKAR.categories.find(x => x.name === azCat) || AZKAR.categories[0];
+    const c = cats.find(x => x.name === azCat) || cats.find(x => x.kind === 'azkar') || cats[0];
     azCat = c.name;
-    list = c.items.map((it, k) => ({ cat: c.name, k, it }));
+    list = c.items.map((it, k) => ({ c, k, it }));
     $('#az-title').textContent = `${c.name} (${c.items.length})`;
     $('#az-add-all').hidden = c.items.length < 2;
   }
   const box = $('#az-items');
   box.innerHTML = list.length ? '' : '<p class="muted">مفيش نتايج.</p>';
-  for (const { cat, k, it } of list.slice(0, 150)) {
+  for (const { c, k, it } of list.slice(0, 150)) {
     const d = document.createElement('div');
-    d.className = 'az-item';
-    d.innerHTML = '<div class="cat"></div><div class="txt"></div><div class="meta"></div><button class="btn" type="button">＋ أضف للفيديو</button>';
-    d.querySelector('.cat').textContent = q ? cat : '';
-    d.querySelector('.txt').textContent = it.t;
-    d.querySelector('.meta').textContent = [it.n > 1 && `🔁 ${it.n} مرات`, it.r && `📖 ${it.r}`, it.d && `💡 ${it.d}`].filter(Boolean).join('  •  ');
-    d.querySelector('button').onclick = () => {
-      state.blocks.push(newZikrBlock(cat, k));
+    d.className = 'az-item' + (c.kind === 'quran' ? ' quran' : '');
+    d.innerHTML = '<div class="cat"></div><div class="txt"></div><div class="meta"></div><div class="row wrap"><button class="btn" type="button" data-a="add"></button><button class="btn ghost" type="button" data-a="copy">📋 انسخ</button></div>';
+    const text = duaText(c, it);
+    d.querySelector('.cat').textContent = q ? c.name : '';
+    d.querySelector('.txt').textContent = c.kind === 'quran' ? `﴿ ${text} ﴾` : text;
+    const meta = c.kind === 'quran' ? [`📖 ${quranDuaRef(it)}`, 'بيتقري بصوت القارئ اللي مختاره']
+      : c.kind === 'sunnah' ? [`📚 ${it.r}`, `✅ ${it.g}`]
+        : [it.n > 1 && `🔁 ${it.n} مرات`, it.r && `📖 ${it.r}`, it.d && `💡 ${it.d}`];
+    d.querySelector('.meta').textContent = meta.filter(Boolean).join('  •  ');
+    const add = d.querySelector('[data-a=add]');
+    add.textContent = c.kind === 'quran' && it.parts.length > 1 ? `＋ أضف للفيديو (${Q.arabicNum(it.parts.length)} كروت)` : '＋ أضف للفيديو';
+    add.onclick = () => {
+      addLibItem(c, k, it);
       $('#dlg-azkar').close();
       renderBlocks();
       focusLastBlock();
-      status(`✅ اتضاف: ${cat}`);
+      status(`✅ اتضاف: ${c.name}`);
+    };
+    d.querySelector('[data-a=copy]').onclick = async e => {
+      const ref = c.kind === 'quran' ? `[${quranDuaRef(it)}]` : c.kind === 'sunnah' ? `${it.r}${gradeNote(it.g) ? ' — ' + gradeNote(it.g) : ''}` : it.r || '';
+      const body = c.kind === 'quran' ? `﴿ ${text} ﴾` : text;
+      try {
+        await navigator.clipboard.writeText(ref ? `${body}\n${ref}` : body);
+        e.target.textContent = '✅ اتنسخ';
+        setTimeout(() => { e.target.textContent = '📋 انسخ'; }, 1500);
+      } catch { status('⚠️ المتصفح منع النسخ — حدّد النص وانسخه بـ Ctrl+C'); }
     };
     box.appendChild(d);
   }
@@ -1670,13 +1745,13 @@ function setupAzkarLibrary() {
   let t = null;
   $('#az-q').oninput = () => { clearTimeout(t); t = setTimeout(() => { renderAzCats(); renderAzItems(); }, 200); };
   $('#az-add-all').onclick = () => {
-    const c = AZKAR.categories.find(x => x.name === azCat);
+    const c = allAzCats().find(x => x.name === azCat);
     if (!c) return;
-    c.items.forEach((_, k) => state.blocks.push(newZikrBlock(c.name, k)));
+    c.items.forEach((it, k) => addLibItem(c, k, it));
     $('#dlg-azkar').close();
     renderBlocks();
     focusLastBlock();
-    status(`✅ اتضاف ${c.items.length} ذكر من «${c.name}». القايمة الطويلة هتطلع فيديو طويل — الأنسب لها MP3 أو «حزمة Filmora»، أو فعّل «وضع السلسلة» لاحقًا.`);
+    status(`✅ اتضاف ${c.items.length} من «${c.name}». القايمة الطويلة هتطلع فيديو طويل — الأنسب لها MP3 أو «حزمة Filmora»، أو فعّل «وضع السلسلة» لاحقًا.`);
   };
 }
 
