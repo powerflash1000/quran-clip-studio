@@ -19,6 +19,7 @@ export const DEFAULT_STYLE = {
   showTranslation: true,
   waveform: false,
   gap: 0.25,
+  recFx: '',               // صدى على صوت التلاوة (غرفة / مسجد / قاعة كبيرة)
   trimSilence: true,       // قص السكوت من أول وآخر ملف كل آية
   wordMode: 'full',        // full | reveal (الكلمات بتظهر مع التلاوة) | highlight (تظليل الكلمة الحالية)
   quality: '1080',

@@ -6,7 +6,7 @@
   <title>استوديو مقاطع القرآن</title>
   <meta name="description" content="اختار الآيات والقارئ، وصدّر صوت MP3 أو M4A أو WAV أو فيديو جاهز للنشر — من المتصفح مباشرة وببلاش.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261030b">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261030c">
 </head>
 <body>
   <header class="topbar">
@@ -152,6 +152,8 @@
         <div class="grid2">
           <label class="check span2"><input type="checkbox" id="trimSilence"> قص السكتات الزايدة بين الآيات (تلاوة متصلة) — ومعاها خلّي «المسافة بين الآيات» 0 أو 0.2</label>
           <label>المسافة بين الآيات (ث) <input type="number" id="gap" min="0" max="5" step="0.05"></label>
+          <label>🕌 تأثير على صوت التلاوة <select id="recFx"></select></label>
+          <p class="hint span2">صدى ناعم على صوت القارئ (أو تلاوتك أنت)، والتوقيت مابيتغيّرش. ابدأ بـ «غرفة هادية» أو «صدى مسجد»، واسمع المعاينة بالصوت. <b>ملحوظة:</b> الصدى بيحسّن الصوت بس، ومش بيمنع الـ Claim — يوتيوب بيتعرّف على التسجيل حتى مع الصدى.</p>
         </div>
         <details open>
           <summary>صوت خلفية هادي (مطر، طبيعة…)</summary>
@@ -437,7 +439,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261030b</div>
+    <div class="muted" id="app-version">الإصدار 20261030c</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -1302,6 +1304,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261030b"></script>
+  <script type="module" src="js/main.js?v=20261030c"></script>
 </body>
 </html>

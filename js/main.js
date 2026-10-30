@@ -1,7 +1,7 @@
 import * as Q from './quran.js';
 import { RECITERS, findReciter, customReciter, ayahAudioUrls } from './reciters.js';
 import { COLLECTIONS, collection, getHadith, searchHadith, extractMatn, assessGrade } from './hadith.js';
-import { loadAudio, decode, buildTimeline, startRecording, trimSilence, bufferToWavBlob, sliceBuffer, enhanceVoice, ENHANCE_PRESETS } from './audio.js';
+import { loadAudio, decode, buildTimeline, startRecording, trimSilence, bufferToWavBlob, sliceBuffer, enhanceVoice, ENHANCE_PRESETS, REC_FX } from './audio.js';
 import { autoMarks } from './automark.js';
 import { ASPECTS, TEXT_FONT, ensureFonts, drawBackground, drawOverlay, drawWave } from './slides.js';
 import { exportAudio, exportVideo, exportFilmoraPackage, renderStill, makeSrt, download } from './exporter.js';
@@ -98,14 +98,16 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
       const rec = b.rec && hadithAudio.get(b.id);
       const recName = rec ? (b.rec.name || 'قارئ') : reciter.name;
       const withBasmala = b.basmala && b.surah !== 1 && b.surah !== 9;
-      const pieces = rec && withAudio ? recPieces(b, rec.buffer, from, to, withBasmala) : null;
+      // تلاوتك من «اقرا ورا الشيخ» تسجيل مايك: بننضّفه (من غير صدى — الصدى من «تأثير التلاوة»)
+      const recBuf = rec && withAudio ? (b.rec.own ? await enhanceVoice(rec.buffer, 'clean') : rec.buffer) : null;
+      const pieces = recBuf ? recPieces(b, recBuf, from, to, withBasmala) : null;
       const footer = `بصوت القارئ ${recName}`;
       for (let r = 0; r < Math.max(1, b.repeatRange); r++) {
         let u = 0;
         if (withBasmala) {
           segs.push(rec
-            ? { kind: 'basmala', text: Q.BASMALA, sub: '', label: `سورة ${s.ar}`, footer, audio: pieces?.[0] || null, silence: 3, custom: true, noGap: true }
-            : { kind: 'basmala', qs: 1, qa: 1, text: Q.BASMALA, sub: '', label: `سورة ${s.ar}`, footer, audioUrls: ayahAudioUrls(reciter, 1, 1, 1) });
+            ? { kind: 'basmala', text: Q.BASMALA, sub: '', label: `سورة ${s.ar}`, footer, audio: pieces?.[0] || null, silence: 3, custom: true, noGap: true, fx: true }
+            : { kind: 'basmala', qs: 1, qa: 1, text: Q.BASMALA, sub: '', label: `سورة ${s.ar}`, footer, audioUrls: ayahAudioUrls(reciter, 1, 1, 1), fx: true });
           u++;
         }
         // جزء من آية (كلمات معيّنة): بيتقص من صوت القارئ بتوقيت الكلمات
@@ -115,7 +117,7 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
           for (let k = 0; k < Math.max(1, b.repeatAyah); k++) {
             const full = `${Q.ayahText(b.surah, a)}\u00A0${Q.arabicNum(a)}`;
             const seg = {
-              kind: 'ayah', s: b.surah, a, qs: b.surah, qa: a,
+              kind: 'ayah', s: b.surah, a, qs: b.surah, qa: a, fx: true,
               text: part ? WT.words(Q.ayahText(b.surah, a)).slice(part.w1 - 1, part.w2).join(' ') : full,
               sub: '',
               label: part ? `سورة ${s.ar} • من الآية ${Q.arabicNum(a)}` : `سورة ${s.ar} • الآية ${Q.arabicNum(a)}`,
@@ -284,6 +286,7 @@ async function buildProject(blocks = state.blocks, series = state.activeSeries) 
     gap: Number(state.style.gap) || 0,
     ambient: state.ambient?.buffer,
     ambientVolume: state.ambient ? state.ambientVolume : 0,
+    recFx: state.style.recFx || '',
   });
   const { w, h } = ASPECTS[state.style.aspect];
   const isMedia = state.style.bgType === 'media';
@@ -2135,7 +2138,7 @@ function setupReciters() {
 }
 
 // ===== الشكل =====
-const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade'];
+const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade'];
 
 function applyStyleToInputs() {
   const st = state.style;
@@ -2161,6 +2164,7 @@ function updateBgVisibility() {
 function setupStyle() {
   $('#aspect').innerHTML = Object.entries(ASPECTS).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('');
   $('#translation').innerHTML = Q.TRANSLATIONS.map(t => `<option value="${t.code}">${t.name}</option>`).join('');
+  $('#recFx').innerHTML = Object.entries(REC_FX).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
   applyStyleToInputs();
   for (const k of STYLE_INPUTS) {
     const el = $('#' + k);
@@ -3626,7 +3630,7 @@ async function liveBuild(it, part) {
   let segs = await p;
   if (saved.intro && segs[0]?.kind === 'title') segs = segs.slice(1); // الافتتاحية للريلز بس
   if (!segs.length) throw new Error('الجزء فاضي');
-  const timeline = buildTimeline(segs, { gap: Number(saved.gap) || 0, ambient: state.ambient?.buffer, ambientVolume: state.ambient ? state.ambientVolume : 0 });
+  const timeline = buildTimeline(segs, { gap: Number(saved.gap) || 0, ambient: state.ambient?.buffer, ambientVolume: state.ambient ? state.ambientVolume : 0, recFx: saved.recFx || '' });
   return { segs, timeline, label: it.label };
 }
 

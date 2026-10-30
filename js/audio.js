@@ -23,7 +23,50 @@ export function loadAudio(urls) {
 // يبني الشريط الصوتي الكامل من المقاطع.
 // segments: [{ audio: AudioBuffer|null, silence: ثواني لو مفيش صوت, ... }]
 // يرجع { left, right, duration } ويضيف start/end لكل مقطع
-export function buildTimeline(segments, { gap = 0.6, leadIn = 0.3, tail = 0.8, ambient = null, ambientVolume = 0 } = {}) {
+// 🕌 صدى على صوت التلاوة (القارئ أو تلاوتك): بيتعمل على المكس كله، فالتوقيت مايتغيرش والصدى بيكمّل بين الآيات طبيعي
+export const REC_FX = { '': 'بدون', room: 'غرفة هادية', mosque: 'صدى مسجد 🕌', haram: 'قاعة كبيرة (زي الحرم)' };
+const FV = {
+  room: { size: 0.74, damp: 0.42, wet: 0.16, pre: 0.012 },
+  mosque: { size: 0.86, damp: 0.28, wet: 0.26, pre: 0.035 },
+  haram: { size: 0.93, damp: 0.2, wet: 0.32, pre: 0.06 },
+};
+const COMBS = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617], ALLPASS = [556, 441, 341, 225];
+
+// Freeverb مبسّط (٨ مشط + ٤ allpass لكل قناة) — متزامن وخفيف
+function freeverb(bus, fx) {
+  const n = bus.length, scale = SAMPLE_RATE / 44100;
+  const out = [];
+  for (const spread of [0, 23]) {
+    const y = new Float32Array(n);
+    for (const t of COMBS) {
+      const len = Math.round((t + spread) * scale), buf = new Float32Array(len);
+      let idx = 0, store = 0;
+      for (let i = 0; i < n; i++) {
+        const o = buf[idx];
+        store = o * (1 - fx.damp) + store * fx.damp;
+        buf[idx] = bus[i] * 0.015 + store * fx.size;
+        y[i] += o;
+        if (++idx >= len) idx = 0;
+      }
+    }
+    for (const t of ALLPASS) {
+      const len = Math.round((t + spread) * scale), buf = new Float32Array(len);
+      let idx = 0;
+      for (let i = 0; i < n; i++) {
+        const b = buf[idx], v = y[i];
+        y[i] = b - v;
+        buf[idx] = v + b * 0.5;
+        if (++idx >= len) idx = 0;
+      }
+    }
+    out.push(y);
+  }
+  return out;
+}
+
+export function buildTimeline(segments, { gap = 0.6, leadIn = 0.3, tail = 0.8, ambient = null, ambientVolume = 0, recFx = '' } = {}) {
+  const fx = FV[recFx] && segments.some(s => s.fx && s.audio) ? FV[recFx] : null;
+  if (fx) tail += 1.2; // الصدى بيكمّل بعد آخر آية
   let t = leadIn;
   for (const seg of segments) {
     const d = seg.audio ? seg.audio.duration : (seg.silence || 3);
@@ -35,6 +78,7 @@ export function buildTimeline(segments, { gap = 0.6, leadIn = 0.3, tail = 0.8, a
   const n = Math.ceil(duration * SAMPLE_RATE);
   const left = new Float32Array(n);
   const right = new Float32Array(n);
+  const bus = fx ? new Float32Array(n) : null; // صوت التلاوة بس — هو اللي بيدخل الصدى
 
   for (const seg of segments) {
     if (!seg.audio) continue;
@@ -50,6 +94,13 @@ export function buildTimeline(segments, { gap = 0.6, leadIn = 0.3, tail = 0.8, a
       left[off + i] += l[i] * g;
       right[off + i] += r[i] * g;
     }
+    if (bus && seg.fx) for (let i = 0; i < a.length && off + i < n; i++) bus[off + i] += (l[i] + r[i]) * 0.5 * gain;
+  }
+
+  if (fx) {
+    const [wl, wr] = freeverb(bus, fx);
+    const pre = Math.round(fx.pre * SAMPLE_RATE), k = fx.wet * 3; // ٣ = تعويض مستوى الـ Freeverb
+    for (let i = pre; i < n; i++) { left[i] += wl[i - pre] * k; right[i] += wr[i - pre] * k; }
   }
 
   if (ambient && ambientVolume > 0) {
