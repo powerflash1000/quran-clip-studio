@@ -6,7 +6,7 @@
   <title>استوديو مقاطع القرآن</title>
   <meta name="description" content="اختار الآيات والقارئ، وصدّر صوت MP3 أو M4A أو WAV أو فيديو جاهز للنشر — من المتصفح مباشرة وببلاش.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261030a">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261030b">
 </head>
 <body>
   <header class="topbar">
@@ -437,7 +437,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261030a</div>
+    <div class="muted" id="app-version">الإصدار 20261030b</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -608,6 +608,9 @@
         <label class="check span3" data-el="partRow" hidden><input type="checkbox" data-f="partOn"> ✂️ جزء من الآية بس (كلمات معيّنة بصوت القارئ)</label>
         <div class="span3 part-words" data-el="partBox" hidden></div>
         <p class="muted span3" data-el="partInfo"></p>
+      </div>
+      <div class="btn-row">
+        <button class="btn" data-act="follow" type="button" title="تسمع الشيخ آية آية وتقرا وراه — الفيديو بيطلع بصوتك أنت بس">🎧 اقرا ورا الشيخ — والفيديو بصوتك</button>
       </div>
       <details class="adv custom-rec">
         <summary>🎙️ تلاوة من ملف (لقارئ مش في القايمة، زي الشيخ سيد سعيد)</summary>
@@ -793,6 +796,35 @@
         </table>
         <p class="hint">⚠️ صورة القارئ: ماتستخدمهاش (حقوقها للمصوّر). اسمه بيتكتب كنص بس. وحقوق الصوت: لو يوتيوب وقّف البث بسبب Claim، شيل القارئ ده من القايمة وجرّب غيره.</p>
       </details>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-follow">
+    <div class="dlg">
+      <div class="row">
+        <h2 class="grow">🎧 اقرا ورا الشيخ</h2>
+        <button class="btn icon" id="fl-close" type="button">✕</button>
+      </div>
+      <p class="hint">اسمع الشيخ، ولما يخلص اقرا أنت نفس الآية. <b>الفيديو بيطلع بصوتك أنت بس</b> — صوت الشيخ للتعلّم (المقام والوقفات) ومش بيدخل في الفيديو. الأفضل تلبس سماعة، وتقعد في مكان هادي.</p>
+      <div class="row wrap">
+        <label class="grow">اسمك اللي يظهر في الفيديو («بصوت القارئ …») <input type="text" id="fl-name" placeholder="مثلًا: علاء"></label>
+        <label class="check"><input type="checkbox" id="fl-auto" checked> التسجيل يبدأ لوحده بعد الشيخ</label>
+      </div>
+      <div class="fl-step muted" id="fl-step"></div>
+      <div class="fl-text" id="fl-text"></div>
+      <div class="btn-row">
+        <button class="btn" id="fl-listen" type="button">▶️ اسمع الشيخ</button>
+        <button class="btn primary" id="fl-rec" type="button">🔴 سجّل</button>
+        <button class="btn" id="fl-play" type="button" hidden>🔁 اسمع تسجيلك</button>
+      </div>
+      <p class="muted" id="fl-state" aria-live="polite"></p>
+      <div class="fl-dots" id="fl-dots"></div>
+      <div class="btn-row">
+        <button class="btn" id="fl-prev" type="button">→ السابقة</button>
+        <button class="btn" id="fl-next" type="button">التالية ←</button>
+        <span class="grow"></span>
+        <button class="btn primary" id="fl-done" type="button" disabled>✅ استخدم تلاوتي في الفيديو</button>
+      </div>
     </div>
   </dialog>
 
@@ -1270,6 +1302,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261030a"></script>
+  <script type="module" src="js/main.js?v=20261030b"></script>
 </body>
 </html>

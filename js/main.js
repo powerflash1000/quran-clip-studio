@@ -109,7 +109,8 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
           u++;
         }
         // جزء من آية (كلمات معيّنة): بيتقص من صوت القارئ بتوقيت الكلمات
-        const part = !rec && from === to && ayahPart(b);
+        // (مع تلاوتك أنت من «اقرا ورا الشيخ» الجزء متسجّل لوحده، فبيفضل شغال)
+        const part = (!rec || b.rec.own) && from === to && ayahPart(b);
         for (let a = from; a <= to; a++, u++) {
           for (let k = 0; k < Math.max(1, b.repeatAyah); k++) {
             const full = `${Q.ayahText(b.surah, a)}\u00A0${Q.arabicNum(a)}`;
@@ -732,6 +733,7 @@ function quranBlockEl(b, i) {
   const recSync = wireRecitation(li, b);
   li.addEventListener('input', e => { if (['from', 'to'].includes(e.target.dataset.f)) recSync(); });
   li.addEventListener('change', e => { if (e.target.dataset.f === 'recFile') setTimeout(partUi, 500); });
+  li.querySelector('[data-act=follow]').onclick = () => openFollow(b);
   partUi();
   sync();
   return li;
@@ -777,7 +779,7 @@ function wireRecitation(li, b) {
     f('recName').value = b.rec?.name || '';
     act('recClear').hidden = !b.rec;
     li.querySelector('.custom-rec summary').textContent = has
-      ? `🎙️ تلاوة من ملف: ${b.rec.name || au.name}`
+      ? (b.rec.own ? `🎧 تلاوتك أنت (${b.rec.name}) — من «اقرا ورا الشيخ»` : `🎙️ تلاوة من ملف: ${b.rec.name || au.name}`)
       : b.rec ? `⚠️ ارفع ملف التلاوة تاني (${b.rec.file || ''}) — الملفات مش بتتحفظ لما الصفحة تتقفل`
       : '🎙️ تلاوة من ملف (لقارئ مش في القايمة، زي الشيخ سيد سعيد)';
     if (b.rec && !has) li.querySelector('.custom-rec').open = true;
@@ -858,12 +860,205 @@ function wireRecitation(li, b) {
   act('recClear').onclick = () => {
     player.pause();
     delete b.rec;
+    delete b.audioId; // تلاوتك بتفضل في 📚 مكتبة الأصوات
     hadithAudio.delete(b.id);
     li.querySelector('.custom-rec').open = false;
     changed();
   };
   sync();
   return sync;
+}
+
+// ===== 🎧 اقرا ورا الشيخ: صوت القارئ للتعلّم بس، والفيديو بيطلع بصوتك أنت =====
+// كل آية: تسمع الشيخ ← تقرا أنت ← بيتسجّل. في الآخر التسجيلات بتتجمع كـ «تلاوة من ملف» بتوقيتات الآيات.
+let follow = null;
+function followUnits(b) {
+  const s = Q.surah(b.surah);
+  const from = clamp(b.from, 1, s.count), to = clamp(Math.max(b.to, from), from, s.count);
+  const part = from === to && ayahPart(b);
+  const u = b.basmala && b.surah !== 1 && b.surah !== 9 ? [{ s: 1, a: 1, text: Q.BASMALA }] : [];
+  for (let a = from; a <= to; a++) {
+    const ws = WT.words(Q.ayahText(b.surah, a));
+    u.push({ s: b.surah, a, text: part ? ws.slice(part.w1 - 1, part.w2).join(' ') : ws.join(' '), part: !!part });
+  }
+  return u;
+}
+
+function openFollow(b) {
+  const units = followUnits(b);
+  if (units.length > 25 && !confirm(`المقطع ده ${Q.arabicNum(units.length)} آية — هتسجّلهم واحدة واحدة. الأسهل تقسّمه لكروت أصغر. تكمل؟`)) return;
+  follow = { b, units, takes: units.map(() => null), i: 0, rec: null, player: null, reciter: findReciter(state.style.reciter) };
+  $('#fl-name').value = getSettings().myName || '';
+  renderFollow();
+  flState('دوس «▶️ اسمع الشيخ» — ولما يخلص، اقرا أنت.');
+  $('#dlg-follow').showModal();
+}
+
+const flState = msg => { $('#fl-state').textContent = msg; };
+
+function flStopAudio() {
+  const p = follow?.player;
+  if (!p) return;
+  p.onended = p.onerror = null;
+  p.pause();
+  follow.player = null;
+}
+
+function flBeep() {
+  try {
+    const ac = new AudioContext(), o = ac.createOscillator(), g = ac.createGain();
+    o.frequency.value = 880; g.gain.value = 0.15;
+    o.connect(g).connect(ac.destination);
+    o.start(); o.stop(ac.currentTime + 0.12);
+    o.onended = () => ac.close();
+  } catch { /* مش مهم */ }
+}
+
+function flListen() {
+  if (follow.rec) return;
+  flStopAudio();
+  const u = follow.units[follow.i];
+  const urls = ayahAudioUrls(follow.reciter, u.s, u.a, Q.globalAyah(u.s, u.a));
+  const p = new Audio();
+  follow.player = p;
+  let k = 0;
+  const tryNext = () => {
+    if (k >= urls.length) { follow.player = null; flState('⚠️ مقدرتش أشغّل صوت الشيخ (النت أو القارئ) — تقدر تسجّل من غير ما تسمع.'); return; }
+    p.src = urls[k++];
+    p.play().catch(() => {});
+  };
+  p.onerror = tryNext;
+  p.onended = () => {
+    follow.player = null;
+    if ($('#fl-auto').checked) flRecord();
+    else flState('دورك 🎙️ — دوس «🔴 سجّل» واقرا.');
+  };
+  flState(`🔊 الشيخ ${follow.reciter.name} بيقرا${u.part ? ' الآية كاملة — أنت اقرا الجزء المكتوب بس' : ''}…`);
+  tryNext();
+}
+
+async function flRecord() {
+  if (follow.rec) { await flStop(); return; }
+  flStopAudio();
+  flBeep();
+  await new Promise(r => setTimeout(r, 250)); // عشان الصفارة ماتتسجلش
+  try { follow.rec = await startRecording(); } catch {
+    showError(new Error('المتصفح مش سامح بالمايك — اسمح له من علامة القفل 🔒 جنب العنوان، وجرّب تاني.'));
+    return;
+  }
+  renderFollow();
+  flState('🔴 بيسجّل… اقرا، ولما تخلص دوس «⏹ خلصت» (أو زرار المسافة).');
+}
+
+async function flStop() {
+  const r = follow.rec;
+  follow.rec = null;
+  renderFollow();
+  if (!r) return;
+  const { buffer } = await r.stop();
+  const t = trimSilence(buffer);
+  const old = follow.takes[follow.i];
+  if (old?.url) URL.revokeObjectURL(old.url);
+  follow.takes[follow.i] = { buffer: t, url: URL.createObjectURL(bufferToWavBlob(t)) };
+  const last = follow.i === follow.units.length - 1;
+  flState(`✅ اتسجّلت (${t.duration.toFixed(1)} ث). اسمعها، ولو مش عاجباك سجّل تاني. ${last ? 'دي آخر واحدة — دوس «✅ استخدم تلاوتي».' : 'لو تمام دوس «التالية».'}`);
+  renderFollow();
+}
+
+function flGo(d) {
+  if (follow.rec) return;
+  flStopAudio();
+  follow.i = clamp(follow.i + d, 0, follow.units.length - 1);
+  renderFollow();
+  // في الوضع التلقائي: الآية الجديدة اللي لسه ماتسجّلتش بتبدأ بصوت الشيخ على طول
+  if ($('#fl-auto').checked && !follow.takes[follow.i]) flListen();
+  else flState(follow.takes[follow.i] ? 'الآية دي متسجّلة — تقدر تسمعها أو تسجّلها تاني.' : 'دوس «▶️ اسمع الشيخ».');
+}
+
+function renderFollow() {
+  const { units, takes, i } = follow;
+  const u = units[i];
+  $('#fl-step').textContent = `${i + 1} من ${units.length} • ${u.s === 1 && u.a === 1 && u.text === Q.BASMALA ? 'البسملة' : `سورة ${Q.surah(u.s).ar} • الآية ${Q.arabicNum(u.a)}${u.part ? ' (جزء)' : ''}`}`;
+  $('#fl-text').textContent = u.text;
+  $('#fl-rec').textContent = follow.rec ? '⏹ خلصت' : takes[i] ? '🔴 سجّل تاني' : '🔴 سجّل';
+  $('#fl-rec').classList.toggle('danger', !!follow.rec);
+  $('#fl-listen').disabled = !!follow.rec;
+  $('#fl-play').hidden = !takes[i] || !!follow.rec;
+  $('#fl-prev').disabled = i === 0 || !!follow.rec;
+  $('#fl-next').disabled = i === units.length - 1 || !!follow.rec;
+  const n = takes.filter(Boolean).length;
+  $('#fl-done').disabled = n < units.length || !!follow.rec;
+  $('#fl-done').textContent = n < units.length ? `✅ استخدم تلاوتي (${n} من ${units.length})` : '✅ استخدم تلاوتي في الفيديو';
+  const dots = $('#fl-dots');
+  dots.innerHTML = '';
+  units.forEach((_, k) => {
+    const d = document.createElement('button');
+    d.type = 'button';
+    d.className = 'fl-dot' + (takes[k] ? ' ok' : '') + (k === i ? ' cur' : '');
+    d.textContent = k + 1;
+    d.onclick = () => flGo(k - follow.i);
+    dots.appendChild(d);
+  });
+}
+
+// تجميع التسجيلات في ملف واحد بسكتة قصيرة بين الآيات، والتوقيتات في نص السكتة
+async function flDone() {
+  const { b, units, takes } = follow;
+  if (takes.some(t => !t)) return;
+  const rate = takes[0].buffer.sampleRate, gap = Math.round(0.35 * rate);
+  const total = takes.reduce((x, t) => x + t.buffer.length, 0) + gap * (takes.length - 1);
+  const out = new AudioBuffer({ length: total, numberOfChannels: 1, sampleRate: rate });
+  const data = out.getChannelData(0), marks = [];
+  let pos = 0;
+  takes.forEach((t, k) => {
+    if (k) { marks.push((pos + gap / 2) / rate); pos += gap; }
+    const src = t.buffer.getChannelData(0);
+    data.set(src.subarray(0, Math.min(src.length, total - pos)), pos);
+    pos += src.length;
+  });
+  const name = $('#fl-name').value.trim();
+  setSettings({ myName: name });
+  const blob = bufferToWavBlob(out);
+  setHadithAudio(b, out, 'تلاوتي', blob, 'record');
+  b.rec = { name: name || 'تلاوتي', file: 'تسجيلي', own: true, start: 0, end: out.duration, marks };
+  b.audioId = await AL.addClip({ name: 'تلاوتي', kind: 'record', text: units.map(u => u.text).join(' '), voice: '', dur: out.duration, blob });
+  $('#dlg-follow').close();
+  persist();
+  renderBlocks();
+  refreshPublish(true);
+  refreshPreview();
+  status(`✅ الكارت ده بقى بصوتك أنت (${fmtDur(out.duration)}) — صوت الشيخ مش داخل في الفيديو خالص. اسمع المعاينة.`);
+}
+
+function setupFollow() {
+  const dlg = $('#dlg-follow');
+  $('#fl-listen').onclick = flListen;
+  $('#fl-rec').onclick = flRecord;
+  $('#fl-play').onclick = () => {
+    const t = follow.takes[follow.i];
+    if (!t) return;
+    flStopAudio();
+    const p = new Audio(t.url);
+    follow.player = p;
+    p.play().catch(() => {});
+  };
+  $('#fl-prev').onclick = () => flGo(-1);
+  $('#fl-next').onclick = () => flGo(1);
+  $('#fl-done').onclick = () => flDone().catch(showError);
+  $('#fl-close').onclick = () => dlg.close();
+  dlg.addEventListener('keydown', e => {
+    if (e.code !== 'Space' || e.target.matches('input, textarea')) return;
+    e.preventDefault();
+    document.activeElement?.blur?.(); // عشان المسافة ماتدوسش الزرار اللي عليه الفوكس كمان
+    flRecord();
+  });
+  dlg.onclose = async () => {
+    if (!follow) return;
+    flStopAudio();
+    if (follow.rec) { const r = follow.rec; follow.rec = null; await r.stop().catch(() => {}); }
+    follow.takes.forEach(t => t?.url && URL.revokeObjectURL(t.url));
+    follow = null;
+  };
 }
 
 function hadithBlockEl(b, i) {
@@ -5216,6 +5411,7 @@ async function init() {
   $('#add-custom').onclick = () => { state.blocks.push(newCustomBlock()); renderBlocks(); focusLastBlock(); blocksEl.lastElementChild?.querySelector('[data-f=text]')?.focus(); };
   setupLLM();
   setupAzkarLibrary();
+  setupFollow();
   document.querySelectorAll('[data-preset]').forEach(btn => { btn.onclick = () => applyPreset(btn.dataset.preset); });
   $('#btn-play').onclick = play;
   $('#btn-stop').onclick = stop;
