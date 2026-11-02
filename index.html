@@ -6,7 +6,7 @@
   <title>استوديو مقاطع القرآن</title>
   <meta name="description" content="اختار الآيات والقارئ، وصدّر صوت MP3 أو M4A أو WAV أو فيديو جاهز للنشر — من المتصفح مباشرة وببلاش.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261030c">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261102a">
 </head>
 <body>
   <header class="topbar">
@@ -439,7 +439,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261030c</div>
+    <div class="muted" id="app-version">الإصدار 20261102a</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -539,7 +539,14 @@
         <button class="btn primary" id="stock-go" type="button">بحث</button>
       </div>
       <p class="hint">ابحث بالإنجليزي للحصول على نتايج أكتر. اختار مشاهد من غير أشخاص. نتايج Wikimedia و Openverse بيظهر عليها اسم صاحبها ورخصتها؛ لو الرخصة فيها <b>BY</b> اكتب اسمه في الوصف (البرنامج بيحطه لك في رسالة الحالة).</p>
-      <p class="hint">ومن غير أي مفتاح: افتح <a href="https://www.pexels.com/search/videos/nature/?orientation=portrait" target="_blank" rel="noopener">Pexels</a> أو <a href="https://mixkit.co/free-stock-video/" target="_blank" rel="noopener">Mixkit</a> أو <a href="https://pixabay.com/videos/" target="_blank" rel="noopener">Pixabay</a> في المتصفح، نزّل الفيديو، وارفعه من «اختار ملف» — كلهم مجانيين ومن غير ذكر المصدر.</p>
+      <div class="row wrap stock-ext">
+        <span class="muted">مواقع من غير API:</span>
+        <button class="btn" id="stock-mixkit" type="button" title="بيفتح نتايج Mixkit بنفس الكلمة في تاب جديد">🔎 دوّر في Mixkit</button>
+        <button class="btn ghost" id="stock-coverr" type="button">Coverr</button>
+        <input type="url" id="stock-link" class="grow" dir="ltr" placeholder="📎 الصق لينك الفيديو أو صفحته (Mixkit أو غيره)">
+        <button class="btn primary" id="stock-link-go" type="button">أضف</button>
+      </div>
+      <p class="hint">في Mixkit: افتح الفيديو اللي عاجبك ← انسخ لينك الصفحة من فوق (أو كليك يمين على الفيديو ← Copy video address) ← الصقه هنا واضغط «أضف». لو الموقع منع التحميل المباشر، نزّل الفيديو من زرار Download عندهم وارفعه من «اختار ملف». Mixkit مجاني ومن غير ذكر المصدر.</p>
       <div class="row wrap stock-filters">
         <label class="inline" id="sf-order-wrap">الترتيب
           <select id="sf-order"></select>
@@ -1304,6 +1311,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261030c"></script>
+  <script type="module" src="js/main.js?v=20261102a"></script>
 </body>
 </html>

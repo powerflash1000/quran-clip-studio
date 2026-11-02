@@ -2528,6 +2528,32 @@ function updateStockBar() {
   });
 }
 
+// لينك ملف (mp4/صورة) أو صفحة فيها فيديو (Mixkit: بندوّر على ملف mp4 جوه الصفحة، بأعلى جودة)
+async function fileFromLink(url) {
+  const blocked = () => new Error('الموقع ده مش سامح للبرنامج يحمّل منه مباشرة (CORS).\nنزّل الفيديو من زرار Download في الموقع، وارفعه من «اختار ملف». (أو اضبط «رابط الوسيط» في ⚙️ الإعدادات.)');
+  const name = () => (url.split(/[?#]/)[0].split('/').filter(Boolean).pop() || 'stock').replace(/[^\w.-]+/g, '_');
+  let blob;
+  try { blob = await fetchFirst([url], { as: 'blob' }); } catch { throw blocked(); }
+  if (/^(video|image)\//.test(blob.type) || /\.(mp4|webm|mov|jpe?g|png|webp)(\?|$)/i.test(url)) {
+    const video = blob.type.startsWith('video/') || /\.(mp4|webm|mov)(\?|$)/i.test(url);
+    return new File([blob], name(), { type: blob.type && blob.type !== 'application/octet-stream' ? blob.type : video ? 'video/mp4' : 'image/jpeg' });
+  }
+  const html = await blob.text();
+  const found = [...new Set((html.match(/https?:\/\/[^"'\s<>]+?\.mp4(?:\?[^"'\s<>]*)?/gi) || []).map(u => u.replace(/&amp;/g, '&')))];
+  const og = /<meta[^>]+property=["']og:video(?::url)?["'][^>]+content=["']([^"']+)/i.exec(html)?.[1];
+  if (og) found.unshift(og);
+  if (!found.length) throw new Error('مالقيتش فيديو في الصفحة دي. افتح الفيديو نفسه وانسخ لينكه (كليك يمين على الفيديو ← Copy video address)، أو نزّله وارفعه.');
+  const rank = u => (/2160|4k/i.test(u) ? 1 : /1080/.test(u) ? 4 : /720|large/i.test(u) ? 3 : /360|small|preview/i.test(u) ? 1 : 2);
+  found.sort((a, b) => rank(b) - rank(a));
+  for (const u of found.slice(0, 4)) {
+    try {
+      const v = await fetchFirst([u], { as: 'blob' });
+      if (v.size > 50000) return new File([v], u.split('?')[0].split('/').pop() || 'stock.mp4', { type: v.type.startsWith('video/') ? v.type : 'video/mp4' });
+    } catch { /* نجرّب اللي بعده */ }
+  }
+  throw blocked();
+}
+
 function setupStock() {
   const dlg = $('#dlg-stock');
   const prov = $('#stock-provider');
@@ -2564,6 +2590,31 @@ function setupStock() {
     const failed = items.length - ok;
     status(`✅ اتضاف ${Q.arabicNum(ok)} — عندك ${Q.arabicNum(state.mediaList.length)} خلفيات${failed ? ` (و ${Q.arabicNum(failed)} ماتحمّلتش)` : ''}${credits.length ? ` • اكتب في الوصف: الخلفيات: ${credits.join('، ')}` : ''}`, null, !ok);
   };
+  // ===== مواقع من غير API (Mixkit / Coverr): البحث بيتفتح في تاب، والإضافة بلينك =====
+  const extQuery = () => ($('#stock-q').value.trim() || 'nature').toLowerCase();
+  $('#stock-mixkit').onclick = () => {
+    const slug = extQuery().replace(/[^a-z0-9\s-]/g, '').trim().replace(/\s+/g, '-') || 'nature';
+    window.open(`https://mixkit.co/free-stock-video/${slug}/`, '_blank', 'noopener');
+  };
+  $('#stock-coverr').onclick = () => window.open(`https://coverr.co/search?q=${encodeURIComponent(extQuery())}`, '_blank', 'noopener');
+  const addLink = async () => {
+    const raw = $('#stock-link').value.trim();
+    if (!/^https?:\/\//i.test(raw)) { status('الصق لينك يبدأ بـ https://', null, true); return; }
+    const btn = $('#stock-link-go');
+    btn.disabled = true;
+    try {
+      status('⏳ بيجيب الفيديو…');
+      const file = await fileFromLink(raw);
+      setMedia(file, !$('#stock-replace').checked && state.mediaList.length > 0);
+      $('#stock-link').value = '';
+      dlg.close();
+      showTab('look', false);
+      status(`✅ اتضافت الخلفية — عندك ${Q.arabicNum(state.mediaList.length)} خلفيات`);
+    } catch (e) { showError(e); }
+    btn.disabled = false;
+  };
+  $('#stock-link-go').onclick = addLink;
+  $('#stock-link').onkeydown = e => { if (e.key === 'Enter') addLink(); };
   // ===== الفلاتر والصفحات =====
   const ORDER_NAMES = { relevance: 'الأنسب للبحث', popular: 'الأشهر', latest: 'الأحدث' };
   const sf = { order: '', dur: '', vertical: false, editors: false, hd: false, ...load('stockFilters', {}) };
