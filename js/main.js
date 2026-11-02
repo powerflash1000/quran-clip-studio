@@ -3,7 +3,7 @@ import { RECITERS, findReciter, customReciter, ayahAudioUrls } from './reciters.
 import { COLLECTIONS, collection, getHadith, searchHadith, extractMatn, assessGrade } from './hadith.js';
 import { loadAudio, decode, buildTimeline, startRecording, trimSilence, bufferToWavBlob, sliceBuffer, enhanceVoice, ENHANCE_PRESETS, REC_FX } from './audio.js';
 import { autoMarks } from './automark.js';
-import { ASPECTS, TEXT_FONT, ensureFonts, drawBackground, drawOverlay, drawWave } from './slides.js';
+import { ASPECTS, TEXT_FONT, TEXT_FONTS, TEXT_FX, TEXT_ANIM, ensureFonts, drawBackground, drawOverlay, drawWave } from './slides.js';
 import { exportAudio, exportVideo, exportFilmoraPackage, renderStill, makeSrt, download } from './exporter.js';
 import { PROVIDERS, downloadStock } from './stock.js';
 import * as T from './templates.js';
@@ -414,7 +414,7 @@ async function play() {
         $('#seg-info').textContent = segInfo(i, player.segs.length);
       }
       const seg = player.segs[i];
-      const shown = seg.wordTimes ? { ...seg, wordCount: WT.shownAt(seg.wordTimes, t - seg.start) } : seg;
+      const shown = { ...seg, age: t - seg.start, ...(seg.wordTimes ? { wordCount: WT.shownAt(seg.wordTimes, t - seg.start) } : {}) };
       drawFrame(shown, analyser, t);
       player.raf = requestAnimationFrame(tick);
     };
@@ -1062,6 +1062,122 @@ function setupFollow() {
     follow.takes.forEach(t => t?.url && URL.revokeObjectURL(t.url));
     follow = null;
   };
+}
+
+// ===== 🖼️ بوست صورة: كل النص (الآيات أو الدعاء كامل) في صورة واحدة على خلفية صورة =====
+const POST_SIZES = { '4:5': [1080, 1350], '1:1': [1080, 1080], '9:16': [1080, 1920], '16:9': [1920, 1080] };
+const post = { segs: [], bgImg: null, bgUrl: null };
+const isQ = sg => sg.kind === 'ayah' || sg.kind === 'basmala';
+
+// بيجمع الكروت في «شريحة» واحدة: آيات ورا بعض، أو أدعية/أحاديث ورا بعض (القرآن والكلام العادي مش بيتخلطوا عشان الخط)
+function postSeg() {
+  const segs = post.segs.filter(sg => sg.kind !== 'title');
+  if (!segs.length) return null;
+  const cur = segs[Math.min(state.segIndex, segs.length - 1)] || segs[0];
+  if ($('#post-what').value === 'card') return { ...cur, sub: '' };
+  const fam = segs.filter(sg => isQ(sg) === isQ(cur));
+  const seen = new Set(), uniq = fam.filter(sg => !seen.has(sg.text) && seen.add(sg.text));
+  const mixed = fam.length < segs.length;
+  if (isQ(cur)) {
+    const ay = uniq.filter(sg => sg.kind === 'ayah');
+    const one = ay.length && ay.every(sg => sg.s === ay[0].s);
+    const a1 = ay[0]?.a, a2 = ay[ay.length - 1]?.a;
+    const label = one ? `سورة ${Q.surah(ay[0].s).ar} • ${a1 === a2 ? `الآية ${Q.arabicNum(a1)}` : `الآيات ${Q.arabicNum(a1)}–${Q.arabicNum(a2)}`}` : cur.label;
+    return { kind: 'ayah', text: uniq.map(sg => sg.text).join(' '), label, footer: '', sub: '', mixed };
+  }
+  const refs = [...new Set(uniq.map(sg => sg.footer).filter(Boolean))];
+  return { kind: cur.kind, text: uniq.map(sg => sg.text).join('\n'), label: uniq.length === 1 ? cur.label : (cur.label || ''), footer: refs.length <= 2 ? refs.join(' • ') : '', sub: '', mixed };
+}
+
+function postStyle() {
+  return {
+    ...state.style,
+    textFx: $('#post-fx').value,
+    textFont: $('#post-font').value,
+    textSize: Math.round((state.style.textSize || 80) * Number($('#post-size-k').value)),
+    dim: Number($('#post-dim').value),
+    showLabel: $('#post-label').checked,
+    showFooter: $('#post-footer').checked,
+    showTranslation: false,
+    textAnim: '',
+  };
+}
+
+async function drawPost(canvas) {
+  const [W, H] = POST_SIZES[$('#post-size').value];
+  canvas.width = W; canvas.height = H;
+  const g = canvas.getContext('2d');
+  const st = postStyle();
+  await ensureFonts(st);
+  const bgMode = $('#post-bg').value;
+  let media = null;
+  if (bgMode === 'upload' && post.bgImg) media = { kind: 'image', el: post.bgImg };
+  else if (bgMode === 'current') media = previewBg(null).cur || state.mediaList[0] || null;
+  g.clearRect(0, 0, W, H);
+  drawBackground(g, W, H, bgMode === 'color' ? { ...st, bgType: st.bgType === 'media' ? 'gradient' : st.bgType } : st, media);
+  const seg = postSeg();
+  drawOverlay(g, W, H, seg, st);
+  const notes = [];
+  if (!seg) notes.push('ضيف آيات أو دعاء الأول.');
+  if (seg?.mixed) notes.push('الكروت فيها قرآن وأدعية مع بعض — الصورة فيها النوع بتاع الكارت الحالي بس (عشان القرآن بخط المصحف). غيّر الكارت من المعاينة للنوع التاني.');
+  if (bgMode === 'upload' && !post.bgImg) notes.push('اختار صورة الخلفية.');
+  if (bgMode === 'current' && !media) notes.push('مفيش خلفية صورة/فيديو حاليًا — استخدمت اللون. ارفع صورة أو اختار من «🔎 خلفيات مجانية».');
+  if (seg && seg.text.length > 600) notes.push('النص طويل — الخط صغر عشان يدخل. لو مش واضح، قسّمه على كذا بوست أو اختار «ستوري 9:16».');
+  $('#post-note').textContent = notes.join(' ');
+}
+
+async function openPost() {
+  post.segs = await buildSegments(false);
+  $('#post-fx').value = state.style.textFx || '';
+  $('#post-font').value = state.style.textFont || 'Amiri';
+  $('#post-dim').value = state.style.dim ?? 0.3;
+  $('#post-bg').value = state.style.bgType === 'media' && state.mediaList.length ? 'current' : post.bgImg ? 'upload' : 'color';
+  $('#post-upload-wrap').hidden = $('#post-bg').value !== 'upload';
+  $('#dlg-post').showModal();
+  await drawPost($('#post-canvas'));
+}
+
+function setupPost() {
+  const opts = o => Object.entries(o).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  $('#post-fx').innerHTML = opts(TEXT_FX);
+  $('#post-font').innerHTML = opts(TEXT_FONTS);
+  $('#btn-post').onclick = () => openPost().catch(showError);
+  $('#post-close').onclick = () => $('#dlg-post').close();
+  const redraw = () => drawPost($('#post-canvas')).catch(showError);
+  for (const id of ['post-size', 'post-what', 'post-fx', 'post-font', 'post-size-k', 'post-dim', 'post-label', 'post-footer']) $('#' + id).addEventListener('input', redraw);
+  $('#post-bg').onchange = () => {
+    $('#post-upload-wrap').hidden = $('#post-bg').value !== 'upload';
+    if ($('#post-bg').value === 'upload' && !post.bgImg) $('#post-upload').click();
+    redraw();
+  };
+  $('#post-upload').onchange = () => {
+    const f = $('#post-upload').files[0];
+    $('#post-upload').value = '';
+    if (!f) return;
+    if (post.bgUrl) URL.revokeObjectURL(post.bgUrl);
+    post.bgUrl = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => { post.bgImg = img; $('#post-bg').value = 'upload'; redraw(); };
+    img.onerror = () => showError(new Error('الملف ده مش صورة مدعومة'));
+    img.src = post.bgUrl;
+  };
+  const make = async () => {
+    const c = document.createElement('canvas');
+    await drawPost(c);
+    const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+    return new File([blob], `${baseName()}_post.png`, { type: 'image/png' });
+  };
+  $('#post-save').onclick = async () => {
+    try {
+      const f = await make();
+      download(f, f.name);
+      setLastExport(f, f.name, 'image/png');
+      status('✅ البوست اتحفظ — ارفعه على فيسبوك كـ «صورة»');
+    } catch (e) { showError(e); }
+  };
+  const probe = new File([new Blob(['x'], { type: 'image/png' })], 'p.png', { type: 'image/png' });
+  $('#post-share').hidden = !canShareFile(probe);
+  $('#post-share').onclick = async () => { try { await shareFile(await make(), ''); } catch (e) { if (e.name !== 'AbortError') showError(e); } };
 }
 
 function hadithBlockEl(b, i) {
@@ -2138,7 +2254,7 @@ function setupReciters() {
 }
 
 // ===== الشكل =====
-const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade'];
+const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade'];
 
 function applyStyleToInputs() {
   const st = state.style;
@@ -2164,6 +2280,10 @@ function updateBgVisibility() {
 function setupStyle() {
   $('#aspect').innerHTML = Object.entries(ASPECTS).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('');
   $('#translation').innerHTML = Q.TRANSLATIONS.map(t => `<option value="${t.code}">${t.name}</option>`).join('');
+  const opts = o => Object.entries(o).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  $('#textFont').innerHTML = opts(TEXT_FONTS);
+  $('#textFx').innerHTML = opts(TEXT_FX);
+  $('#textAnim').innerHTML = opts(TEXT_ANIM);
   $('#recFx').innerHTML = Object.entries(REC_FX).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
   applyStyleToInputs();
   for (const k of STYLE_INPUTS) {
@@ -2175,6 +2295,7 @@ function setupStyle() {
       if (k === 'bgSwitch') { $('#bgEvery-wrap').hidden = v === 'ayah'; $('#bgEvery-lbl').textContent = v === 'custom' ? 'المدة الافتراضية (ث)' : 'كل (ث)'; }
       if (['bgSwitch', 'bgEvery'].includes(k)) renderBgList();
       persist();
+      if (k === 'textFont') ensureFonts(state.style).then(() => refreshPreview());
       refreshPreview();
     });
   }
@@ -3902,7 +4023,7 @@ function liveDraw(now) {
     let i = 0;
     for (let k = 0; k < cur.segs.length; k++) if (cur.segs[k].start <= t + 0.05) i = k;
     const seg = cur.segs[i];
-    drawOverlay(g, W, H, seg.wordTimes ? { ...seg, wordCount: WT.shownAt(seg.wordTimes, t - seg.start) } : seg, state.style);
+    drawOverlay(g, W, H, { ...seg, age: t - seg.start, ...(seg.wordTimes ? { wordCount: WT.shownAt(seg.wordTimes, t - seg.start) } : {}) }, state.style);
     if (state.style.waveform) drawWave(g, W, H, cur.analyser, state.style.accent);
   } else {
     // شاشة الانتظار / العد التنازلي
@@ -5449,6 +5570,7 @@ async function restoreMedia() {
 async function init() {
   status('تحميل نص المصحف…');
   await Promise.all([Q.loadQuran(), ensureFonts(), loadAzkar()]);
+  ensureFonts(state.style).then(() => refreshPreview());
   status('');
   setupStyle();
   restoreMedia();
@@ -5467,6 +5589,7 @@ async function init() {
   setupLLM();
   setupAzkarLibrary();
   setupFollow();
+  setupPost();
   document.querySelectorAll('[data-preset]').forEach(btn => { btn.onclick = () => applyPreset(btn.dataset.preset); });
   $('#btn-play').onclick = play;
   $('#btn-stop').onclick = stop;

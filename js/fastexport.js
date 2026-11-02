@@ -1,7 +1,7 @@
 // تصدير سريع بالـ WebCodecs (بيستخدم كارت الشاشة / مُرمّز الجهاز) بدل ffmpeg.wasm
 // بيشتغل في Chrome و Edge لما الجهاز يدعم H.264 + AAC. لو مش مدعوم بنرجع لـ ffmpeg تلقائيًا.
 import { Muxer, ArrayBufferTarget } from '../vendor/mp4-muxer/mp4-muxer.mjs';
-import { drawBackground, drawOverlay } from './slides.js';
+import { drawBackground, drawOverlay, ENTER_SECS } from './slides.js';
 import { overlayFrames, FPS } from './exporter.js';
 import { SAMPLE_RATE } from './audio.js';
 import { bgSchedule, pickBg, loadVideoSource, seekVideo } from './bglist.js';
@@ -169,11 +169,15 @@ export async function fastExportVideo(project, cfg, onProgress, onStage) {
     const t = i / FPS;
     let next = fi;
     while (next + 1 < frames.length && frames[next + 1].from <= t + 1e-6) next++;
-    if (next !== fi) {
+    // حركة دخول النص: بنعيد رسم الطبقة كل إطار في أول ENTER_SECS من كل كارت
+    const fr = frames[Math.max(0, next)];
+    const age = fr && fr.seg.start != null ? t - fr.seg.start : null;
+    const entering = style.textAnim && fr && fr.count == null && age != null && age >= 0 && age < ENTER_SECS + 1 / FPS;
+    if (next !== fi || entering) {
       fi = next;
       const f = frames[Math.max(0, fi)];
       octx.clearRect(0, 0, W, H);
-      if (f) drawOverlay(octx, W, H, f.count == null ? f.seg : { ...f.seg, wordCount: f.count }, style);
+      if (f) drawOverlay(octx, W, H, f.count == null ? { ...f.seg, age: entering ? age : null } : { ...f.seg, wordCount: f.count }, style);
     }
     if (!dynamic) ctx.drawImage(bg, 0, 0);
     else {

@@ -19,6 +19,9 @@ export const DEFAULT_STYLE = {
   showTranslation: true,
   waveform: false,
   gap: 0.25,
+  textFont: 'Amiri',       // خط الأحاديث والأدعية والعناوين (القرآن دايمًا بخط المصحف)
+  textFx: '',              // تأثير الخط: حدود / توهج / ذهبي / نيون / كارت / شريط
+  textAnim: '',            // حركة دخول النص في الفيديو
   recFx: '',               // صدى على صوت التلاوة (غرفة / مسجد / قاعة كبيرة)
   trimSilence: true,       // قص السكوت من أول وآخر ملف كل آية
   wordMode: 'full',        // full | reveal (الكلمات بتظهر مع التلاوة) | highlight (تظليل الكلمة الحالية)
