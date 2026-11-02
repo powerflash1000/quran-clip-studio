@@ -97,7 +97,7 @@ export async function generate(blocks, style, translationOf, series = null) {
           }
         }
         body.push(`﴿${ayat.join(' ')}﴾`);
-        if (trs.length) body.push(style.translation === 'muyassar' ? `📖 التفسير الميسّر: ${trs.join(' ')}` : trs.join(' '));
+        if (trs.length) body.push(Q.tafsirInfo(style.translation) ? `📖 ${Q.tafsirInfo(style.translation).name}: ${trs.join(' ')}` : trs.join(' '));
       }
       info.push(`📖 سورة ${s.ar} • ${rangeLabel(b)}`);
     } else if (b.type === 'zikr' && b.custom) {
@@ -127,7 +127,7 @@ export async function generate(blocks, style, translationOf, series = null) {
   const credits = [];
   if (ps.includeCredits) {
     if (quran.length) credits.push('نص المصحف: مجمع الملك فهد (QuranEnc) • التلاوة: EveryAyah.com');
-    if (quran.length && style.translation === 'muyassar' && style.showTranslation) credits.push('التفسير الميسّر: مجمع الملك فهد لطباعة المصحف الشريف');
+    if (quran.length && Q.tafsirInfo(style.translation) && style.showTranslation) credits.push(`${Q.tafsirInfo(style.translation).name}: ${Q.tafsirInfo(style.translation).by}`);
     if (hadith.length) credits.push('نص الحديث: hadith-api (fawazahmed0)');
     if (zikr.some(b => !b.custom)) credits.push('الأذكار: حصن المسلم');
   }

@@ -24,6 +24,8 @@ export const BASMALA = 'بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱ�
 export const TRANSLATIONS = [
   { code: '', name: 'بدون ترجمة' },
   { code: 'muyassar', name: '📖 التفسير الميسّر (عربي)' },
+  { code: 'mukhtasar', name: '📖 المختصر في التفسير (عربي)' },
+  { code: 'jalalayn', name: '📖 تفسير الجلالين (عربي)' },
   { code: 'en', name: 'English' },
   { code: 'fr', name: 'Français' },
   { code: 'es', name: 'Español' },
@@ -40,7 +42,44 @@ const trCache = new Map();
 
 // التفسير الميسّر (مجمع الملك فهد) — من مصدرين مفتوحين، بالسورة كلها مرة واحدة
 const tafsirCache = new Map();
-const stripHtml = t => String(t || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+// أول آية في بعض الكتب فيها مقدمة السورة (تسميتها ومقاصدها) قبل «[التفسير]» — بناخد التفسير نفسه بس
+const onlyTafsir = t => { const s = String(t || ''); const i = s.indexOf('[التفسير]'); return i >= 0 ? s.slice(i + 9) : s; };
+const stripHtml = t => onlyTafsir(String(t || '').replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim();
+
+// كتب التفسير (نص عربي من spa5k/tafsir_api — مصدره Quran.com). القصيرة تنفع تحت الآية في الفيديو، والطويلة للقراية والنسخ
+export const TAFSIRS = [
+  { code: 'muyassar', slug: 'ar-tafsir-muyassar', name: 'التفسير الميسّر', by: 'مجمع الملك فهد', short: true },
+  { code: 'mukhtasar', slug: 'ar-tafsir-al-mukhtasar', name: 'المختصر في التفسير', by: 'مركز تفسير للدراسات القرآنية', short: true },
+  { code: 'jalalayn', slug: 'ar-tafsir-al-jalalayn', name: 'تفسير الجلالين', by: 'المحلّي والسيوطي', short: true },
+  { code: 'saadi', slug: 'ar-tafseer-al-saddi', name: 'تفسير السعدي', by: 'عبد الرحمن السعدي' },
+  { code: 'wasit', slug: 'ar-tafsir-al-wasit', name: 'التفسير الوسيط', by: 'محمد سيد طنطاوي' },
+  { code: 'baghawi', slug: 'ar-tafsir-al-baghawi', name: 'تفسير البغوي', by: 'البغوي' },
+  { code: 'ibnkathir', slug: 'ar-tafsir-ibn-kathir', name: 'تفسير ابن كثير', by: 'ابن كثير' },
+  { code: 'qurtubi', slug: 'ar-tafseer-al-qurtubi', name: 'تفسير القرطبي', by: 'القرطبي' },
+  { code: 'tabari', slug: 'ar-tafsir-al-tabari', name: 'تفسير الطبري', by: 'الطبري' },
+];
+export const tafsirInfo = code => TAFSIRS.find(t => t.code === code);
+
+// بيرجع { text, from } — from = رقم الآية اللي التفسير مكتوب عندها (بعض الكتب بتفسّر كذا آية مع بعض)
+const tafCache = new Map();
+export async function tafsirOf(code, s, a) {
+  const t = tafsirInfo(code);
+  if (!t) return { text: '', from: a };
+  const key = `${t.slug}:${s}`;
+  if (!tafCache.has(key)) {
+    tafCache.set(key, fetchJson([
+      `https://cdn.jsdelivr.net/gh/spa5k/tafsir_api@main/tafsir/${t.slug}/${s}.json`,
+      `https://raw.githubusercontent.com/spa5k/tafsir_api/main/tafsir/${t.slug}/${s}.json`,
+    ]).then(j => {
+      const map = new Map();
+      for (const it of (Array.isArray(j) ? j : j.ayahs || [])) map.set(Number(it.ayah), onlyTafsir(String(it.text || '').replace(/<[^>]+>/g, '')).trim());
+      return map;
+    }).catch(e => { tafCache.delete(key); throw e; }));
+  }
+  const map = await tafCache.get(key);
+  for (let k = a; k >= 1 && k >= a - 12; k--) if (map.get(k)) return { text: map.get(k), from: k };
+  return { text: '', from: a };
+}
 
 async function muyassar(s, a) {
   if (!tafsirCache.has(s)) {
@@ -67,6 +106,7 @@ async function muyassar(s, a) {
 export async function translation(code, s, a) {
   if (!code) return '';
   if (code === 'muyassar') return muyassar(s, a);
+  if (tafsirInfo(code)) { const r = await tafsirOf(code, s, a); return r.from === a ? r.text.replace(/\s+/g, ' ') : ''; }
   if (code === 'en') return ayahEnglish(s, a);
   const key = `${code}:${s}`;
   if (!trCache.has(key)) {

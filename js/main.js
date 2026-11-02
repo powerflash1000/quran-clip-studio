@@ -737,6 +737,7 @@ function quranBlockEl(b, i) {
   li.addEventListener('input', e => { if (['from', 'to'].includes(e.target.dataset.f)) recSync(); });
   li.addEventListener('change', e => { if (e.target.dataset.f === 'recFile') setTimeout(partUi, 500); });
   li.querySelector('[data-act=follow]').onclick = () => openFollow(b);
+  li.querySelector('[data-act=tafsir]').onclick = () => openTafsir(b).catch(showError);
   partUi();
   sync();
   return li;
@@ -1061,6 +1062,80 @@ function setupFollow() {
     if (follow.rec) { const r = follow.rec; follow.rec = null; await r.stop().catch(() => {}); }
     follow.takes.forEach(t => t?.url && URL.revokeObjectURL(t.url));
     follow = null;
+  };
+}
+
+// ===== 📖 التفسير: من كتب التفسير المعروفة — قراية ونسخ وكارت في الفيديو (من غير أي ذكاء اصطناعي) =====
+let tafBlock = null;
+async function openTafsir(b) {
+  tafBlock = b;
+  const src = $('#taf-src');
+  if (!src.options.length) src.innerHTML = Q.TAFSIRS.map(t => `<option value="${t.code}">${t.name}${t.short ? ' (قصير)' : ''}</option>`).join('');
+  src.value = load('tafsirSrc', 'muyassar');
+  $('#dlg-tafsir').showModal();
+  await renderTafsir();
+}
+
+async function renderTafsir() {
+  const b = tafBlock, code = $('#taf-src').value, info = Q.tafsirInfo(code);
+  const s = Q.surah(b.surah);
+  const from = clamp(b.from, 1, s.count), to = clamp(Math.max(b.to, from), from, s.count);
+  $('#taf-title').textContent = `📖 ${info.name} — سورة ${s.ar} ${from === to ? Q.arabicNum(from) : `${Q.arabicNum(from)}–${Q.arabicNum(to)}`}`;
+  const box = $('#taf-list');
+  box.innerHTML = '<p class="muted">⏳ بيحمّل التفسير…</p>';
+  const rows = [];
+  try {
+    for (let a = from; a <= to; a++) rows.push({ a, ...(await Q.tafsirOf(code, b.surah, a)) });
+  } catch {
+    box.innerHTML = '<p class="muted">⚠️ مقدرتش أحمّل التفسير — اتأكد من النت وجرّب تاني.</p>';
+    return;
+  }
+  box.innerHTML = '';
+  let lastFrom = null;
+  for (const r of rows) {
+    const shared = r.from !== r.a;
+    if (shared && r.from === lastFrom) continue; // نفس تفسير المجموعة اللي فوق
+    lastFrom = r.from;
+    const d = document.createElement('div');
+    d.className = 'taf-item';
+    d.innerHTML = '<div class="ay"></div><div class="tx"></div><div class="row wrap"><span class="muted grow" data-el="meta"></span><button class="btn ghost" type="button" data-a="copy">📋 انسخ</button><button class="btn" type="button" data-a="add">＋ كارت تفسير في الفيديو</button></div>';
+    d.querySelector('.ay').textContent = `﴿ ${Q.ayahText(b.surah, r.a)} ﴾ ${Q.arabicNum(r.a)}`;
+    const tx = d.querySelector('.tx');
+    tx.textContent = r.text || 'مفيش تفسير للآية دي في الكتاب ده.';
+    tx.classList.toggle('long', r.text.length > 900);
+    const words = r.text.split(/\s+/).filter(Boolean).length;
+    d.querySelector('[data-el=meta]').textContent = [shared && `(تفسير الآيات من ${Q.arabicNum(r.from)} مع بعض)`, r.text && `${words} كلمة`, r.text.length > 450 && '— طويل على كارت فيديو'].filter(Boolean).join(' ');
+    const ref = `${info.name} — ${info.by}`;
+    d.querySelector('[data-a=copy]').onclick = async e => {
+      try { await navigator.clipboard.writeText(`﴿ ${Q.ayahText(b.surah, r.a)} ﴾ [${s.ar}: ${r.a}]\n\n${r.text}\n\n(${ref})`); e.target.textContent = '✅ اتنسخ'; } catch { status('⚠️ المتصفح منع النسخ — حدّد النص وانسخه بـ Ctrl+C'); }
+    };
+    const add = d.querySelector('[data-a=add]');
+    add.disabled = !r.text;
+    add.onclick = () => {
+      const c = newCustomBlock();
+      c.label = `تفسير ${s.ar} ${Q.arabicNum(r.a)}`;
+      c.text = r.text.replace(/\n{3,}/g, '\n\n');
+      c.ref = ref;
+      c.seconds = estimateSeconds(c.text);
+      const i = state.blocks.indexOf(b);
+      state.blocks.splice(i < 0 ? state.blocks.length : i + 1, 0, c);
+      persist();
+      renderBlocks();
+      refreshPreview();
+      add.textContent = '✅ اتضاف بعد الآيات';
+      status(r.text.length > 450 ? '✅ اتضاف كارت التفسير — النص طويل، فالخط هيصغر. الأحسن تختار «الميسّر» أو «المختصر» للفيديو.' : '✅ اتضاف كارت التفسير بعد الآيات');
+    };
+    box.appendChild(d);
+  }
+}
+
+function setupTafsir() {
+  $('#taf-close').onclick = () => $('#dlg-tafsir').close();
+  $('#taf-src').onchange = () => { save('tafsirSrc', $('#taf-src').value); renderTafsir(); };
+  $('#taf-copy-all').onclick = async () => {
+    const txt = [...document.querySelectorAll('#taf-list .taf-item')].map(d => `${d.querySelector('.ay').textContent}\n${d.querySelector('.tx').textContent}`).join('\n\n');
+    const info = Q.tafsirInfo($('#taf-src').value);
+    try { await navigator.clipboard.writeText(`${txt}\n\n(${info.name} — ${info.by})`); status('✅ اتنسخ التفسير كله'); } catch { status('⚠️ المتصفح منع النسخ'); }
   };
 }
 
@@ -5590,6 +5665,7 @@ async function init() {
   setupAzkarLibrary();
   setupFollow();
   setupPost();
+  setupTafsir();
   document.querySelectorAll('[data-preset]').forEach(btn => { btn.onclick = () => applyPreset(btn.dataset.preset); });
   $('#btn-play').onclick = play;
   $('#btn-stop').onclick = stop;
