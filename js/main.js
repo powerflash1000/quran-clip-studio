@@ -130,6 +130,18 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
           }
         }
       }
+      // «الآيات كلها مرة واحدة»: كل آيات الكارت ظاهرة طول الوقت (للسور القصيرة زي الكوثر والقدر والفلق)
+      if (st.ayahLayout && st.ayahLayout !== 'one' && !ayahPart(b) && to > from) {
+        const texts = [];
+        for (let a = from; a <= to; a++) texts.push(`${Q.ayahText(b.surah, a)}\u00A0${Q.arabicNum(a)}`);
+        if (to - from < 15 && texts.join(' ').length <= 900) {
+          for (const sg of segs.slice(n0)) {
+            if (sg.kind !== 'ayah') continue;
+            sg.group = { texts, idx: sg.a - from, hi: st.ayahLayout === 'allHi' };
+            sg.label = st.ayahLayout === 'allHi' ? `سورة ${s.ar} • الآية ${Q.arabicNum(sg.a)}` : `سورة ${s.ar}${from === 1 && to === s.count ? '' : ` • ${Q.arabicNum(from)}–${Q.arabicNum(to)}`}`;
+          }
+        }
+      }
     } else if (b.type === 'zikr') {
       const au = hadithAudio.get(b.id);
       const useAudio = b.audioMode !== 'none' && au?.buffer;
@@ -2329,7 +2341,7 @@ function setupReciters() {
 }
 
 // ===== الشكل =====
-const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade'];
+const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'ayahLayout', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade'];
 
 function applyStyleToInputs() {
   const st = state.style;

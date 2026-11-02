@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261103b">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261103c">
 </head>
 <body>
   <header class="topbar">
@@ -245,6 +245,14 @@
         </div>
         <p class="hint">آيات القرآن بتفضل دايمًا بخط المصحف (حفص)؛ الخط اللي تختاره للأدعية والأحاديث والعناوين. التأثير (ذهبي، توهّج، حدود…) بيشتغل على الكل. وحركة الدخول بتظهر في المعاينة بالصوت والفيديو والبث — مع «الكلمات مع التلاوة» الكلمات نفسها هي الحركة.</p>
         <div class="grid2">
+          <label class="span2">عرض الآيات
+            <select id="ayahLayout">
+              <option value="one">آية آية (العادي)</option>
+              <option value="all">الآيات كلها مرة واحدة (للسور القصيرة)</option>
+              <option value="allHi">الآيات كلها + الآية اللي بتتقري منوّرة ✨</option>
+            </select>
+            <small class="muted">للسور والمقاطع القصيرة (لحد ١٥ آية) زي الكوثر والقدر والفلق — الأطول بيرجع آية آية عشان الخط مايصغرش أوي.</small>
+          </label>
           <label class="span2">ظهور الآية
             <select id="wordMode">
               <option value="full">الآية كاملة مرة واحدة</option>
@@ -449,7 +457,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261103b</div>
+    <div class="muted" id="app-version">الإصدار 20261103c</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -1378,6 +1386,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261103b"></script>
+  <script type="module" src="js/main.js?v=20261103c"></script>
 </body>
 </html>

@@ -188,6 +188,32 @@ function drawWords(ctx, lines, cx, y, size, lineH, shown, mode, style) {
   ctx.globalAlpha = 1;
 }
 
+// كل الآيات مرة واحدة: كل كلمة عارفة هي من أنهي آية، والآية اللي بتتقري بلون التمييز (والباقي أهدى) لو hi
+function drawGroup(ctx, lines, cx, y, size, lineH, grp, style) {
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  const owner = grp.texts.flatMap((t, i) => t.split(/[ \t]+/).filter(Boolean).map(() => i));
+  const base = ctx.fillStyle, space = ctx.measureText(' ').width;
+  let idx = 0;
+  lines.forEach((line, li) => {
+    const ws = line.split(' ');
+    const widths = ws.map(w => measureRtl(ctx, w));
+    let x = cx + (widths.reduce((a, b) => a + b, 0) + space * (ws.length - 1)) / 2;
+    const yy = y + size * lineH * (li + 0.5);
+    ws.forEach((w, k) => {
+      const cur = owner[idx] === grp.idx;
+      ctx.globalAlpha = grp.hi && !cur ? 0.55 : 1;
+      ctx.fillStyle = grp.hi && cur ? style.accent : base;
+      fillRtl(ctx, w, x, yy);
+      x -= widths[k] + space;
+      idx++;
+    });
+  });
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = base;
+}
+
 function drawLines(ctx, lines, x, y, size, lineH, dir) {
   ctx.direction = dir;
   ctx.textAlign = 'center';
@@ -238,7 +264,9 @@ export function drawOverlay(ctx, W, H, seg, style) {
   const subShare = hasSub ? 0.32 : 0;
   const area = bottom - top;
 
-  const main = fit(ctx, seg.text, mainFont, Math.round(style.textSize * unit * (isQuran ? 1 : 0.8)),
+  // كل آيات الكارت مرة واحدة (seg.group) — الكلمات مع التلاوة مش بتشتغل هنا
+  const grp = seg.group && style.ayahLayout && style.ayahLayout !== 'one' ? seg.group : null;
+  const main = fit(ctx, grp ? grp.texts.join(' ') : seg.text, mainFont, Math.round(style.textSize * unit * (isQuran ? 1 : 0.8)),
     Math.round(22 * unit), boxW, area * (1 - subShare) - 30 * unit, lineH);
 
   let sub = null;
@@ -256,8 +284,9 @@ export function drawOverlay(ctx, W, H, seg, style) {
   let y = top + (area - total) / 2;
 
   // حركة الدخول: seg.age = الثواني من أول الكارت (في الفيديو والمعاينة والبث)
-  const words = seg.wordCount != null && style.wordMode && style.wordMode !== 'full';
-  const anim = !words && style.textAnim && seg.age != null && seg.age < ENTER_SECS ? ease(seg.age / ENTER_SECS) : null;
+  const words = !grp && seg.wordCount != null && style.wordMode && style.wordMode !== 'full';
+  // مع «الآيات كلها مرة واحدة» الحركة بتحصل مرة واحدة بس في أول آية
+  const anim = !words && !(grp && grp.idx > 0) && style.textAnim && seg.age != null && seg.age < ENTER_SECS ? ease(seg.age / ENTER_SECS) : null;
   ctx.save();
   if (anim != null) {
     const cy = y + total / 2;
@@ -294,7 +323,8 @@ export function drawOverlay(ctx, W, H, seg, style) {
     PAINT = { stroke: Math.max(2, main.size * 0.035), strokeColor: 'rgba(60,35,0,0.85)' };
   }
   try {
-    if (words) drawWords(ctx, main.lines, W / 2, y, main.size, lineH, seg.wordCount, style.wordMode, style);
+    if (grp) drawGroup(ctx, main.lines, W / 2, y, main.size, lineH, grp, style);
+    else if (words) drawWords(ctx, main.lines, W / 2, y, main.size, lineH, seg.wordCount, style.wordMode, style);
     else drawLines(ctx, main.lines, W / 2, y, main.size, lineH, 'rtl');
   } finally { PAINT = null; }
   y += main.height + gapMS;
