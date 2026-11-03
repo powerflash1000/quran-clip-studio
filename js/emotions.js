@@ -1,4 +1,4 @@
-// أداء الصوت (المشاعر) للتوليد: تاج لـ ElevenLabs v3 + وصف لـ Gemini
+// أداء الصوت (المشاعر) للتوليد: تاج لـ ElevenLabs v4/v3 + وصف لـ Gemini
 // ElevenLabs v3 بيفهم تاجات بين [ ] في أول الكلام، و Gemini بيفهم وصف بالإنجليزي في التعليمات
 export const EMOTIONS = [
   { id: '', name: 'عادي' },

@@ -1495,7 +1495,7 @@ function wireAudioControls(li, b, sync) {
   f('perfStab').value = b.perfStab ?? '';
   f('perfSpeed').value = b.perfSpeed ?? 1;
   f('perfStyle').value = b.perfStyle ?? 0;
-  const perfLabel = () => { el('perfInfo').textContent = `السرعة ${(+f('perfSpeed').value).toFixed(2)}× • التعبير ${Math.round(f('perfStyle').value * 100)}%${b.emo ? ' • في ElevenLabs المشاعر بتستخدم موديل Eleven v3' : ''}`; };
+  const perfLabel = () => { el('perfInfo').textContent = `السرعة ${(+f('perfSpeed').value).toFixed(2)}× • التعبير ${Math.round(f('perfStyle').value * 100)}%${b.emo ? ' • في ElevenLabs المشاعر بتستخدم Eleven v4 (ولو مش متاح لحسابك: v3)' : ''}`; };
   f('emo').onchange = () => { b.emo = f('emo').value; persist(); perfLabel(); };
   f('perfStab').onchange = () => { b.perfStab = f('perfStab').value === '' ? undefined : +f('perfStab').value; persist(); };
   f('perfSpeed').oninput = () => { b.perfSpeed = +f('perfSpeed').value; persist(); perfLabel(); };
@@ -1530,7 +1530,7 @@ function wireAudioControls(li, b, sync) {
       const blob = await EL.speak(text, voiceId, perf);
       const buffer = await decode(await blob.arrayBuffer());
       const id = await AL.addClip({ name: `ElevenLabs — ${elVoices.find(v => v.id === voiceId)?.name || 'صوتي'}${b.emo ? ' — ' + emotion(b.emo).name : ''}`, kind: 'ai', text, voice: perfKey, dur: buffer.duration, blob });
-      useAudio('ai', trimSilence(buffer), 'ElevenLabs', blob, id, '✅ الصوت اتولّد واتحفظ في 📚 المكتبة. اسمعه كله وراجع النطق والتشكيل قبل التصدير. ولو فيه غلط، عدّل النص وولّد تاني.');
+      useAudio('ai', trimSilence(buffer), 'ElevenLabs', blob, id, `✅ الصوت اتولّد${EL.lastModel ? ` (${EL.lastModel})` : ''} واتحفظ في 📚 المكتبة. اسمعه كله وراجع النطق والتشكيل قبل التصدير. ولو فيه غلط، عدّل النص وولّد تاني.`);
     } catch (e) {
       showError(e);
     } finally {
