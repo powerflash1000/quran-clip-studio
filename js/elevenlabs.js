@@ -6,10 +6,10 @@ import { emotion } from './emotions.js';
 const API = 'https://api.elevenlabs.io';
 
 export const MODELS = [
-  { id: 'eleven_multilingual_v2', name: 'Multilingual v2 (ثابت ومجرّب مع العربي)' },
-  { id: 'eleven_v3', name: 'Eleven v3 (معبّر)' },
   { id: 'eleven_v4', name: 'Eleven v4 🎭 (الأحدث — أقوى في المشاعر والتاجات)' },
   { id: 'eleven_v4_turbo', name: 'Eleven v4 Turbo (أسرع)' },
+  { id: 'eleven_v3', name: 'Eleven v3 (معبّر)' },
+  { id: 'eleven_multilingual_v2', name: 'Multilingual v2 (ثابت ومجرّب مع العربي)' },
 ];
 // الموديلات اللي بتفهم تاجات المشاعر ([sad] [whispers] …)
 const EXPRESSIVE = new Set(['eleven_v3', 'eleven_v4', 'eleven_v4_turbo']);
