@@ -2738,7 +2738,7 @@ function updateStockBar() {
 
 // لينك ملف (mp4/صورة) أو صفحة فيها فيديو (Mixkit: بندوّر على ملف mp4 جوه الصفحة، بأعلى جودة)
 async function fileFromLink(url) {
-  const blocked = () => new Error('الموقع ده مش سامح للبرنامج يحمّل منه مباشرة (CORS).\nنزّل الفيديو من زرار Download في الموقع، وارفعه من «اختار ملف». (أو اضبط «رابط الوسيط» في ⚙️ الإعدادات.)');
+  const blocked = () => new Error('الموقع ده مش سامح للبرنامج يحمّل منه مباشرة (CORS).\nنزّله وارفعه من «اختار ملف»، أو اعمل «رابط الوسيط» المجاني على Cloudflare (⚙️ الإعدادات ← 🌐 رابط الوسيط) وبعدها اللينك هيشتغل على طول. لو عامل الوسيط قبل كده، حدّث الكود بتاعه من tools/cors-proxy-worker.js عشان يدعم Pinterest.');
   const name = () => (url.split(/[?#]/)[0].split('/').filter(Boolean).pop() || 'stock').replace(/[^\w.-]+/g, '_');
   let blob;
   try { blob = await fetchFirst([url], { as: 'blob' }); } catch { throw blocked(); }
@@ -2748,9 +2748,22 @@ async function fileFromLink(url) {
   }
   const html = await blob.text();
   const found = [...new Set((html.match(/https?:\/\/[^"'\s<>]+?\.mp4(?:\?[^"'\s<>]*)?/gi) || []).map(u => u.replace(/&amp;/g, '&')))];
-  const og = /<meta[^>]+property=["']og:video(?::url)?["'][^>]+content=["']([^"']+)/i.exec(html)?.[1];
-  if (og) found.unshift(og);
-  if (!found.length) throw new Error('مالقيتش فيديو في الصفحة دي. افتح الفيديو نفسه وانسخ لينكه (كليك يمين على الفيديو ← Copy video address)، أو نزّله وارفعه.');
+  const meta = prop => new RegExp(`<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"']+)`, 'i').exec(html)?.[1]
+    || new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${prop}["']`, 'i').exec(html)?.[1];
+  const og = meta('og:video(?::url|:secure_url)?');
+  if (og && !/\.m3u8/i.test(og)) found.unshift(og);
+  if (!found.length) {
+    // مفيش فيديو mp4: نجيب الصورة الرئيسية للصفحة (زي صورة البن في Pinterest)
+    const img = meta('og:image(?::secure_url)?') || meta('twitter:image');
+    if (img) {
+      try {
+        const v = await fetchFirst([img.replace(/&amp;/g, '&').replace(/\/(236x|474x|564x)\//, '/originals/')], { as: 'blob' })
+          .catch(() => fetchFirst([img.replace(/&amp;/g, '&')], { as: 'blob' }));
+        if (v.size > 5000) return new File([v], img.split('?')[0].split('/').pop() || 'image.jpg', { type: v.type.startsWith('image/') ? v.type : 'image/jpeg' });
+      } catch { throw blocked(); }
+    }
+    throw new Error(/\.m3u8/i.test(html) ? 'الفيديو ده متقسّم (بث HLS) ومفيش منه ملف mp4 جاهز — نزّله بأي موقع تحميل وارفعه من «اختار ملف».' : 'مالقيتش فيديو ولا صورة في الصفحة دي. افتح الفيديو نفسه وانسخ لينكه (كليك يمين على الفيديو ← Copy video address)، أو نزّله وارفعه.');
+  }
   const rank = u => (/2160|4k/i.test(u) ? 1 : /1080/.test(u) ? 4 : /720|large/i.test(u) ? 3 : /360|small|preview/i.test(u) ? 1 : 2);
   found.sort((a, b) => rank(b) - rank(a));
   for (const u of found.slice(0, 4)) {
