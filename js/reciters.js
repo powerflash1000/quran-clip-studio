@@ -33,11 +33,27 @@ export const RECITERS = [
   { id: 'qahtani', name: 'خالد القحطاني', everyayah: 'Khaalid_Abdullaah_al-Qahtaanee_192kbps' },
   { id: 'juhany', name: 'عبد الله عواد الجهني', everyayah: 'Abdullaah_3awwaad_Al-Juhaynee_128kbps' },
   { id: 'muhsin', name: 'محسن القاسم', everyayah: 'Muhsin_Al_Qasim_192kbps' },
-  { id: 'akhdar', name: 'إبراهيم الأخضر', everyayah: 'Ibrahim_Akhdar_32kbps', islamic: 'ar.ibrahimakhbar' },
+  { id: 'akhdar', name: 'إبراهيم الأخضر', everyayah: 'Ibrahim_Akhdar_64kbps', islamic: 'ar.ibrahimakhbar' },
   { id: 'ali-jaber', name: 'علي جابر', everyayah: 'Ali_Jaber_64kbps' },
   { id: 'fares', name: 'فارس عباد', everyayah: 'Fares_Abbad_64kbps' },
   { id: 'ayman-sowaid', name: 'أيمن سويد', everyayah: 'Ayman_Sowaid_64kbps', islamic: 'ar.aymanswoaid' },
   { id: 'warsh-dossary', name: 'إبراهيم الدوسري (رواية ورش)', everyayah: 'warsh/warsh_ibrahim_aldosary_128kbps' },
+  // باقي قرّاء everyayah.com/data اللي ماكانوش في القائمة
+  { id: 'husary-mujawwad', name: 'محمود خليل الحصري (مجود)', everyayah: 'Husary_128kbps_Mujawwad' },
+  { id: 'minshawi-teacher', name: 'محمد صديق المنشاوي (المعلم)', everyayah: 'Minshawy_Teacher_128kbps' },
+  { id: 'neana', name: 'أحمد نعينع', everyayah: 'Ahmed_Neana_128kbps' },
+  { id: 'matroud', name: 'عبد الله المطرود', everyayah: 'Abdullah_Matroud_128kbps' },
+  { id: 'alaqimy', name: 'أكرم العلاقمي', everyayah: 'Akram_AlAlaqimy_128kbps' },
+  { id: 'suesy', name: 'علي حجاج السويسي', everyayah: 'Ali_Hajjaj_AlSuesy_128kbps' },
+  { id: 'abdulkareem', name: 'محمد عبد الكريم', everyayah: 'Muhammad_AbdulKareem_128kbps' },
+  { id: 'nabil-rifai', name: 'نبيل الرفاعي', everyayah: 'Nabil_Rifa3i_48kbps' },
+  { id: 'sahl-yassin', name: 'سهل ياسين', everyayah: 'Sahl_Yassin_128kbps' },
+  { id: 'bukhatir', name: 'صلاح بو خاطر', everyayah: 'Salaah_AbdulRahman_Bukhatir_128kbps' },
+  { id: 'yaser-salamah', name: 'ياسر سلامة', everyayah: 'Yaser_Salamah_128kbps' },
+  { id: 'aziz-alili', name: 'عزيز عليلي', everyayah: 'aziz_alili_128kbps' },
+  { id: 'tunaiji', name: 'خليفة الطنيجي', everyayah: 'khalefa_al_tunaiji_64kbps' },
+  { id: 'karim-mansoori', name: 'كريم منصوري', everyayah: 'Karim_Mansoori_40kbps' },
+  { id: 'parhizgar', name: 'شهريار پرهيزگار', everyayah: 'Parhizgar_48kbps' },
 ];
 
 // فولدر مخصص يكتبه المستخدم (لو القارئ مش موجود في القائمة)
