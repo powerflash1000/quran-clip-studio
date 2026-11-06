@@ -1,4 +1,5 @@
 import { getSettings } from './storage.js';
+import { fetchFirst } from './net.js';
 
 // بحث خلفيات مجانية من Pexels و Pixabay (محتاج مفتاح مجاني لكل موقع، بيتحط في الإعدادات)
 // يرجع: [{ id, kind: 'video'|'image', thumb, url, width, height, credit, page }]
@@ -65,9 +66,8 @@ export async function searchPixabay(query, kind, aspect, opts = {}) {
 }
 
 export async function downloadStock(item) {
-  const res = await fetch(item.url);
-  if (!res.ok) throw new Error('تعذر تحميل الملف: ' + res.status);
-  const blob = await res.blob();
+  // مباشرة الأول، ولو المتصفح منع (CORS) عن طريق الوسيط
+  const blob = await fetchFirst([item.url], { as: 'blob' });
   const ext = item.ext || (item.kind === 'video' ? 'mp4' : 'jpg');
   return new File([blob], `${item.id}.${ext}`, { type: blob.type || (item.kind === 'video' ? 'video/mp4' : 'image/jpeg') });
 }
@@ -127,9 +127,47 @@ export async function searchOpenverse(query, kind, aspect, opts = {}) {
   return { items, total: j.result_count ?? null, pages: j.page_count ?? null, hasMore: page < (j.page_count || 0) };
 }
 
+// Coverr: فيديو ستوك (مفتاح مجاني ~50 بحث في الساعة). المفتاح من إعدادات البرنامج ده أو من برنامج الأخبار (نفس الموقع)
+function coverrKey() {
+  const k = getSettings().coverrKey;
+  if (k) return k;
+  try { return JSON.parse(localStorage.getItem('nrs:settings') || '{}').coverrKey || ''; } catch { return ''; }
+}
+export async function searchCoverr(query, kind, aspect, opts = {}) {
+  const key = coverrKey();
+  if (!key) throw new Error('حط مفتاح Coverr في الإعدادات الأول');
+  if (kind === 'image') return { items: [], total: 0, pages: 0, hasMore: false };
+  const page = opts.page || 1;
+  const base = `https://api.coverr.co/videos?query=${encodeURIComponent(query)}&page=${page - 1}`;
+  const tries = [[base + '&urls=true', { Authorization: 'Bearer ' + key }], [base, { Authorization: 'Bearer ' + key }], [base + '&api_key=' + encodeURIComponent(key), {}]];
+  let res, msg = '';
+  for (const [u, headers] of tries) {
+    try { res = await fetch(u, { headers }); }
+    catch {
+      const { proxyUrl } = getSettings();
+      if (!proxyUrl) throw new Error('Coverr: المتصفح منع الاتصال، اضبط رابط الوسيط');
+      res = await fetch(`${proxyUrl.replace(/\/+$/, '')}/?url=${encodeURIComponent(u)}`, { headers });
+    }
+    if (res.ok || [401, 403, 429].includes(res.status)) break;
+    msg = (await res.text().catch(() => '')).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+  }
+  if (res.status === 429) throw new Error('Coverr: خلص حد البحث (حوالي 50 في الساعة)');
+  if (!res.ok) throw new Error('Coverr: ' + res.status + (msg ? ' — ' + msg : ''));
+  const j = await res.json();
+  const list = j.hits || j.videos || j.data || [];
+  const items = list.map(v => {
+    const u = v.urls || {};
+    const file = (typeof u === 'string' ? u : u.mp4_download || u.mp4 || u.mp4_preview) || '';
+    return file && { id: 'cv' + (v.id || file), kind: 'video', thumb: v.thumbnail || v.poster || '', url: file, width: v.max_width || v.width, height: v.max_height || v.height, duration: Number(v.duration) || null, credit: 'Coverr', page: v.slug ? `https://coverr.co/videos/${v.slug}` : 'https://coverr.co' };
+  }).filter(Boolean);
+  const pages = j.pages || null;
+  return { items, total: j.total ?? null, pages, hasMore: pages ? page < pages : items.length >= 20 };
+}
+
 export const PROVIDERS = {
-  pixabay: { name: 'Pixabay (مفتاح مجاني)', fn: searchPixabay, editors: true, order: ['popular', 'latest'] },
-  commons: { name: 'Wikimedia (من غير مفتاح)', fn: searchCommons, order: ['relevance', 'popular', 'latest'] },
-  openverse: { name: 'Openverse — صور (من غير مفتاح)', fn: searchOpenverse, order: [] },
-  pexels: { name: 'Pexels (لو عندك مفتاح قديم)', fn: searchPexels, order: [] },
+  pixabay: { name: 'Pixabay (مفتاح مجاني)', short: 'Pixabay', key: s => s.pixabayKey, fn: searchPixabay, editors: true, order: ['popular', 'latest'] },
+  commons: { name: 'Wikimedia (من غير مفتاح)', short: 'Wikimedia', fn: searchCommons, order: ['relevance', 'popular', 'latest'] },
+  openverse: { name: 'Openverse — صور (من غير مفتاح)', short: 'Openverse', imageOnly: true, fn: searchOpenverse, order: [] },
+  pexels: { name: 'Pexels (لو عندك مفتاح قديم)', short: 'Pexels', key: s => s.pexelsKey, fn: searchPexels, order: [] },
+  coverr: { name: 'Coverr — فيديو (مفتاح مجاني)', short: 'Coverr', key: () => coverrKey(), fn: searchCoverr, order: [], videoOnly: true },
 };

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261106a">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261107a">
 </head>
 <body>
   <header class="topbar">
@@ -457,7 +457,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261106a</div>
+    <div class="muted" id="app-version">الإصدار 20261107a</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -472,6 +472,9 @@
       <p class="hint">Pexels وقفت إصدار مفاتيح جديدة حاليًا — لو معندكش مفتاح سيبها فاضية واستخدم Pixabay أو Wikimedia أو Openverse.</p>
       <label>مفتاح Pixabay (مجاني)
         <input type="text" id="set-pixabay" dir="ltr" autocomplete="off">
+      </label>
+      <label>مفتاح Coverr (مجاني — فيديو، حوالي 50 بحث في الساعة)
+        <input type="text" id="set-coverr" dir="ltr" autocomplete="off" placeholder="لو فاضي بياخد مفتاح برنامج الأخبار">
       </label>
       <p class="hint">من <a href="https://pixabay.com/api/docs/" target="_blank" rel="noopener">pixabay.com/api/docs</a> بعد تسجيل الدخول، المفتاح بيظهر في الصفحة.</p>
       <details>
@@ -549,13 +552,13 @@
       </div>
       <div class="row wrap">
         <input type="search" id="stock-q" class="grow" value="nature sky" placeholder="مثلًا: sky, ocean, desert, clouds, mosque">
-        <select id="stock-provider"></select>
         <select id="stock-kind">
           <option value="video">فيديو</option>
           <option value="image">صورة</option>
         </select>
         <button class="btn primary" id="stock-go" type="button">بحث</button>
       </div>
+      <div class="chips" id="stock-provs" aria-label="مصادر البحث"></div>
       <p class="hint">ابحث بالإنجليزي للحصول على نتايج أكتر. اختار مشاهد من غير أشخاص. نتايج Wikimedia و Openverse بيظهر عليها اسم صاحبها ورخصتها؛ لو الرخصة فيها <b>BY</b> اكتب اسمه في الوصف (البرنامج بيحطه لك في رسالة الحالة).</p>
       <div class="row wrap stock-ext">
         <span class="muted">مواقع من غير API:</span>
@@ -1386,6 +1389,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261106a"></script>
+  <script type="module" src="js/main.js?v=20261107a"></script>
 </body>
 </html>

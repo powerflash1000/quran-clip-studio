@@ -2782,11 +2782,21 @@ async function fileFromLink(url) {
 
 function setupStock() {
   const dlg = $('#dlg-stock');
-  const prov = $('#stock-provider');
-  prov.innerHTML = Object.entries(PROVIDERS).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('');
-  const st = getSettings();
-  prov.value = load('stockProvider', null) || (st.pixabayKey ? 'pixabay' : st.pexelsKey ? 'pexels' : 'commons');
-  prov.onchange = () => save('stockProvider', prov.value);
+  // المصادر أزرار (مش قايمة): تختار كذا مصدر والبحث بيجيب من كلهم مع بعض
+  const old1 = load('stockProvider', null);
+  let provs = load('stockProvs', null) || ['pixabay', 'commons', 'openverse', 'coverr', ...(old1 && !['pixabay', 'commons', 'openverse', 'coverr'].includes(old1) ? [old1] : [])];
+  const hasKey = k => !PROVIDERS[k].key || !!PROVIDERS[k].key(getSettings());
+  const fitsKind = (k, kind) => !(kind === 'video' && PROVIDERS[k].imageOnly) && !(kind === 'image' && PROVIDERS[k].videoOnly);
+  const renderProvs = () => {
+    const kind = $('#stock-kind').value;
+    $('#stock-provs').innerHTML = '<span class="muted">دوّر في:</span>' + Object.entries(PROVIDERS).map(([k, P]) =>
+      `<button type="button" class="chip${provs.includes(k) ? ' on' : ''}" data-p="${k}" title="${P.name}${hasKey(k) ? '' : ' — محتاج مفتاح في الإعدادات'}${fitsKind(k, kind) ? '' : (kind === 'video' ? ' — صور بس' : ' — فيديو بس')}"${fitsKind(k, kind) ? '' : ' style="opacity:.45"'}>${P.short}${hasKey(k) ? '' : ' 🔑'}</button>`).join('');
+  };
+  $('#stock-provs').onclick = e => {
+    const k = e.target.closest('[data-p]')?.dataset.p; if (!k) return;
+    provs = provs.includes(k) ? provs.filter(x => x !== k) : [...provs, k];
+    save('stockProvs', provs); renderProvs(); syncFilterUi();
+  };
   $('#open-stock').onclick = () => openStock();
   $('#stock-close').onclick = () => dlg.close();
   $('#stock-replace').onchange = updateStockBar;
@@ -2845,13 +2855,13 @@ function setupStock() {
   const ORDER_NAMES = { relevance: 'الأنسب للبحث', popular: 'الأشهر', latest: 'الأحدث' };
   const sf = { order: '', dur: '', vertical: false, editors: false, hd: false, ...load('stockFilters', {}) };
   const syncFilterUi = () => {
-    const P = PROVIDERS[prov.value];
-    const orders = P.order || [];
+    const sel = provs.filter(k => PROVIDERS[k]);
+    const orders = [...new Set(sel.flatMap(k => PROVIDERS[k].order || []))];
     $('#sf-order').innerHTML = orders.map(o => `<option value="${o}">${ORDER_NAMES[o]}</option>`).join('');
     if (!orders.includes(sf.order)) sf.order = orders[0] || '';
     $('#sf-order').value = sf.order;
     $('#sf-order-wrap').hidden = !orders.length;
-    $('#sf-editors-wrap').hidden = !P.editors;
+    $('#sf-editors-wrap').hidden = !sel.some(k => PROVIDERS[k].editors);
     $('#sf-dur-wrap').hidden = $('#stock-kind').value !== 'video';
     $('#sf-dur').value = sf.dur;
     $('#sf-vertical').checked = sf.vertical;
@@ -2876,7 +2886,9 @@ function setupStock() {
     const shown = last.items.filter(passes);
     const hidden = last.items.length - shown.length;
     $('#stock-info').textContent = [
+      last.from ? `من: ${last.from}` : '',
       last.total != null ? `النتايج: ${fmtN(last.total)}` : '',
+      last.errs?.length ? `⚠️ ${last.errs.join(' • ')}` : '',
       last.pages ? `الصفحة ${Q.arabicNum(last.page)} من ${Q.arabicNum(last.pages)}` : `الصفحة ${Q.arabicNum(last.page)}`,
       hidden ? `اتخبى ${Q.arabicNum(hidden)} بسبب الفلاتر` : '',
     ].filter(Boolean).join(' • ');
@@ -2892,7 +2904,7 @@ function setupStock() {
       if (it.width && it.height) meta.push(`${Math.min(it.width, it.height) >= 1080 ? 'FHD' : Math.min(it.width, it.height) >= 720 ? 'HD' : 'SD'} ${it.height > it.width ? '▯' : '▭'}`);
       if (it.likes != null) meta.push(`❤ ${it.likes >= 1000 ? (it.likes / 1000).toFixed(1) + 'k' : it.likes}`);
       d.querySelector('.meta').innerHTML = meta.map(m => `<span>${m}</span>`).join('');
-      d.querySelector('.tag').textContent = `${it.kind === 'video' ? '🎞️' : '🖼️'} ${it.credit || ''}${it.license ? ' · ' + it.license : ''}`;
+      d.querySelector('.tag').textContent = `${it.kind === 'video' ? '🎞️' : '🖼️'} ${it.src ? it.src + ' · ' : ''}${it.credit || ''}${it.license ? ' · ' + it.license : ''}`;
       d.onclick = () => {
         if (stockSel.has(it.id)) stockSel.delete(it.id); else stockSel.set(it.id, it);
         updateStockBar();
@@ -2928,9 +2940,27 @@ function setupStock() {
     box.textContent = 'جاري البحث…';
     $('#stock-pager').innerHTML = '';
     try {
-      const fn = PROVIDERS[prov.value].fn;
-      const r = await fn($('#stock-q').value.trim() || 'nature', $('#stock-kind').value, state.style.aspect, { page, order: sf.order, editors: sf.editors });
-      last = { ...r, page };
+      const kind = $('#stock-kind').value, q = $('#stock-q').value.trim() || 'nature';
+      const use = provs.filter(k => PROVIDERS[k] && fitsKind(k, kind) && hasKey(k));
+      const skipped = provs.filter(k => PROVIDERS[k] && fitsKind(k, kind) && !hasKey(k)).map(k => `${PROVIDERS[k].short} محتاج مفتاح`);
+      if (!use.length) throw new Error(skipped.length ? `${skipped.join(' • ')} — حط المفتاح في ⚙️ الإعدادات أو اختار مصدر تاني` : 'اختار مصدر واحد على الأقل من الأزرار تحت البحث');
+      const res = await Promise.allSettled(use.map(k => PROVIDERS[k].fn(q, kind, state.style.aspect, { page, order: PROVIDERS[k].order?.includes(sf.order) ? sf.order : undefined, editors: sf.editors })));
+      const lists = [], errs = [...skipped];
+      res.forEach((r, i) => {
+        const k = use[i];
+        if (r.status === 'fulfilled') lists.push((r.value.items || []).map(it => ({ ...it, id: k + ':' + it.id, src: PROVIDERS[k].short })));
+        else errs.push(`${PROVIDERS[k].short}: ${r.reason?.message || r.reason}`);
+      });
+      // نخلط النتايج بالدور (واحدة من كل مصدر) عشان يبقوا جنب بعض
+      const items = [];
+      for (let i = 0; lists.some(l => i < l.length); i++) for (const l of lists) if (i < l.length) items.push(l[i]);
+      const ok = res.map((r, i) => r.status === 'fulfilled' ? r.value : null);
+      const totals = ok.filter(v => v && v.total != null).map(v => v.total);
+      if (!items.length && errs.length) throw new Error(errs.join(' • '));
+      last = { items, page, errs, from: use.filter((k, i) => ok[i]).map(k => PROVIDERS[k].short).join('، '),
+        total: totals.length ? totals.reduce((a, b) => a + b, 0) : null,
+        pages: Math.max(0, ...ok.filter(Boolean).map(v => v.pages || 0)) || null,
+        hasMore: ok.some(v => v && (v.hasMore || (v.pages && page < v.pages))) };
       render();
       updateStockBar();
       $('#stock-results').scrollTop = 0;
@@ -2945,9 +2975,10 @@ function setupStock() {
   $('#sf-dur').onchange = () => { sf.dur = $('#sf-dur').value; saveSf(); render(); updateStockBar(); };
   $('#sf-vertical').onchange = () => { sf.vertical = $('#sf-vertical').checked; saveSf(); render(); updateStockBar(); };
   $('#sf-hd').onchange = () => { sf.hd = $('#sf-hd').checked; saveSf(); render(); updateStockBar(); };
-  prov.addEventListener('change', () => { syncFilterUi(); last = null; render(); $('#stock-info').textContent = ''; $('#stock-pager').innerHTML = ''; });
-  $('#stock-kind').addEventListener('change', syncFilterUi);
+  $('#stock-kind').addEventListener('change', () => { syncFilterUi(); renderProvs(); });
+  renderProvs();
   syncFilterUi();
+  $('#open-stock').addEventListener('click', renderProvs);
   $('#stock-go').onclick = () => go(1);
   $('#stock-q').onkeydown = e => { if (e.key === 'Enter') go(1); };
 }
@@ -3006,6 +3037,7 @@ function setupSettings() {
     const s = getSettings();
     $('#set-pexels').value = s.pexelsKey;
     $('#set-pixabay').value = s.pixabayKey;
+    $('#set-coverr').value = s.coverrKey || '';
     $('#set-proxy').value = s.proxyUrl;
     $('#set-freesound').value = s.freesoundKey;
     $('#set-eleven-key').value = s.elevenKey;
@@ -3035,6 +3067,7 @@ function setupSettings() {
     setSettings({
       pexelsKey: $('#set-pexels').value.trim(),
       pixabayKey: $('#set-pixabay').value.trim(),
+      coverrKey: $('#set-coverr').value.trim(),
       proxyUrl: $('#set-proxy').value.trim(),
       freesoundKey: $('#set-freesound').value.trim(),
       elevenKey: $('#set-eleven-key').value.trim(),
