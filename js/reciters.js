@@ -38,6 +38,8 @@ export const RECITERS = [
   { id: 'fares', name: 'فارس عباد', everyayah: 'Fares_Abbad_64kbps' },
   { id: 'ayman-sowaid', name: 'أيمن سويد', everyayah: 'Ayman_Sowaid_64kbps', islamic: 'ar.aymanswoaid' },
   { id: 'warsh-dossary', name: 'إبراهيم الدوسري (رواية ورش)', everyayah: 'warsh/warsh_ibrahim_aldosary_128kbps' },
+  { id: 'warsh-abdulbasit', name: 'عبد الباسط عبد الصمد (رواية ورش)', everyayah: 'warsh/warsh_Abdul_Basit_128kbps' },
+  { id: 'warsh-jazaery', name: 'ياسين الجزائري (رواية ورش)', everyayah: 'warsh/warsh_yassin_al_jazaery_64kbps' },
   // باقي قرّاء everyayah.com/data اللي ماكانوش في القائمة
   { id: 'husary-mujawwad', name: 'محمود خليل الحصري (مجود)', everyayah: 'Husary_128kbps_Mujawwad' },
   { id: 'minshawi-teacher', name: 'محمد صديق المنشاوي (المعلم)', everyayah: 'Minshawy_Teacher_128kbps' },

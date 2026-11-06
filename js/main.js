@@ -2311,7 +2311,12 @@ function renderReciters() {
 
 function setupReciters() {
   renderReciters();
-  $('#reciter').onchange = () => { state.style.reciter = $('#reciter').value; renderReciters(); persist(); refreshPreview(); };
+  $('#reciter').onchange = () => {
+    state.style.reciter = $('#reciter').value;
+    renderReciters(); persist(); refreshPreview();
+    // نص المصحف في البرنامج برواية حفص — مع تلاوة ورش فيه كلمات بتتقري مختلف عن المكتوب
+    if (findReciter(state.style.reciter).everyayah?.startsWith('warsh/')) status('ℹ️ القارئ ده برواية ورش، والنص اللي على الشاشة برواية حفص — فيه كلمات بتتقري مختلف عن المكتوب (زي «ملك يوم الدين»). اكتب «برواية ورش» في الوصف.');
+  };
   $('#show-all-reciters').onchange = () => { state.showAll = $('#show-all-reciters').checked; renderReciters(); };
   $('#fav').onclick = () => {
     const id = state.style.reciter;
