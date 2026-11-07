@@ -437,3 +437,6 @@ dialog.ctrl-panel { position: fixed; inset: auto auto 12px 12px; margin: 0; widt
 .taf-item .ay { font-family: 'UthmanicHafs', 'Amiri', serif; font-size: 1.25rem; line-height: 2; color: var(--primary); }
 .taf-item .tx { white-space: pre-wrap; line-height: 1.9; margin: .3rem 0; }
 .taf-item .tx.long { max-height: 14rem; overflow-y: auto; }
+
+/* 🎨 اللوجو */
+.logo-prev { height: 44px; max-width: 120px; object-fit: contain; border-radius: 6px; background: repeating-conic-gradient(#8883 0 25%, transparent 0 50%) 50% / 12px 12px; }

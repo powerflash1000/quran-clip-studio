@@ -13,6 +13,7 @@ import * as GT from './geminitts.js';
 import * as AL from './audiolib.js';
 import { EMOTIONS, emotion } from './emotions.js';
 import { THUMB_SIZES, THUMB_STYLES, drawThumb } from './thumbs.js';
+import * as BR from './brand.js';
 import * as CP from './competitors.js';
 import * as FX from './livefx.js';
 import { OBS } from './obs.js';
@@ -180,6 +181,13 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
   if (st.intro && st.intro.trim() && segs.length) {
     segs.unshift({ kind: 'title', text: st.intro.trim(), sub: '', label: '', footer: '', silence: Number(st.introSeconds) || 1.6 });
   }
+  // مقدمة / خاتمة القناة (زي الريلز): لوجو + اسم القناة + الحساب
+  if (st.bumper && segs.length) {
+    const secs = Math.max(1.5, Math.min(5, Number(st.bumperSecs) || 2.5));
+    const name = (st.channelName || '').trim() || 'قرآن يريح القلب 🤍';
+    if (st.bumper === 'intro' || st.bumper === 'both') segs.unshift({ kind: 'bumper', which: 'intro', text: name, sub: '', label: '', footer: '', silence: secs, noGap: true });
+    if (st.bumper === 'outro' || st.bumper === 'both') segs.push({ kind: 'bumper', which: 'outro', text: (st.outroText || '').trim() || 'تابعنا لمزيد من التلاوات', sub: name, label: '', footer: '', silence: secs });
+  }
 
   if (series) {
     const badge = `الجزء ${Q.arabicNum(series.index)} من ${Q.arabicNum(series.total)}`;
@@ -292,6 +300,7 @@ const exactWords = r => !!(WT.alignFolder(r) || r?.qurancom);
 
 async function buildProject(blocks = state.blocks, series = state.activeSeries) {
   status('تحميل التلاوات…', 0);
+  await BR.ensureLogo(state.style);
   const segments = await buildSegments(true, p => status('تحميل التلاوات…', p), blocks, series);
   if (!segments.length) throw new Error('ضيف آيات أو حديث الأول');
   const timeline = buildTimeline(segments, {
@@ -350,6 +359,7 @@ function drawFrame(seg, analyser, t = null) {
   ctx.globalAlpha = pb.alpha;
   drawBackground(ctx, W, H, state.style, pb.cur);
   ctx.globalAlpha = 1;
+  BR.drawLight(ctx, W, H, state.style, t ?? 2);
   drawOverlay(ctx, W, H, seg, state.style);
   if (analyser && state.style.waveform) drawWave(ctx, W, H, analyser, state.style.accent);
 }
@@ -1196,12 +1206,14 @@ async function drawPost(canvas) {
   const g = canvas.getContext('2d');
   const st = postStyle();
   await ensureFonts(st);
+  await BR.ensureLogo(st);
   const bgMode = $('#post-bg').value;
   let media = null;
   if (bgMode === 'upload' && post.bgImg) media = { kind: 'image', el: post.bgImg };
   else if (bgMode === 'current') media = previewBg(null).cur || state.mediaList[0] || null;
   g.clearRect(0, 0, W, H);
   drawBackground(g, W, H, bgMode === 'color' ? { ...st, bgType: st.bgType === 'media' ? 'gradient' : st.bgType } : st, media);
+  BR.drawLight(g, W, H, st, 2);
   const seg = postSeg();
   drawOverlay(g, W, H, seg, st);
   const notes = [];
@@ -2346,7 +2358,7 @@ function setupReciters() {
 }
 
 // ===== الشكل =====
-const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'ayahLayout', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade'];
+const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'ayahLayout', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade'];
 
 function applyStyleToInputs() {
   const st = state.style;
@@ -2376,6 +2388,7 @@ function setupStyle() {
   $('#textFont').innerHTML = opts(TEXT_FONTS);
   $('#textFx').innerHTML = opts(TEXT_FX);
   $('#textAnim').innerHTML = opts(TEXT_ANIM);
+  for (const [id, o] of [['handlePos', BR.POSITIONS], ['logoPos', BR.POSITIONS], ['look', BR.LOOKS], ['light', BR.LIGHTS], ['cardTrans', BR.CARD_TRANS], ['bumper', BR.BUMPERS]]) $('#' + id).innerHTML = opts(o);
   $('#recFx').innerHTML = Object.entries(REC_FX).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
   applyStyleToInputs();
   for (const k of STYLE_INPUTS) {
@@ -2392,6 +2405,40 @@ function setupStyle() {
     });
   }
   $('#quality').onchange = () => { state.style.quality = $('#quality').value; persist(); };
+  // 🎨 اللوجو: بيتصغّر لـ 600 بكسل ويتحفظ مع الشكل (صورة PNG)
+  const brandUi = () => {
+    document.querySelectorAll('.handle-xy').forEach(e => { e.hidden = state.style.handlePos !== 'custom'; });
+    document.querySelectorAll('.logo-xy').forEach(e => { e.hidden = state.style.logoPos !== 'custom'; });
+    $('#logo-prev').hidden = !state.style.logoData;
+    if (state.style.logoData) $('#logo-prev').src = state.style.logoData;
+    $('#logo-clear').hidden = !state.style.logoData;
+  };
+  ['handlePos', 'logoPos'].forEach(id => $('#' + id).addEventListener('input', brandUi));
+  $('#logo-file').onchange = () => {
+    const f = $('#logo-file').files[0];
+    $('#logo-file').value = '';
+    if (!f) return;
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 600 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      state.style.logoData = c.toDataURL('image/png');
+      state.style.logoOn = true;
+      $('#logoOn').checked = true;
+      persist();
+      brandUi();
+      BR.ensureLogo(state.style).then(() => refreshPreview());
+      status('✅ اللوجو اتضاف — ظبط مكانه وحجمه من الخانات اللي تحته');
+    };
+    img.onerror = () => showError(new Error('الملف ده مش صورة مدعومة'));
+    img.src = URL.createObjectURL(f);
+  };
+  $('#logo-clear').onclick = () => { state.style.logoData = ''; state.style.logoOn = false; $('#logoOn').checked = false; persist(); brandUi(); refreshPreview(); };
+  brandUi();
+  BR.ensureLogo(state.style).then(() => refreshPreview());
   $('#silent').onchange = () => { $('#silent-dur-wrap').hidden = !$('#silent').checked; };
 
   // الرفع بيضيف للقايمة (مش بيمسح اللي قبله) — والمسح من ✕ أو «امسح كل الخلفيات»
@@ -3939,6 +3986,7 @@ async function liveBuild(it, part) {
   state.style = saved; // buildSegments بياخد نسخته من الإعدادات أول ما يبدأ
   let segs = await p;
   if (saved.intro && segs[0]?.kind === 'title') segs = segs.slice(1); // الافتتاحية للريلز بس
+  segs = segs.filter(s => s.kind !== 'bumper'); // المقدمة والخاتمة للفيديوهات بس، مش في البث
   if (!segs.length) throw new Error('الجزء فاضي');
   const timeline = buildTimeline(segs, { gap: Number(saved.gap) || 0, ambient: state.ambient?.buffer, ambientVolume: state.ambient ? state.ambientVolume : 0, recFx: saved.recFx || '' });
   return { segs, timeline, label: it.label };
@@ -4142,6 +4190,7 @@ function liveDraw(now) {
   };
   if (ctrl.fx.kenburns && !cur?.video) FX.kenBurns(g, W, H, (now || 0) / 1000, drawBgs); else drawBgs();
   if (!cur?.video) ctrl.particles.draw(g, W, H, now || performance.now());
+  if (!cur?.video) BR.drawLight(g, W, H, state.style, (now || performance.now()) / 1000);
   const unit = Math.min(W, H) / 1080;
   const scenic = live.opts.mode !== 'text';
   const counting = live.countdownEnd > Date.now();

@@ -1,3 +1,4 @@
+import { drawLight } from './brand.js';
 import { encodeWav } from './audio.js';
 import { getFFmpeg, run, cleanup } from './ffmpeg.js';
 import { drawBackground, drawOverlay, canvasToPng } from './slides.js';
@@ -37,7 +38,7 @@ const srtTime = s => {
 
 export function makeSrt(segments, field = 'text') {
   return segments
-    .filter(s => s[field])
+    .filter(s => s[field] && s.kind !== 'bumper')
     .map((s, i) => `${i + 1}\n${srtTime(s.start)} --> ${srtTime(s.end)}\n${s[field]}\n`)
     .join('\n');
 }
@@ -52,6 +53,7 @@ function newCanvas(W, H) {
 export async function renderBackgroundPng(W, H, style, media) {
   const c = newCanvas(W, H);
   drawBackground(c.getContext('2d'), W, H, style, media?.kind === 'image' ? media : null);
+  if (style.light) drawLight(c.getContext('2d'), W, H, style, 2);
   return canvasToPng(c);
 }
 
@@ -66,6 +68,7 @@ export async function renderStill(W, H, seg, style, media) {
   const c = newCanvas(W, H);
   const ctx = c.getContext('2d');
   drawBackground(ctx, W, H, style, media);
+  if (style.light) drawLight(ctx, W, H, style, 2);
   drawOverlay(ctx, W, H, seg, style);
   return canvasToPng(c);
 }

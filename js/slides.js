@@ -1,3 +1,5 @@
+import { lookFilter, lookVignette, drawBrand, drawBumper, drawCardTrans } from './brand.js';
+
 // رسم الشرائح (النص فوق الخلفية) على Canvas.
 // نفس الدوال بتتستخدم في المعاينة وفي تصدير الفيديو والصور.
 
@@ -74,6 +76,8 @@ function paint(ctx, t, x, y) {
 // media: { kind: 'image', el: HTMLImageElement } أو { kind: 'video', el: HTMLVideoElement }
 export function drawBackground(ctx, W, H, style, media) {
   ctx.save();
+  // لون سينمائي (من الريلز) على الخلفية بس، مش على الكلام
+  if (style?.look) ctx.filter = lookFilter(style.look);
   if (media && (media.kind === 'image' || media.kind === 'video')) {
     const el = media.el;
     const iw = el.naturalWidth || el.videoWidth || el.width;
@@ -93,6 +97,8 @@ export function drawBackground(ctx, W, H, style, media) {
   } else {
     ctx.fillStyle = style.color1; ctx.fillRect(0, 0, W, H);
   }
+  ctx.filter = 'none';
+  if (style?.look) lookVignette(ctx, W, H, style.look);
   ctx.restore();
 }
 
@@ -231,6 +237,10 @@ export function drawOverlay(ctx, W, H, seg, style) {
     ctx.fillRect(0, 0, W, H);
   }
   if (!seg) { ctx.restore(); return; }
+  // مقدمة / خاتمة القناة
+  if (seg.kind === 'bumper') { drawBumper(ctx, W, H, seg, style, TF); ctx.restore(); return; }
+  // انتقال بين الكروت (ومضة نور / غمقان / شعاع) في أول لحظة من كل كارت
+  if (seg.age != null) drawCardTrans(ctx, W, H, style, seg.age);
 
   const portrait = H > W;
   const unit = Math.min(W, H) / 1080;          // مقياس عام
@@ -346,16 +356,8 @@ export function drawOverlay(ctx, W, H, seg, style) {
     ctx.font = `${fs}px ${TF}`;
     drawLines(ctx, [seg.footer], W / 2, bottom + 30 * unit, fs, 1.3, 'rtl');
   }
-  // علامة الحساب (@اسم_حسابك) — خفيفة وظاهرة في كل الفيديو
-  if (style.handle) {
-    ctx.globalAlpha = 0.6;
-    ctx.fillStyle = style.textColor;
-    const hs = Math.round(28 * unit);
-    ctx.font = `${hs}px ${TEXT_FONT}, sans-serif`;
-    const y = style.handlePos === 'top' ? top - 40 * unit - 130 * unit : bottom + 90 * unit;
-    drawLines(ctx, [style.handle], W / 2, y, hs, 1.2, 'ltr');
-    ctx.globalAlpha = 1;
-  }
+  // اللوجو وعلامة الحساب (@اسم_حسابك) — الحجم والمكان والشفافية من «🎨 الهوية والجرافيك»
+  drawBrand(ctx, W, H, style, TF);
   ctx.restore();
 }
 

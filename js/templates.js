@@ -30,7 +30,13 @@ export const DEFAULT_STYLE = {
   intro: '',               // جملة افتتاحية في أول الفيديو (فاضية = من غير)
   introSeconds: 1.6,
   handle: '@tilawat.alaa',// @اسم_حسابك على الفيديو (فاضي = من غير علامة)
-  handlePos: 'bottom',
+  handlePos: 'bottom',      // bottom | top | br | bl | tr | tl | custom
+  handleSize: 1, handleOpacity: 0.6, handleX: 50, handleY: 90,
+  logoOn: false, logoData: '', logoPos: 'tr', logoSize: 0.14, logoOpacity: 0.9, logoX: 85, logoY: 8,
+  look: '',                 // لون سينمائي للخلفية
+  light: '', lightAmount: 1, // إضاءة: أشعة / تسريب نور / توهج / بوكيه / ذرات / نجوم
+  cardTrans: '',            // انتقال بين الكروت: ومضة / غمقان / شعاع
+  bumper: '', channelName: 'قرآن يريح القلب 🤍', outroText: 'تابعنا لمزيد من التلاوات', bumperSecs: 2.5,
   bgSwitch: 'ayah',         // ayah | seconds — لو فيه أكتر من خلفية
   bgEvery: 6,
   bgFade: true,

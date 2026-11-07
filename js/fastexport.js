@@ -2,6 +2,7 @@
 // بيشتغل في Chrome و Edge لما الجهاز يدعم H.264 + AAC. لو مش مدعوم بنرجع لـ ffmpeg تلقائيًا.
 import { Muxer, ArrayBufferTarget } from '../vendor/mp4-muxer/mp4-muxer.mjs';
 import { drawBackground, drawOverlay, ENTER_SECS } from './slides.js';
+import { drawLight, TRANS_SECS } from './brand.js';
 import { overlayFrames, FPS } from './exporter.js';
 import { SAMPLE_RATE } from './audio.js';
 import { bgSchedule, pickBg, loadVideoSource, seekVideo } from './bglist.js';
@@ -172,7 +173,9 @@ export async function fastExportVideo(project, cfg, onProgress, onStage) {
     // حركة دخول النص: بنعيد رسم الطبقة كل إطار في أول ENTER_SECS من كل كارت
     const fr = frames[Math.max(0, next)];
     const age = fr && fr.seg.start != null ? t - fr.seg.start : null;
-    const entering = style.textAnim && fr && fr.count == null && age != null && age >= 0 && age < ENTER_SECS + 1 / FPS;
+    // + المقدمة/الخاتمة والانتقال بين الكروت بيتحركوا كل إطار
+    const animWin = fr?.seg.kind === 'bumper' ? 9e9 : Math.max(style.textAnim ? ENTER_SECS : 0, style.cardTrans ? TRANS_SECS : 0);
+    const entering = animWin > 0 && fr && fr.count == null && age != null && age >= 0 && age < animWin + 1 / FPS;
     if (next !== fi || entering) {
       fi = next;
       const f = frames[Math.max(0, fi)];
@@ -187,6 +190,7 @@ export async function fastExportVideo(project, cfg, onProgress, onStage) {
       await drawItemAt(ctx, sources[p.cur.k], t - p.cur.from);
       ctx.globalAlpha = 1;
     }
+    if (style.light) drawLight(ctx, W, H, style, t);
     ctx.drawImage(ov, 0, 0);
     if (waveform) drawWaveAt(ctx, W, H, timeline, t, style.accent);
 

@@ -299,14 +299,48 @@
           <label>مدة الافتتاحية (ث) <input type="number" id="introSeconds" min="0.8" max="5" step="0.1"></label>
           <span></span>
           <label>علامة حسابك <input type="text" id="handle" dir="ltr" placeholder="@tilawat.alaa"></label>
-          <label>مكانها
-            <select id="handlePos">
-              <option value="bottom">تحت</option>
-              <option value="top">فوق</option>
-            </select>
-          </label>
+          <label>مكانها <select id="handlePos"></select></label>
+          <label>حجم العلامة <input type="range" id="handleSize" min="0.5" max="2.5" step="0.05"></label>
+          <label>وضوح العلامة <input type="range" id="handleOpacity" min="0.15" max="1" step="0.05"></label>
+          <label class="handle-xy">أفقي ٪ <input type="range" id="handleX" min="0" max="100" step="1"></label>
+          <label class="handle-xy">رأسي ٪ <input type="range" id="handleY" min="0" max="100" step="1"></label>
         </div>
         <p class="hint">العلامة بتظهر خفيفة طول الفيديو: بتحمي الفيديو من إن حد ينسبه لنفسه، وبتجيب لك متابعين لما حد يشاركه.</p>
+      </div>
+      <!-- الهوية والجرافيك -->
+      <div class="card">
+        <h2>🎨 اللوجو والجرافيك</h2>
+        <h3>اللوجو</h3>
+        <div class="row wrap">
+          <label class="btn file-btn">🖼️ ارفع اللوجو<input type="file" id="logo-file" accept="image/*" hidden></label>
+          <img id="logo-prev" class="logo-prev" alt="" hidden>
+          <label class="check"><input type="checkbox" id="logoOn"> اظهر اللوجو على الفيديو</label>
+          <button class="btn ghost" id="logo-clear" type="button" hidden>✕ شيل اللوجو</button>
+        </div>
+        <div class="grid2">
+          <label>مكان اللوجو <select id="logoPos"></select></label>
+          <label>حجم اللوجو <input type="range" id="logoSize" min="0.05" max="0.4" step="0.01"></label>
+          <label>وضوح اللوجو <input type="range" id="logoOpacity" min="0.15" max="1" step="0.05"></label>
+          <span></span>
+          <label class="logo-xy">أفقي ٪ <input type="range" id="logoX" min="0" max="100" step="1"></label>
+          <label class="logo-xy">رأسي ٪ <input type="range" id="logoY" min="0" max="100" step="1"></label>
+        </div>
+        <p class="hint">الأفضل لوجو PNG بخلفية شفافة. لو اللوجو والعلامة في نفس المكان، العلامة بتتحط تحت اللوجو (أو فوقه لو تحت).</p>
+        <h3>الجرافيك</h3>
+        <div class="grid2">
+          <label>🎞️ ألوان سينمائية للخلفية <select id="look"></select></label>
+          <label>☀️ إضاءة <select id="light"></select></label>
+          <label>قوة الإضاءة <input type="range" id="lightAmount" min="0.3" max="1.5" step="0.05"></label>
+          <label>✨ انتقال بين الآيات <select id="cardTrans"></select></label>
+        </div>
+        <h3>مقدمة وخاتمة القناة</h3>
+        <div class="grid2">
+          <label>🎬 مقدمة / خاتمة <select id="bumper"></select></label>
+          <label>المدة (ث) <input type="number" id="bumperSecs" min="1.5" max="5" step="0.5"></label>
+          <label>اسم القناة <input type="text" id="channelName" placeholder="قرآن يريح القلب 🤍"></label>
+          <label>جملة الخاتمة <input type="text" id="outroText" placeholder="تابعنا لمزيد من التلاوات"></label>
+        </div>
+        <p class="hint">الألوان والمقدمة والانتقالات متاخدة من استوديو الريلز. المقدمة: لوجو بيكبر بنعومة + اسم القناة + خط ملوّن + حسابك. المقدمة والخاتمة بيظهروا في الفيديو بس، مش في البث. الإضاءة والانتقالات بتتحرك في المعاينة والبث والتصدير السريع.</p>
       </div>
       <!-- القوالب -->
       <div class="card">
