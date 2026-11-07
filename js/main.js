@@ -14,6 +14,7 @@ import * as AL from './audiolib.js';
 import { EMOTIONS, emotion } from './emotions.js';
 import { THUMB_SIZES, THUMB_STYLES, drawThumb } from './thumbs.js';
 import * as BR from './brand.js';
+import { SOURCES, STATUS } from './sources.js';
 import * as CP from './competitors.js';
 import * as FX from './livefx.js';
 import { OBS } from './obs.js';
@@ -1084,6 +1085,69 @@ function setupFollow() {
     if (follow.rec) { const r = follow.rec; follow.rec = null; await r.stop().catch(() => {}); }
     follow.takes.forEach(t => t?.url && URL.revokeObjectURL(t.url));
     follow = null;
+  };
+}
+
+// ===== 📚 المصادر والحقوق =====
+function renderSources() {
+  const only = $('#src-inapp').checked, box = $('#src-list');
+  box.innerHTML = '';
+  for (const g of SOURCES) {
+    const items = g.items.filter(it => !only || it.inApp);
+    if (!items.length) continue;
+    const h = document.createElement('div');
+    h.className = 'src-group'; h.textContent = g.group;
+    box.appendChild(h);
+    for (const it of items) {
+      const d = document.createElement('div');
+      d.className = 'src-item';
+      d.innerHTML = '<div class="top"><span class="st"></span><a target="_blank" rel="noopener"></a><span class="in"></span></div><div class="note muted"></div>';
+      const st = STATUS[it.status];
+      d.querySelector('.st').textContent = `${st.icon} ${st.name}`;
+      const a = d.querySelector('a'); a.textContent = it.name; a.href = it.url;
+      d.querySelector('.in').textContent = it.inApp ? '• موجود في البرنامج' : '';
+      d.querySelector('.note').textContent = it.note;
+      box.appendChild(d);
+    }
+  }
+}
+
+// ذكر المصادر للمشروع الحالي: من الكروت والقارئ والخلفيات
+function projectCredits() {
+  const out = new Set(), find = re => SOURCES.flatMap(g => g.items).find(it => re.test(it.name))?.credit;
+  const blocks = state.blocks;
+  const quran = blocks.filter(b => b.type === 'quran');
+  if (quran.length) {
+    out.add(find(/نص المصحف — مجمع/));
+    const own = quran.filter(b => b.rec?.own), file = quran.filter(b => b.rec && !b.rec.own);
+    if (own.length) out.add(`التلاوة: ${[...new Set(own.map(b => b.rec.name))].join('، ')}`);
+    if (file.length) out.add(`التلاوة: ${[...new Set(file.map(b => b.rec.name || 'قارئ'))].join('، ')}`);
+    if (quran.some(b => !b.rec)) out.add(`التلاوة: ${findReciter(state.style.reciter).name} (EveryAyah.com)`);
+    const tr = Q.tafsirInfo(state.style.translation);
+    if (tr && state.style.showTranslation) out.add(`${tr.name}: ${tr.by}`);
+  }
+  for (const b of blocks.filter(x => x.type === 'zikr')) {
+    if (!b.custom) out.add(find(/حصن المسلم/));
+    else if (/^تفسير /.test(b.label || '') && b.ref) out.add(b.ref);
+    else if (/رواه/.test(b.ref || '')) out.add(find(/hadith-api/));
+  }
+  if (blocks.some(b => b.type === 'hadith')) out.add(find(/hadith-api/));
+  if (blocks.some(b => b.audioMode === 'ai' || b.audioMode === 'gtts')) out.add('🔊 صوت قراءة الأدعية مولّد بالذكاء الاصطناعي');
+  return [...out].filter(Boolean);
+}
+
+function setupSources() {
+  $('#btn-sources').onclick = () => { renderSources(); $('#src-credits-out').hidden = true; $('#dlg-sources').showModal(); };
+  $('#src-close').onclick = () => $('#dlg-sources').close();
+  $('#src-inapp').onchange = renderSources;
+  $('#src-credits').onclick = async () => {
+    const list = projectCredits();
+    const txt = list.length ? `📚 المصادر:\n${list.map(x => '• ' + x).join('\n')}` : '';
+    const pre = $('#src-credits-out');
+    pre.hidden = false;
+    pre.textContent = txt || 'ضيف كروت للمشروع الأول.';
+    if (!txt) return;
+    try { await navigator.clipboard.writeText(txt); status('✅ اتنسخ «ذكر المصادر» — الصقه في آخر وصف الفيديو'); } catch { status('حدّد النص اللي ظهر وانسخه بـ Ctrl+C'); }
   };
 }
 
@@ -5778,6 +5842,7 @@ async function init() {
   setupFollow();
   setupPost();
   setupTafsir();
+  setupSources();
   document.querySelectorAll('[data-preset]').forEach(btn => { btn.onclick = () => applyPreset(btn.dataset.preset); });
   $('#btn-play').onclick = play;
   $('#btn-stop').onclick = stop;

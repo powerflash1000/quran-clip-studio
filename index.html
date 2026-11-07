@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261107a">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261107b">
 </head>
 <body>
   <header class="topbar">
@@ -28,6 +28,7 @@
       <button class="btn ghost" id="btn-ref" type="button" title="شغّل فيديو من تيك توك أو إنستا أو فيسبوك جنب المحرر واعمل زيه">🎞️<span class="lbl"> فيديو مرجعي</span></button>
       <button class="btn ghost" id="proj-save" type="button" title="احفظ المشروع كله في ملف">💾<span class="lbl"> حفظ</span></button>
       <label class="btn ghost file-btn" title="افتح مشروع محفوظ (ملف .json) أو فيديو MP4 اتصدّر من البرنامج">📂<span class="lbl"> فتح</span><input type="file" id="proj-open" accept=".json,application/json,video/mp4,.mp4,.m4v,.mov" hidden></label>
+      <button class="btn ghost" id="btn-sources" type="button" title="المصادر المفتوحة وحقوقها، وذكر المصادر في الوصف">📚<span class="lbl"> المصادر</span></button>
       <button class="btn ghost" id="btn-settings" type="button" title="الإعدادات">⚙️<span class="lbl"> الإعدادات</span></button>
     </div>
   </header>
@@ -491,7 +492,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261107a</div>
+    <div class="muted" id="app-version">الإصدار 20261107b</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -861,6 +862,23 @@
         </table>
         <p class="hint">⚠️ صورة القارئ: ماتستخدمهاش (حقوقها للمصوّر). اسمه بيتكتب كنص بس. وحقوق الصوت: لو يوتيوب وقّف البث بسبب Claim، شيل القارئ ده من القايمة وجرّب غيره.</p>
       </details>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-sources">
+    <div class="dlg wide">
+      <div class="row">
+        <h2 class="grow">📚 المصادر والحقوق</h2>
+        <button class="btn icon" id="src-close" type="button">✕</button>
+      </div>
+      <p class="hint">✅ مفتوح وينفع لقناة عليها أرباح • ⚠️ مسموح بشروط (اقرا الملاحظة) • ❌ للاستخدام الشخصي أو رخصته مش معروفة. ده ملخص من صفحات المصادر نفسها، مش استشارة قانونية — قبل ما تبني قناة على مصدر، افتح شروطه بنفسك.</p>
+      <div class="row wrap">
+        <label class="check"><input type="checkbox" id="src-inapp"> اللي في البرنامج بس</label>
+        <span class="grow"></span>
+        <button class="btn primary" id="src-credits" type="button">📋 انسخ «ذكر المصادر» للمشروع الحالي</button>
+      </div>
+      <pre class="src-credits" id="src-credits-out" hidden></pre>
+      <div class="src-list" id="src-list"></div>
     </div>
   </dialog>
 
@@ -1423,6 +1441,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261107a"></script>
+  <script type="module" src="js/main.js?v=20261107b"></script>
 </body>
 </html>

@@ -440,3 +440,13 @@ dialog.ctrl-panel { position: fixed; inset: auto auto 12px 12px; margin: 0; widt
 
 /* 🎨 اللوجو */
 .logo-prev { height: 44px; max-width: 120px; object-fit: contain; border-radius: 6px; background: repeating-conic-gradient(#8883 0 25%, transparent 0 50%) 50% / 12px 12px; }
+
+/* 📚 المصادر */
+.src-list { display: grid; gap: .5rem; max-height: 60vh; overflow-y: auto; margin-top: .5rem; }
+.src-group { font-weight: 700; margin-top: .6rem; }
+.src-item { border: 1px solid var(--line); border-radius: 10px; padding: .5rem .7rem; background: var(--field); }
+.src-item .top { display: flex; gap: .5rem; align-items: baseline; flex-wrap: wrap; }
+.src-item .st { font-size: .8rem; padding: .05rem .45rem; border-radius: 999px; border: 1px solid var(--line); }
+.src-item .in { font-size: .75rem; color: var(--primary); }
+.src-item .note { font-size: .9rem; margin-top: .2rem; }
+.src-credits { white-space: pre-wrap; background: var(--field); border: 1px dashed var(--line); border-radius: 8px; padding: .5rem; margin: .4rem 0; font-family: inherit; }
