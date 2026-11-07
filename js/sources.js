@@ -49,7 +49,7 @@ export const SOURCES = [
   },
   {
     group: 'الكتب والقصص', items: [
-      { name: 'ويكي مصدر — قصص الأنبياء لابن كثير وغيرها', status: 'ok', url: 'https://ar.wikisource.org/',
+      { name: 'ويكي مصدر — قصص الأنبياء لابن كثير وغيرها', status: 'ok', inApp: true, url: 'https://ar.wikisource.org/',
         note: 'كتب انتهت حقوقها (ملكية عامة). أأمن حاجة تكتب القصة بأسلوبك من النص الأصلي.', credit: 'المصدر: ويكي مصدر (ar.wikisource.org)' },
       { name: 'OpenITI — نصوص عربية تراثية', status: 'cond', url: 'https://kitab-project.org/docs/openITI',
         note: 'الرخص المكتوبة متضاربة وبعضها لغير الأغراض التجارية. للقراية والبحث.', credit: '' },

@@ -15,6 +15,7 @@ import { EMOTIONS, emotion } from './emotions.js';
 import { THUMB_SIZES, THUMB_STYLES, drawThumb } from './thumbs.js';
 import * as BR from './brand.js';
 import { SOURCES, STATUS } from './sources.js';
+import * as STY from './stories.js';
 import * as CP from './competitors.js';
 import * as FX from './livefx.js';
 import { OBS } from './obs.js';
@@ -1088,6 +1089,94 @@ function setupFollow() {
   };
 }
 
+// ===== 📖 قصص الأنبياء (ابن كثير — ويكي مصدر) =====
+const story = { list: null, cur: null, paras: [], sel: new Set() };
+async function openStories() {
+  $('#dlg-stories').showModal();
+  $('#st-link').href = STY.PAGE_URL;
+  if (story.list) return;
+  try {
+    story.list = await STY.listStories();
+    renderStoryList();
+  } catch (e) {
+    $('#st-list').innerHTML = '';
+    const p = document.createElement('p'); p.className = 'muted';
+    p.textContent = `⚠️ ${e.message}. اتأكد من النت، أو افتح الكتاب من اللينك تحت.`;
+    $('#st-list').appendChild(p);
+  }
+}
+function renderStoryList() {
+  const box = $('#st-list');
+  box.innerHTML = '';
+  let vol = -1;
+  for (const s of story.list) {
+    if (s.vol !== vol) {
+      vol = s.vol;
+      const h = document.createElement('div'); h.className = 'az-group'; h.textContent = STY.VOLUMES[vol].name;
+      box.appendChild(h);
+    }
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'az-cat';
+    b.setAttribute('aria-selected', String(story.cur === s));
+    b.textContent = s.title;
+    b.onclick = () => loadStory(s);
+    box.appendChild(b);
+  }
+}
+async function loadStory(s) {
+  story.cur = s; story.sel.clear();
+  renderStoryList();
+  $('#st-title').textContent = s.title;
+  const box = $('#st-paras');
+  box.innerHTML = '<p class="muted">⏳ بيحمّل القصة…</p>';
+  try {
+    story.paras = await STY.storyText(s.vol, s.index);
+  } catch (e) {
+    box.innerHTML = '';
+    const p = document.createElement('p'); p.className = 'muted'; p.textContent = '⚠️ ' + e.message; box.appendChild(p);
+    return;
+  }
+  if (story.cur !== s) return;
+  box.innerHTML = '';
+  story.paras.forEach((t, i) => {
+    const d = document.createElement('label');
+    d.className = 'st-para';
+    d.innerHTML = '<input type="checkbox"><span></span>';
+    d.lastChild.textContent = t;
+    d.firstChild.onchange = e => { e.target.checked ? story.sel.add(i) : story.sel.delete(i); d.classList.toggle('sel', e.target.checked); storySelUi(); };
+    box.appendChild(d);
+  });
+  if (!story.paras.length) box.innerHTML = '<p class="muted">القسم ده فاضي في نسخة ويكي مصدر.</p>';
+  storySelUi();
+}
+function storySelUi() {
+  const n = story.sel.size;
+  $('#st-add').hidden = $('#st-copy').hidden = !n;
+  $('#st-sel').textContent = n ? `اخترت ${Q.arabicNum(n)} فقرة` : 'اختار الفقرات اللي عايزها (كل فقرة بتبقى كارت)';
+}
+const storyPicked = () => [...story.sel].sort((a, b) => a - b).map(i => story.paras[i]);
+function setupStories() {
+  $('#add-story').onclick = () => openStories();
+  $('#st-close').onclick = () => $('#dlg-stories').close();
+  $('#st-copy').onclick = async () => {
+    try { await navigator.clipboard.writeText(`${storyPicked().join('\n\n')}\n\n(${STY.CREDIT})`); status('✅ اتنسخ — والمصدر معاه'); } catch { status('حدّد النص وانسخه بـ Ctrl+C'); }
+  };
+  $('#st-add').onclick = () => {
+    for (const t of storyPicked()) {
+      const c = newCustomBlock();
+      c.label = story.cur.title.replace(/^(باب|ذكر|قصة)\s*[:：]?\s*/, '').slice(0, 40);
+      c.text = t;
+      c.ref = STY.CREDIT;
+      c.seconds = estimateSeconds(t);
+      state.blocks.push(c);
+    }
+    const n = story.sel.size;
+    $('#dlg-stories').close();
+    persist(); renderBlocks(); focusLastBlock(); refreshPreview();
+    status(`✅ اتضاف ${Q.arabicNum(n)} كارت من «${story.cur.title}» — تقدر تعدّل النص وتحط عليه صوتك`);
+  };
+}
+
 // ===== 📚 المصادر والحقوق =====
 function renderSources() {
   const only = $('#src-inapp').checked, box = $('#src-list');
@@ -1129,6 +1218,7 @@ function projectCredits() {
   for (const b of blocks.filter(x => x.type === 'zikr')) {
     if (!b.custom) out.add(find(/حصن المسلم/));
     else if (/^تفسير /.test(b.label || '') && b.ref) out.add(b.ref);
+    else if (/ويكي مصدر/.test(b.ref || '')) out.add(b.ref);
     else if (/رواه/.test(b.ref || '')) out.add(find(/hadith-api/));
   }
   if (blocks.some(b => b.type === 'hadith')) out.add(find(/hadith-api/));
@@ -5843,6 +5933,7 @@ async function init() {
   setupPost();
   setupTafsir();
   setupSources();
+  setupStories();
   document.querySelectorAll('[data-preset]').forEach(btn => { btn.onclick = () => applyPreset(btn.dataset.preset); });
   $('#btn-play').onclick = play;
   $('#btn-stop').onclick = stop;

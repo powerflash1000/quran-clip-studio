@@ -450,3 +450,9 @@ dialog.ctrl-panel { position: fixed; inset: auto auto 12px 12px; margin: 0; widt
 .src-item .in { font-size: .75rem; color: var(--primary); }
 .src-item .note { font-size: .9rem; margin-top: .2rem; }
 .src-credits { white-space: pre-wrap; background: var(--field); border: 1px dashed var(--line); border-radius: 8px; padding: .5rem; margin: .4rem 0; font-family: inherit; }
+
+/* 📖 قصص الأنبياء */
+.st-paras { display: grid; gap: .4rem; max-height: 56vh; overflow-y: auto; }
+.st-para { display: flex; gap: .5rem; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; padding: .45rem .6rem; background: var(--field); line-height: 1.9; cursor: pointer; }
+.st-para.sel { border-color: var(--primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 30%, transparent); }
+.st-para input { margin-top: .5rem; }

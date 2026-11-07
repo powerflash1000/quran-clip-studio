@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261107b">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261107c">
 </head>
 <body>
   <header class="topbar">
@@ -80,6 +80,7 @@
           <button class="btn" id="add-custom" type="button" title="دعاء أو كلام من عندك مش موجود في المكتبة">✍️ نص خاص</button>
           <button class="btn primary" id="btn-reel" type="button" title="اختار موضوع والبرنامج يعمل الريل كله">🪄 ريل بضغطة</button>
           <button class="btn primary" id="add-zikr" type="button">📿 مكتبة الأذكار والأدعية</button>
+          <button class="btn" id="add-story" type="button" title="قصص الأنبياء لابن كثير من ويكي مصدر — نص حر (ملكية عامة)">📖 قصص الأنبياء</button>
         </div>
         <div class="btn-row">
           <span class="muted">جاهز:</span>
@@ -492,7 +493,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261107b</div>
+    <div class="muted" id="app-version">الإصدار 20261107c</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -862,6 +863,29 @@
         </table>
         <p class="hint">⚠️ صورة القارئ: ماتستخدمهاش (حقوقها للمصوّر). اسمه بيتكتب كنص بس. وحقوق الصوت: لو يوتيوب وقّف البث بسبب Claim، شيل القارئ ده من القايمة وجرّب غيره.</p>
       </details>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-stories">
+    <div class="dlg wide">
+      <div class="row">
+        <h2 class="grow">📖 قصص الأنبياء — ابن كثير <span class="muted">(ويكي مصدر)</span></h2>
+        <button class="btn icon" id="st-close" type="button">✕</button>
+      </div>
+      <p class="hint">النص من «قصص الأنبياء» لابن كثير على ويكي مصدر — كتاب ملكية عامة (ابن كثير تُوفّي سنة 774هـ)، ونسخة ويكي مصدر طبعتها الأصلية مش مذكورة. ابن كثير بينقل أحيانًا روايات إسرائيلية وبينبّه عليها — اقرا كلامه حواليها، وراجع أي حديث على الدرر قبل النشر. <b>ماتظهرش صور للأنبياء أو الصحابة</b> في الفيديو. الأفضل تكتب القصة بأسلوبك من النص.</p>
+      <div class="az-layout">
+        <div class="az-cats" id="st-list"><p class="muted">⏳ بيحمّل الفهرس…</p></div>
+        <div class="az-main">
+          <div class="row wrap">
+            <h3 class="grow" id="st-title">اختار قصة من القايمة</h3>
+            <button class="btn ghost" id="st-copy" type="button" hidden>📋 انسخ المختار</button>
+            <button class="btn primary" id="st-add" type="button" hidden>＋ أضف المختار ككروت</button>
+          </div>
+          <p class="muted" id="st-sel"></p>
+          <div class="st-paras" id="st-paras"></div>
+          <p class="muted"><a id="st-link" target="_blank" rel="noopener">افتح الكتاب على ويكي مصدر ↗</a></p>
+        </div>
+      </div>
     </div>
   </dialog>
 
@@ -1441,6 +1465,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261107b"></script>
+  <script type="module" src="js/main.js?v=20261107c"></script>
 </body>
 </html>
