@@ -322,9 +322,12 @@ const ctx = canvas.getContext('2d');
 let previewSegs = [];
 let player = null; // { ctx, src, analyser, segs, startAt, raf }
 
+// المعاينة بتظهر صغيرة على الشاشة، فبنرسمها بـ 60% من مقاس التصدير (نفس الشكل، وأخف ~3 مرات) — التصدير بيفضل بالمقاس الكامل
+const PREVIEW_SCALE = 0.6;
 function sizeCanvas() {
   const { w, h } = ASPECTS[state.style.aspect];
-  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  const pw = Math.round(w * PREVIEW_SCALE), ph = Math.round(h * PREVIEW_SCALE);
+  if (canvas.width !== pw || canvas.height !== ph) { canvas.width = pw; canvas.height = ph; }
 }
 
 function bgMedia() {
@@ -352,7 +355,7 @@ function previewBg(t) {
   return { cur: list[pickBg(sched, state.segIndex + 0.01).cur.k], prev: null, alpha: 1 };
 }
 
-function drawFrame(seg, analyser, t = null) {
+function drawFrame(seg, analyser, t = null, idle = false) {
   sizeCanvas();
   const W = canvas.width, H = canvas.height;
   ctx.clearRect(0, 0, W, H);
@@ -362,7 +365,20 @@ function drawFrame(seg, analyser, t = null) {
   drawBackground(ctx, W, H, state.style, pb.cur);
   ctx.globalAlpha = 1;
   BR.drawLight(ctx, W, H, state.style, t ?? 2);
-  drawOverlay(ctx, W, H, seg, state.style);
+  if (idle) {
+    const key = `${ovCache.ver}|${W}x${H}|${state.segIndex}`;
+    if (ovCache.key !== key || !ovCache.canvas) {
+      const c = ovCache.canvas && ovCache.canvas.width === W && ovCache.canvas.height === H ? ovCache.canvas : Object.assign(document.createElement('canvas'), { width: W, height: H });
+      const g = c.getContext('2d');
+      g.clearRect(0, 0, W, H);
+      drawOverlay(g, W, H, seg, state.style);
+      ovCache.canvas = c; ovCache.key = key;
+    }
+    ctx.drawImage(ovCache.canvas, 0, 0);
+  } else {
+    ovCache.ver++; // أي رسم عادي (تعديل/تشغيل) بيلغي المحفوظ
+    drawOverlay(ctx, W, H, seg, state.style);
+  }
   if (analyser && state.style.waveform) drawWave(ctx, W, H, analyser, state.style.accent);
 }
 
@@ -399,11 +415,23 @@ function refreshPreview() {
   }, 120);
 }
 
-// الفيديو كخلفية بيتحرك في المعاينة
-function idleLoop() {
-  if (!player && state.style.bgType === 'media' && state.mediaList.some(m => m.kind === 'video')) drawFrame(previewSegs[state.segIndex]);
+// الفيديو كخلفية بيتحرك في المعاينة — 24 إطار في الثانية بس، وبيقف لو التاب مش ظاهر،
+// وبيشغّل الفيديو اللي على الشاشة بس (الباقي واقف عشان مايستهلكش الجهاز)، وطبقة الكلام محفوظة مش بتترسم كل إطار
+let idleLast = 0;
+function idleLoop(now) {
   requestAnimationFrame(idleLoop);
+  if (player || document.hidden || now - idleLast < 1000 / 24) return;
+  const vids = state.style.bgType === 'media' ? state.mediaList.filter(m => m.kind === 'video') : [];
+  if (!vids.length) return;
+  idleLast = now;
+  const pb = previewBg(null), on = new Set([pb.cur, pb.prev].filter(Boolean));
+  for (const m of vids) {
+    if (on.has(m)) { if (m.el.paused) m.el.play().catch(() => {}); } else if (!m.el.paused) m.el.pause();
+  }
+  drawFrame(previewSegs[state.segIndex], null, null, true);
 }
+// طبقة الكلام في المعاينة: بتترسم مرة لكل (كارت + مقاس + تعديل) وبتتعاد من غير حساب
+const ovCache = { key: null, canvas: null, ver: 0 };
 
 async function play() {
   if (state.busy) return;
