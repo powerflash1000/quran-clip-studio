@@ -29,6 +29,23 @@ const LOOK_FILTER = {
   bw: 'grayscale(1) contrast(1.12)',
 };
 export const lookFilter = look => LOOK_FILTER[look] || 'none';
+// نفس الألوان بطبقات تلوين سريعة (بدل ctx.filter اللي بيبطّأ الرسم ٤ مرات مع الفيديو)
+const LOOK_LAYERS = {
+  cinematic: [['overlay', 'rgba(128,128,128,.22)'], ['soft-light', 'rgba(20,70,90,.35)'], ['saturation', 'rgba(128,128,128,.15)']],
+  warm: [['soft-light', 'rgba(255,150,60,.35)']],
+  cool: [['soft-light', 'rgba(60,140,255,.35)']],
+  golden: [['soft-light', 'rgba(255,170,40,.5)'], ['overlay', 'rgba(255,200,120,.12)']],
+  vintage: [['saturation', 'rgba(128,128,128,.45)'], ['soft-light', 'rgba(170,110,40,.45)']],
+  vivid: [['overlay', 'rgba(128,128,128,.18)'], ['saturation', 'hsla(0,100%,50%,.18)']],
+  bw: [['saturation', 'rgb(128,128,128)'], ['overlay', 'rgba(128,128,128,.15)']],
+};
+export function lookLayers(ctx, W, H, look) {
+  const layers = LOOK_LAYERS[look];
+  if (!layers) return;
+  ctx.save();
+  for (const [op, col] of layers) { ctx.globalCompositeOperation = op; ctx.fillStyle = col; ctx.fillRect(0, 0, W, H); }
+  ctx.restore();
+}
 export function lookVignette(ctx, W, H, look) {
   if (!['cinematic', 'vintage', 'golden'].includes(look)) return;
   const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
@@ -100,18 +117,30 @@ export function drawLight(ctx, W, H, style, t = 0) {
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
     }
   } else if (kind === 'dust' || kind === 'stars') {
+    // نقطة نور مرسومة مرة واحدة (sprite) وبنكررها — shadowBlur لكل نقطة كان بيوقّف البرنامج
+    const spr = glowSprite();
     const n = kind === 'dust' ? 70 : 90;
     for (let i = 0; i < n; i++) {
       let x = rnd(i) * W, y = rnd(i + 99) * H;
       if (kind === 'dust') { y = ((y - t * (15 + 30 * rnd(i + 3)) * u) % H + H) % H; x += Math.sin(t * 0.5 + i) * 12 * u; } else y *= 0.75;
       const tw = 0.5 + 0.5 * Math.sin(t * (1 + 2 * rnd(i + 11)) + i);
-      const r = (kind === 'dust' ? 1.5 + 2.5 * rnd(i + 21) : 0.8 + 2 * rnd(i + 21)) * u;
-      ctx.fillStyle = `rgba(255,250,230,${(0.35 + 0.6 * tw) * k})`;
-      ctx.shadowColor = 'rgba(255,240,200,.9)'; ctx.shadowBlur = 8 * u;
-      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      const r = (kind === 'dust' ? 1.5 + 2.5 * rnd(i + 21) : 0.8 + 2 * rnd(i + 21)) * u * 4;
+      ctx.globalAlpha = Math.min(1, (0.35 + 0.6 * tw) * k);
+      ctx.drawImage(spr, x - r, y - r, r * 2, r * 2);
     }
   }
   ctx.restore();
+}
+
+let sprite = null;
+function glowSprite() {
+  if (sprite) return sprite;
+  sprite = document.createElement('canvas');
+  sprite.width = sprite.height = 64;
+  const g = sprite.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,252,240,1)'); gr.addColorStop(0.18, 'rgba(255,248,225,.95)'); gr.addColorStop(0.45, 'rgba(255,240,200,.25)'); gr.addColorStop(1, 'rgba(255,240,200,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  return sprite;
 }
 
 // ===== انتقال بين الكروت (أول ثانية من كل آية/كارت) =====

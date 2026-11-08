@@ -1,4 +1,4 @@
-import { lookFilter, lookVignette, drawBrand, drawBumper, drawCardTrans } from './brand.js';
+import { lookLayers, lookVignette, drawBrand, drawBumper, drawCardTrans } from './brand.js';
 
 // رسم الشرائح (النص فوق الخلفية) على Canvas.
 // نفس الدوال بتتستخدم في المعاينة وفي تصدير الفيديو والصور.
@@ -74,10 +74,31 @@ function paint(ctx, t, x, y) {
 
 // ===== الخلفية =====
 // media: { kind: 'image', el: HTMLImageElement } أو { kind: 'video', el: HTMLVideoElement }
+// خلفية ثابتة (صورة/لون/تدرّج) مع لون سينمائي: بنرسمها مرة ونعيد استخدامها (الفيديو بيترسم كل إطار)
+const bgCache = new Map();
+const elIds = new WeakMap();
+let elSeq = 0;
 export function drawBackground(ctx, W, H, style, media) {
+  const still = !media || media.kind === 'image';
+  if (still && style?.look && typeof document !== 'undefined') {
+    const el = media?.el;
+    if (el && !elIds.has(el)) elIds.set(el, ++elSeq);
+    const key = [W, H, style.look, style.bgType, style.color1, style.color2, el ? elIds.get(el) : 0, el?.naturalWidth || 0].join('|');
+    let c = bgCache.get(key);
+    if (!c && (!el || el.naturalWidth)) {
+      c = document.createElement('canvas'); c.width = W; c.height = H;
+      paintBackground(c.getContext('2d'), W, H, style, media);
+      bgCache.set(key, c);
+      if (bgCache.size > 6) bgCache.delete(bgCache.keys().next().value);
+    }
+    if (c) { ctx.drawImage(c, 0, 0); return; }
+  }
+  paintBackground(ctx, W, H, style, media);
+}
+
+function paintBackground(ctx, W, H, style, media) {
   ctx.save();
-  // لون سينمائي (من الريلز) على الخلفية بس، مش على الكلام
-  if (style?.look) ctx.filter = lookFilter(style.look);
+
   if (media && (media.kind === 'image' || media.kind === 'video')) {
     const el = media.el;
     const iw = el.naturalWidth || el.videoWidth || el.width;
@@ -97,8 +118,8 @@ export function drawBackground(ctx, W, H, style, media) {
   } else {
     ctx.fillStyle = style.color1; ctx.fillRect(0, 0, W, H);
   }
-  ctx.filter = 'none';
-  if (style?.look) lookVignette(ctx, W, H, style.look);
+  // لون سينمائي (من الريلز) على الخلفية بس، مش على الكلام — طبقات تلوين سريعة
+  if (style?.look) { lookLayers(ctx, W, H, style.look); lookVignette(ctx, W, H, style.look); }
   ctx.restore();
 }
 
