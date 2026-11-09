@@ -26,6 +26,7 @@ import * as LLM from './llm.js';
 import * as SND from './sounds.js';
 import * as WT from './words.js';
 import { fetchFirst } from './net.js';
+import * as SP from './speech.js';
 import { bgSchedule, pickBg } from './bglist.js';
 import { saveMediaList, loadMediaList, saveLiveVideo, loadLiveVideo, deleteLiveVideo } from './mediastore.js';
 import { splitRange, chaptersText, chaptersWarnings } from './series.js';
@@ -119,7 +120,7 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
         }
         // جزء من آية (كلمات معيّنة): بيتقص من صوت القارئ بتوقيت الكلمات
         // (مع تلاوتك أنت من «اقرا ورا الشيخ» الجزء متسجّل لوحده، فبيفضل شغال)
-        const part = (!rec || b.rec.own) && from === to && ayahPart(b);
+        const part = (!rec || b.rec.own || b.rec.partAudio) && from === to && ayahPart(b);
         for (let a = from; a <= to; a++, u++) {
           for (let k = 0; k < Math.max(1, b.repeatAyah); k++) {
             const full = `${Q.ayahText(b.surah, a)}\u00A0${Q.arabicNum(a)}`;
@@ -162,6 +163,7 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
         footer: [b.showCount && n > 1 ? `يُقال ${Q.arabicNum(n)} ${n <= 10 ? 'مرات' : 'مرة'}` : '', b.ref].filter(Boolean).join(' • '),
         audio: zAudio,
         silence: Number(b.seconds) || 8,
+        noGap: !!(b.noGap && zAudio),
       });
     } else {
       const col = collection(b.col);
@@ -911,6 +913,7 @@ function wireRecitation(li, b) {
       setHadithAudio(b, buffer, file.name, file);
       const guess = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').replace(/\d+/g, '').trim();
       b.rec = { name: b.rec?.name || '', file: file.name, start: 0, end: buffer.duration, marks: [] };
+      libSave(b, 'upload', file, buffer, file.name); // عشان مايضيعش لو الصفحة اتقفلت
       if (!b.rec.name && /[\u0600-\u06FF]/.test(guess)) b.rec.name = guess;
       status(`✅ اتحمّلت التلاوة (${fmtDur(buffer.duration)}).`);
       changed();
@@ -5811,6 +5814,197 @@ function setupRefExtract() {
   };
 }
 
+// ===== 🎧 كلام من ملف صوت ← كروت على الشاشة بنفس الصوت =====
+// الملف مستقل عن الكروت: بيتحفظ في المتصفح، ولو مسحت الكروت أو قفلت الصفحة بيفضل موجود
+const speech = { file: null, buffer: null, url: '', items: [], lo: 0, hi: 0 };
+
+async function speechLoadFile(file, save = true) {
+  $('#sp-status').textContent = '⏳ بيقرا الملف…';
+  let buf = await decode(await file.arrayBuffer());
+  if (buf.duration > 600 && buf.numberOfChannels > 1) buf = toMono(buf);
+  if (speech.url) URL.revokeObjectURL(speech.url);
+  Object.assign(speech, { file, buffer: buf, url: URL.createObjectURL(file), items: [] });
+  $('#sp-player').src = speech.url;
+  $('#sp-name').textContent = `${file.name} (${SP.fmtTime(buf.duration)})`;
+  $('#sp-from').value = '0:00';
+  $('#sp-to').value = SP.fmtTime(buf.duration);
+  if (!$('#sp-who').value) {
+    const guess = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').replace(/\d+/g, '').trim();
+    if (/[؀-ۿ]/.test(guess)) $('#sp-who').value = guess;
+  }
+  $('#sp-body').hidden = false;
+  $('#sp-items').innerHTML = '';
+  $('#sp-actions').hidden = true;
+  $('#sp-status').textContent = '';
+  if (save) {
+    const id = await AL.addClip({ name: file.name, kind: 'upload', text: '', voice: '', dur: buf.duration, blob: file });
+    save_('speechFile', { id, name: file.name, type: file.type });
+  }
+}
+const save_ = (k, v) => save(k, v);
+
+function speechRange() {
+  const dur = speech.buffer.duration;
+  let a = SP.parseTime($('#sp-from').value), b = SP.parseTime($('#sp-to').value);
+  if (!Number.isFinite(a)) a = 0;
+  if (!Number.isFinite(b) || b <= 0) b = dur;
+  a = Math.max(0, Math.min(dur, a)); b = Math.max(0, Math.min(dur, b));
+  if (b - a < 1) throw new Error('المقطع قصير أوي — «لحد» لازم يبقى بعد «من» بثانية على الأقل (اكتب الوقت كده: 1:30)');
+  return [a, b];
+}
+
+function renderSpeechItems() {
+  const ol = $('#sp-items');
+  ol.innerHTML = '';
+  speech.items.forEach(it => {
+    const li = document.createElement('li');
+    li.className = 'part';
+    li.innerHTML = '<label class="check"><input type="checkbox"></label><span class="pname"></span><button class="btn ghost" type="button" title="اسمع">▶</button><span class="pinfo"></span>';
+    const cb = li.querySelector('input');
+    cb.checked = it.on;
+    cb.disabled = it.kind === 'unknown';
+    cb.onchange = () => { it.on = cb.checked; $('#sp-actions').hidden = !speech.items.some(x => x.on); };
+    const when = `\u2066${SP.fmtTime(it.a)} → ${SP.fmtTime(it.b)}\u2069`;
+    const name = it.kind === 'quran'
+      ? `📖 ${Q.surah(it.s).ar} ${it.part ? `${Q.arabicNum(it.from)} (جزء)` : it.to > it.from ? `${Q.arabicNum(it.from)}–${Q.arabicNum(it.to)}` : Q.arabicNum(it.from)} — نص المصحف`
+      : it.kind === 'hadith' ? '⚠️ حديث — الأحسن «＋ حديث» عشان درجته تظهر'
+        : it.kind === 'unknown' ? '⚠️ شكله قرآن بس مش لاقيه في المصحف — مش هيتحط'
+          : it.type === 'dua' ? '🤲 دعاء' : '💬 كلام';
+    li.querySelector('.pname').textContent = `${when}  ${name}`;
+    li.querySelector('button').onclick = () => {
+      const p = $('#sp-player');
+      p.currentTime = it.a; p.play().catch(() => {});
+      const stopAt = () => { if (p.currentTime >= it.b) { p.pause(); p.removeEventListener('timeupdate', stopAt); } };
+      p.addEventListener('timeupdate', stopAt);
+    };
+    const info = li.querySelector('.pinfo');
+    if (it.kind === 'text' || it.kind === 'hadith') {
+      // الكلام العادي: تقدر تصلّحه هنا قبل ما يتضاف
+      const ta = document.createElement('textarea');
+      ta.rows = 2; ta.value = it.text; ta.className = 'grow';
+      ta.oninput = () => { it.text = ta.value; };
+      info.replaceWith(ta);
+    } else {
+      info.textContent = it.kind === 'quran' ? SP.quranText(it) : it.text;
+    }
+    ol.appendChild(li);
+  });
+  $('#sp-actions').hidden = !speech.items.some(x => x.on);
+}
+
+async function speechTranscribe() {
+  const st = $('#sp-status');
+  if (!speech.buffer) return;
+  if (!LLM.canReadMedia()) { st.textContent = '🔑 محتاج مفتاح Gemini (مجاني): ⚙️ الإعدادات ← ✨ مساعد الكتابة (Gemini) أو 🔊 صوت Gemini'; return; }
+  const btn = $('#sp-go');
+  btn.disabled = true;
+  try {
+    const [lo, hi] = speechRange();
+    const cuts = SP.chunkCuts(speech.buffer, lo, hi);
+    const segs = [];
+    for (let i = 0; i + 1 < cuts.length; i++) {
+      st.textContent = cuts.length > 2 ? `⏳ بيسمع ويكتب… (جزء ${Q.arabicNum(i + 1)} من ${Q.arabicNum(cuts.length - 1)})` : '⏳ بيسمع ويكتب…';
+      const a = cuts[i], b = cuts[i + 1];
+      const out = await LLM.transcribeSpeech(await SP.wav16k(speech.buffer, a, b), b - a);
+      for (const sg of out) segs.push({ ...sg, start: sg.start + a, end: sg.end + a });
+    }
+    if (!segs.length) throw new Error('مالقيتش كلام واضح في المقطع ده');
+    speech.lo = lo; speech.hi = hi;
+    speech.items = SP.placeCuts(speech.buffer, SP.planItems(segs), lo, hi);
+    const q = speech.items.filter(x => x.kind === 'quran').length, t = speech.items.filter(x => x.kind === 'text').length;
+    const bad = speech.items.filter(x => x.kind === 'unknown').length;
+    st.textContent = `✅ ${q ? `${Q.arabicNum(q)} مقطع قرآن (بنص المصحف)` : ''}${q && t ? ' و' : ''}${t ? `${Q.arabicNum(t)} جملة كلام` : ''}${bad ? ` — و${Q.arabicNum(bad)} مقطع شكله قرآن ومش لاقيه في المصحف (مش هيتحط)` : ''}. راجع واسمع، وبعدين «حطهم في الفيديو».`;
+    renderSpeechItems();
+  } catch (e) { st.textContent = '❌ ' + e.message; }
+  btn.disabled = false;
+}
+
+async function speechAdd() {
+  const on = speech.items.filter(x => x.on && x.kind !== 'unknown');
+  if (!on.length) return;
+  const who = $('#sp-who').value.trim();
+  const blocks = [];
+  for (const [i, it] of on.entries()) {
+    const buf = sliceBuffer(speech.buffer, it.a, it.b);
+    const blob = bufferToWavBlob(buf);
+    let b;
+    if (it.kind === 'quran') {
+      b = newQuranBlock(it.s, it.from, it.to);
+      if (it.part) b.part = { ...it.part };
+      b.rec = { name: who || 'الشيخ', file: speech.file.name, start: 0, end: buf.duration, marks: [], partAudio: !!it.part };
+      // أكتر من آية في المقطع: نلاقي بداية كل آية جوه الصوت
+      if (it.to > it.from) {
+        try {
+          const units = recUnits(b, it.from, it.to, false);
+          const r = autoMarks(buf, 0, buf.duration, units.map(t => stripMarks(t).length + 6));
+          if (r.marks) b.rec.marks = r.marks;
+        } catch { /* بيتقسم حسب طول الآيات */ }
+      }
+      setHadithAudio(b, buf, speech.file.name, blob);
+    } else {
+      b = newCustomBlock();
+      b.text = it.text.trim();
+      b.label = it.kind === 'hadith' ? 'حديث' : it.type === 'dua' ? 'دعاء' : '';
+      b.ref = who;
+      b.audioMode = 'upload';
+      b.seconds = Math.round(buf.duration * 2) / 2;
+      b.secondsManual = true;
+      // جمل ورا بعض من نفس الكلام: من غير فاصل زيادة (السكتة الطبيعية جوه الصوت)
+      const next = on[i + 1];
+      b.noGap = !!(next && next.kind !== 'quran' && next.a - it.b < 0.05);
+      setHadithAudio(b, buf, speech.file.name, blob, 'upload');
+    }
+    blocks.push(b);
+    libSave(b, 'upload', blob, buf, `${speech.file.name} ${SP.fmtTime(it.a)}`);
+  }
+  stop();
+  state.blocks = $('#sp-replace').checked ? blocks : [...state.blocks, ...blocks];
+  renderBlocks();
+  refreshPublish(true);
+  refreshPreview();
+  $('#dlg-speech').close();
+  showTab('content');
+  const hasHadith = on.some(x => x.kind === 'hadith');
+  status(`✅ اتضاف ${Q.arabicNum(blocks.length)} كارت بصوت الملف. اسمع المعاينة قبل النشر.${hasHadith ? ' ⚠️ فيه حديث كنص خاص — اتأكد من درجته.' : ''}`, null, hasHadith);
+}
+
+function setupSpeech() {
+  const dlg = $('#dlg-speech');
+  $('#add-speech').onclick = async () => {
+    dlg.showModal();
+    // آخر ملف اترفع بيرجع لوحده
+    if (!speech.buffer) {
+      const m = load('speechFile', null);
+      if (m?.id) {
+        const c = await AL.getClip(m.id);
+        if (c?.blob) {
+          try { await speechLoadFile(new File([c.blob], m.name, { type: m.type || c.blob.type }), false); } catch { /* ملف بايظ */ }
+        }
+      }
+    }
+  };
+  $('#sp-close').onclick = () => { $('#sp-player').pause(); dlg.close(); };
+  $('#sp-file').onchange = async () => {
+    const file = $('#sp-file').files[0];
+    $('#sp-file').value = '';
+    if (!file) return;
+    try { await speechLoadFile(file); } catch { $('#sp-status').textContent = '❌ الملف ده مش ملف صوت أو فيديو مدعوم'; }
+  };
+  $('#sp-from-here').onclick = () => { $('#sp-from').value = SP.fmtTime($('#sp-player').currentTime); };
+  $('#sp-to-here').onclick = () => { $('#sp-to').value = SP.fmtTime($('#sp-player').currentTime); };
+  $('#sp-play').onclick = () => {
+    try {
+      const [a, b] = speechRange();
+      const p = $('#sp-player');
+      p.currentTime = a; p.play().catch(() => {});
+      const stopAt = () => { if (p.currentTime >= b) { p.pause(); p.removeEventListener('timeupdate', stopAt); } };
+      p.addEventListener('timeupdate', stopAt);
+    } catch (e) { $('#sp-status').textContent = '❌ ' + e.message; }
+  };
+  $('#sp-go').onclick = speechTranscribe;
+  $('#sp-add').onclick = () => speechAdd().catch(showError);
+}
+
 // ===== وصفة الريل =====
 const RC = { intro: 'rc-intro', wordMode: 'rc-wordMode', textSize: 'rc-size', reciter: 'rc-reciter', duration: 'rc-dur', bg: 'rc-bg', bgSwitch: 'rc-bgSwitch' };
 let recipeColors = null; // { color1, color2, textColor, accent }
@@ -6259,6 +6453,7 @@ async function init() {
   setupLive();
   setupReference();
   setupRefExtract();
+  setupSpeech();
   setupCompetitors();
   setupCtrl();
   setupThumbs();

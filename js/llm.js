@@ -431,3 +431,42 @@ export async function extractMedia(src) {
   if (!items.length) throw new Error('مالقيتش كلام واضح في الفيديو');
   return { items, reciter: clean(out.reciter) };
 }
+
+// ===== 🎧 كلام من ملف صوت: تفريغ بالتوقيت (جمل قصيرة) =====
+// Gemini بيسمع بس ويكتب اللي اتقال. لو الكلام قرآن، البرنامج مابيعرضش التفريغ — بيعرض نص المصحف (speech.js)
+const SPEECH_RULES = `أنت أداة تفريغ صوت (تحويل الكلام لكتابة) بس.
+- اكتب الكلام العربي اللي اتقال حرفيًا زي ما اتنطق. ماتصححش وماتكمّلش وماتلخصش وماتشرحش وماتزوّدش ولا كلمة.
+- قسّمه لجمل قصيرة (من ٣ لـ ١٤ كلمة) عند الوقفات الطبيعية في الكلام، ولكل جملة وقت بدايتها ونهايتها بالثواني من أول المقطع (رقم عشري، مش دقايق).
+- النوع: quran لو قراءة قرآن، dua لو دعاء أو ذكر، hadith لو حديث منسوب للنبي ﷺ، other لأي كلام تاني (شرح، درس، خطبة، تعليق).
+- تجاهل أصوات الجمهور («الله الله»، تكبير، تصفيق) والموسيقى والسكوت — ماتكتبهمش.
+- لو كلمة مش واضحة اكتب [؟] مكانها بدل ما تخمّن.
+- رجّع JSON بس.`;
+
+// b64wav: صوت WAV مونو base64، dur: مدته بالثواني ← [{ start, end, type, text }]
+export async function transcribeSpeech(b64wav, dur) {
+  const c = mediaConfig();
+  if (!c) throw new Error('محتاج مفتاح Gemini (مجاني) — من ⚙️ الإعدادات ← ✨ مساعد الكتابة (اختار Gemini) أو 🔊 صوت Gemini');
+  let j;
+  try {
+    j = await geminiGenerate(c, {
+      systemInstruction: { parts: [{ text: SPEECH_RULES }] },
+      contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'audio/wav', data: b64wav } },
+        { text: `فرّغ المقطع ده (مدته ${dur.toFixed(1)} ثانية).\nالشكل: {"segments": [{"start": 0.0, "end": 3.4, "type": "quran|dua|hadith|other", "text": "..."}]}` }] }],
+      generationConfig: { responseMimeType: 'application/json', temperature: 0 },
+    });
+  } catch (e) {
+    if (e instanceof TypeError) throw new Error('الطلب ماوصلش لجوجل (النت). جرّب تاني.');
+    throw e;
+  }
+  const out = parseJson((j.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join(''));
+  const num = v => {
+    if (typeof v === 'string' && v.includes(':')) return v.split(':').reduce((a, x) => a * 60 + Number(x), 0);
+    return Number(v);
+  };
+  return (Array.isArray(out.segments) ? out.segments : [])
+    .map(s => ({ start: num(s.start), end: num(s.end), type: String(s.type || 'other'), text: String(s.text || '').replace(/\s+/g, ' ').trim() }))
+    .filter(s => s.text && Number.isFinite(s.start) && Number.isFinite(s.end))
+    .map(s => ({ ...s, start: Math.max(0, Math.min(dur, s.start)), end: Math.max(0, Math.min(dur, s.end)) }))
+    .filter(s => s.end > s.start)
+    .sort((a, b) => a.start - b.start);
+}

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261109j">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261109k">
 </head>
 <body>
   <header class="topbar">
@@ -78,6 +78,7 @@
           <button class="btn" id="add-quran" type="button">＋ آيات</button>
           <button class="btn" id="add-hadith" type="button">＋ حديث</button>
           <button class="btn" id="add-custom" type="button" title="دعاء أو كلام من عندك مش موجود في المكتبة">✍️ نص خاص</button>
+          <button class="btn" id="add-speech" type="button" title="ارفع صوت أو فيديو، حدد من الثانية كام لكام، والكلام يتكتب على الشاشة بنفس الصوت">🎧 كلام من ملف صوت</button>
           <button class="btn primary" id="btn-reel" type="button" title="اختار موضوع والبرنامج يعمل الريل كله">🪄 ريل بضغطة</button>
           <button class="btn primary" id="add-zikr" type="button">📿 مكتبة الأذكار والأدعية</button>
           <button class="btn" id="add-story" type="button" title="قصص الأنبياء لابن كثير من ويكي مصدر — نص حر (ملكية عامة)">📖 قصص الأنبياء</button>
@@ -508,7 +509,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261109j</div>
+    <div class="muted" id="app-version">الإصدار 20261109k</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -707,6 +708,7 @@
       </div>
       <details class="adv custom-rec">
         <summary>🎙️ تلاوة من ملف (لقارئ مش في القايمة، زي الشيخ سيد سعيد)</summary>
+        <p class="hint">💡 عايز البرنامج يسمع الملف ويعرف الآيات اللي الشيخ بيقراها لوحده، من غير ما تختار السورة والآيات؟ استخدم <b>«🎧 كلام من ملف صوت»</b> فوق.</p>
         <p class="hint">نزّل السورة <b>كاملة</b> من mp3quran.net أو أي موقع وارفعها هنا، واكتب رقم الآية فوق في «من آية / إلى آية» — البرنامج بيلاقي الآية في الملف لوحده. ولو غيّرت الرقم، بيجيب الآية الجديدة على طول.</p>
         <div class="btn-row">
           <label class="btn file-btn">📁 ارفع التلاوة<input type="file" accept="audio/*,video/*" data-f="recFile" hidden></label>
@@ -937,6 +939,42 @@
       </div>
       <pre class="src-credits" id="src-credits-out" hidden></pre>
       <div class="src-list" id="src-list"></div>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-speech">
+    <div class="dlg wide">
+      <div class="row">
+        <h2 class="grow">🎧 كلام من ملف صوت ← كتابة على الشاشة</h2>
+        <button class="btn icon" id="sp-close" type="button" title="اقفل">✕</button>
+      </div>
+      <p class="hint">ارفع ملف صوت أو فيديو، وحدد من الدقيقة كام لحد كام، ودوس «اكتب الكلام». البرنامج بيكتب الكلام اللي اتقال ويحطه على الشاشة بنفس الصوت، كل جملة في وقتها. لو الكلام <b>قرآن</b>، اللي بيظهر هو <b>نص المصحف بالظبط</b> مش التفريغ. والكلام العادي تقدر تصلّحه قبل ما تضيفه. محتاج مفتاح Gemini المجاني.</p>
+      <div class="btn-row">
+        <label class="btn file-btn primary">📁 اختار الملف<input type="file" id="sp-file" accept="audio/*,video/*" hidden></label>
+        <span class="muted" id="sp-name"></span>
+      </div>
+      <div id="sp-body" hidden>
+        <audio id="sp-player" controls preload="auto" class="full"></audio>
+        <div class="row wrap">
+          <label>من <input type="text" id="sp-from" dir="ltr" size="8" placeholder="0:00"></label>
+          <button class="btn" id="sp-from-here" type="button">⏱ من هنا</button>
+          <label>إلى <input type="text" id="sp-to" dir="ltr" size="8" placeholder="1:30"></label>
+          <button class="btn" id="sp-to-here" type="button">⏱ إلى هنا</button>
+          <button class="btn" id="sp-play" type="button">▶ اسمع المقطع</button>
+        </div>
+        <div class="row wrap">
+          <label class="grow">اسم الشيخ أو المتكلم <input type="text" id="sp-who" placeholder="مثلًا: الشيخ سيد سعيد"></label>
+        </div>
+        <div class="btn-row">
+          <button class="btn primary" id="sp-go" type="button">📝 اكتب الكلام</button>
+          <span class="muted" id="sp-status"></span>
+        </div>
+        <ol class="parts" id="sp-items"></ol>
+        <div class="btn-row" id="sp-actions" hidden>
+          <label class="check"><input type="checkbox" id="sp-replace"> امسح المحتوى الحالي الأول</label>
+          <button class="btn primary" id="sp-add" type="button">➕ حطهم في الفيديو</button>
+        </div>
+      </div>
     </div>
   </dialog>
 
@@ -1501,6 +1539,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261109j"></script>
+  <script type="module" src="js/main.js?v=20261109k"></script>
 </body>
 </html>

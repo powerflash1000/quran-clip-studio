@@ -151,7 +151,7 @@ export function search(query, limit = 50) {
 // جزء من آية: بيدوّر على النص (3 كلمات أو أكتر) جوه آية واحدة، ويرجّع { s, a, w1, w2 } (أرقام الكلمات من 1)
 // المقارنة على «هيكل» الكلمة: من غير تشكيل ولا ألفات ولا همزات، عشان الرسم العثماني يطابق الإملاء العادي
 // (الصلوة/الصلاة، الزكوة/الزكاة، الحيوة/الحياة: الواو قبل التاء المربوطة بتتشال من الناحيتين)
-const skel = w => strip(w).replace(/[اءٱ]/g, '').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/[^\u0621-\u064A]/g, '').replace(/وه$/, 'ه');
+export const skel = w => strip(w).replace(/[اءٱ]/g, '').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/[^\u0621-\u064A]/g, '').replace(/وه$/, 'ه');
 let wordIndex = null;
 function buildWordIndex() {
   if (!wordIndex) {
@@ -184,7 +184,7 @@ const RABBANA = new Set(['ربن', 'رب']);
 // كل أجزاء القرآن اللي في النص (كل سطر لوحده عشان مانوصلش سطرين ببعض)، بترتيب ظهورها.
 // كل جزء: { s, a, w1, w2, whole } — ولو الكلمة اللي قبل الجزء في الآية «ربنا» أو «رب» بنضمها
 // (صور الأدعية بتكتب «ربنا» في عمود لوحده). rest = عدد الكلمات اللي مش من القرآن
-export function findFragments(text) {
+export function findFragments(text, opt = {}) {
   const lines = String(text || '').split(/\n+/).map(l => l.split(/\s+/).map(skel).filter(Boolean)).filter(l => l.length);
   const total = lines.reduce((a, l) => a + l.length, 0);
   if (total < 3 || total > 400) return { frags: [], rest: total };
@@ -197,7 +197,8 @@ export function findFragments(text) {
     for (;;) {
       const r = longestRun(u, mask);
       // جزء قصير جوه سطر أغلبه مش قرآن: غالبًا دعاء عادي فيه كلمات تشبه آية
-      if (!r || (r.len < 5 && r.len < u.length * 0.6)) break;
+      // (opt.loose: نص كله قرآن متفرّغ من صوت — أي ٣ كلمات متصلة تتقبل)
+      if (!r || (!opt.loose && r.len < 5 && r.len < u.length * 0.6)) break;
       for (let k = r.u1 - 1; k < r.u2; k++) mask[k] = 1;
       const A = wordIndex.find(x => x.s === r.s && x.a === r.a).w;
       if (r.w1 > 1 && RABBANA.has(A[r.w1 - 2])) {
@@ -206,7 +207,7 @@ export function findFragments(text) {
       }
       found.push(r);
     }
-    for (const r of found.sort((x, y) => x.u1 - y.u1)) frags.push({ s: r.s, a: r.a, w1: r.w1, w2: r.w2, whole: r.w1 === 1 && r.w2 === r.n, order: order++ });
+    for (const r of found.sort((x, y) => x.u1 - y.u1)) frags.push({ s: r.s, a: r.a, w1: r.w1, w2: r.w2, whole: r.w1 === 1 && r.w2 === r.n, order: order++, u1: r.u1, u2: r.u2 });
     used += mask.reduce((a, v) => a + v, 0);
   }
   // سطور «ربنا» لوحدها اتحسبت مع الأجزاء
