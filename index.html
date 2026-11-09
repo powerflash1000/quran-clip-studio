@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261109f">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261109g">
 </head>
 <body>
   <header class="topbar">
@@ -244,6 +244,8 @@
           <label>✒️ خط الأدعية والأحاديث <select id="textFont"></select></label>
           <label>✨ تأثير الخط <select id="textFx"></select></label>
           <label>🎬 حركة دخول النص <select id="textAnim"></select></label>
+          <label>📐 مكان الكلام <select id="textZone"></select></label>
+          <label>🎨 لون الكلام <select id="textInk"></select></label>
         </div>
         <p class="hint">آيات القرآن بتفضل دايمًا بخط المصحف (حفص)؛ الخط اللي تختاره للأدعية والأحاديث والعناوين. التأثير (ذهبي، توهّج، حدود…) بيشتغل على الكل. وحركة الدخول بتظهر في المعاينة بالصوت والفيديو والبث — مع «الكلمات مع التلاوة» الكلمات نفسها هي الحركة.</p>
         <div class="grid2">
@@ -506,7 +508,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261109f</div>
+    <div class="muted" id="app-version">الإصدار 20261109g</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -969,6 +971,8 @@
           <label>✒️ خط الأدعية <select id="post-font"></select></label>
           <label>حجم الخط <input type="range" id="post-size-k" min="0.6" max="1.4" step="0.05" value="1"></label>
           <label>تعتيم الخلفية <input type="range" id="post-dim" min="0" max="0.8" step="0.05"></label>
+          <label>📐 مكان الكلام <select id="post-zone"></select></label>
+          <label>🎨 لون الكلام <select id="post-ink"></select></label>
           <label class="check"><input type="checkbox" id="post-label" checked> العنوان (اسم السورة / نوع الذكر)</label>
           <label class="check"><input type="checkbox" id="post-footer" checked> المرجع تحت</label>
           <p class="muted" id="post-note"></p>
@@ -1484,6 +1488,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261109f"></script>
+  <script type="module" src="js/main.js?v=20261109g"></script>
 </body>
 </html>

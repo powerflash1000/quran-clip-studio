@@ -32,6 +32,7 @@ import { parseRefs, embedFor, surahInText, fbIdFrom, fbEmbedSrc } from './automa
 import * as PL from './planner.js';
 import * as ST from './stats.js';
 import { youtubeChapters } from './chapters.js';
+import { ZONES, INKS } from './zone.js';
 import { PLATFORMS, generate, getPublishSettings, setPublishSettings, canShareFile, shareFile } from './publish.js';
 
 const $ = s => document.querySelector(s);
@@ -1398,6 +1399,8 @@ function postStyle() {
     showFooter: $('#post-footer').checked,
     showTranslation: false,
     textAnim: '',
+    textZone: $('#post-zone').value,
+    textInk: $('#post-ink').value,
   };
 }
 
@@ -1429,6 +1432,8 @@ async function drawPost(canvas) {
 async function openPost() {
   post.segs = await buildSegments(false);
   $('#post-fx').value = state.style.textFx || '';
+  $('#post-zone').value = state.style.textZone || '';
+  $('#post-ink').value = state.style.textInk || '';
   $('#post-font').value = state.style.textFont || 'Amiri';
   $('#post-dim').value = state.style.dim ?? 0.3;
   $('#post-bg').value = state.style.bgType === 'media' && state.mediaList.length ? 'current' : post.bgImg ? 'upload' : 'color';
@@ -1440,11 +1445,12 @@ async function openPost() {
 function setupPost() {
   const opts = o => Object.entries(o).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
   $('#post-fx').innerHTML = opts(TEXT_FX);
+  $('#post-zone').innerHTML = opts(ZONES); $('#post-ink').innerHTML = opts(INKS);
   $('#post-font').innerHTML = opts(TEXT_FONTS);
   $('#btn-post').onclick = () => openPost().catch(showError);
   $('#post-close').onclick = () => $('#dlg-post').close();
   const redraw = () => drawPost($('#post-canvas')).catch(showError);
-  for (const id of ['post-size', 'post-what', 'post-fx', 'post-font', 'post-size-k', 'post-dim', 'post-label', 'post-footer']) $('#' + id).addEventListener('input', redraw);
+  for (const id of ['post-size', 'post-what', 'post-fx', 'post-font', 'post-size-k', 'post-dim', 'post-zone', 'post-ink', 'post-label', 'post-footer']) $('#' + id).addEventListener('input', redraw);
   $('#post-bg').onchange = () => {
     $('#post-upload-wrap').hidden = $('#post-bg').value !== 'upload';
     if ($('#post-bg').value === 'upload' && !post.bgImg) $('#post-upload').click();
@@ -2559,7 +2565,7 @@ function setupReciters() {
 }
 
 // ===== الشكل =====
-const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'ayahLayout', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade'];
+const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'textZone', 'textInk', 'ayahLayout', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade'];
 
 function applyStyleToInputs() {
   const st = state.style;
@@ -2589,6 +2595,7 @@ function setupStyle() {
   $('#textFont').innerHTML = opts(TEXT_FONTS);
   $('#textFx').innerHTML = opts(TEXT_FX);
   $('#textAnim').innerHTML = opts(TEXT_ANIM);
+  $('#textZone').innerHTML = opts(ZONES); $('#textInk').innerHTML = opts(INKS);
   for (const [id, o] of [['handlePos', BR.POSITIONS], ['logoPos', BR.POSITIONS], ['look', BR.LOOKS], ['light', BR.LIGHTS], ['cardTrans', BR.CARD_TRANS], ['bumper', BR.BUMPERS], ['subCard', BR.SUB_CARD], ['subCardPos', BR.SUB_POS]]) $('#' + id).innerHTML = opts(o);
   $('#recFx').innerHTML = Object.entries(REC_FX).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
   applyStyleToInputs();
@@ -2598,6 +2605,7 @@ function setupStyle() {
       const v = el.type === 'checkbox' ? el.checked : el.type === 'range' || el.type === 'number' ? Number(el.value) : el.value;
       state.style[k] = v;
       if (k === 'bgType') updateBgVisibility();
+      if (k === 'textZone' && v === 'auto' && !state.style.textInk) { state.style.textInk = 'auto'; $('#textInk').value = 'auto'; }
       if (k === 'bgSwitch') { $('#bgEvery-wrap').hidden = v === 'ayah'; $('#bgEvery-lbl').textContent = v === 'custom' ? 'المدة الافتراضية (ث)' : 'كل (ث)'; }
       if (['bgSwitch', 'bgEvery'].includes(k)) renderBgList();
       persist();

@@ -1,4 +1,5 @@
 import { lookLayers, lookVignette, drawBrand, drawBumper, drawCardTrans } from './brand.js';
+import { currentZone, ZONE_SRC } from './zone.js';
 
 // رسم الشرائح (النص فوق الخلفية) على Canvas.
 // نفس الدوال بتتستخدم في المعاينة وفي تصدير الفيديو والصور.
@@ -79,6 +80,7 @@ const bgCache = new Map();
 const elIds = new WeakMap();
 let elSeq = 0;
 export function drawBackground(ctx, W, H, style, media) {
+  ZONE_SRC.el = media?.el || null; // 📐 مكان الكلام التلقائي بيحلل الخلفية دي
   const still = !media || media.kind === 'image';
   if (still && style?.look && typeof document !== 'undefined') {
     const el = media?.el;
@@ -265,27 +267,51 @@ export function drawOverlay(ctx, W, H, seg, style) {
 
   const portrait = H > W;
   const unit = Math.min(W, H) / 1080;          // مقياس عام
-  const padX = W * (portrait ? 0.08 : 0.1);
-  const top = H * (portrait ? 0.12 : 0.1);
-  const bottom = H * (portrait ? 0.78 : 0.86);   // بنسيب مكان تحت لأزرار التطبيقات
-  const boxW = W - padX * 2;
+  let padX = W * (portrait ? 0.08 : 0.1);
+  let top = H * (portrait ? 0.12 : 0.1);
+  let bottom = H * (portrait ? 0.78 : 0.86);   // بنسيب مكان تحت لأزرار التطبيقات
+  let boxW = W - padX * 2;
+  let cx = W / 2, labelY = top - 40 * unit, footerY = bottom + 30 * unit;
+  // 📐 مكان الكلام: مساحة معيّنة (تلقائي = أهدى مساحة في الخلفية)
+  const zone = currentZone(style, W, H);
+  let ink = null;
+  if (zone) {
+    const m = 26 * unit;
+    const zx0 = zone.x0 * W + m, zx1 = zone.x1 * W - m;
+    padX = zx0; boxW = Math.max(W * 0.25, zx1 - zx0); cx = (zx0 + zx1) / 2;
+    const ls = 40 * unit * style.labelScale, fs = 32 * unit * style.labelScale;
+    const zy0 = zone.y0 * H + m, zy1 = zone.y1 * H - m;
+    labelY = zy0 + ls * 0.6; footerY = zy1 - fs * 0.65;
+    top = zy0 + (style.showLabel && seg.label ? ls * 1.6 : 0);
+    bottom = zy1 - (style.showFooter && seg.footer ? fs * 1.7 : 0);
+    if (bottom - top < H * 0.12) { const c = (top + bottom) / 2; top = c - H * 0.06; bottom = c + H * 0.06; }
+    // لون الكلام حسب إضاءة المساحة (بعد التعتيم)
+    if (style.textInk === 'auto' && zone.lum != null) {
+      const lum = zone.lum * (1 - (style.dim || 0));
+      ink = lum > 0.58
+        ? { text: '#2b211a', sub: '#4d4036', accent: darken(style.accent, 0.45), shadow: 'rgba(255,255,255,0.35)' }
+        : { text: '#ffffff', sub: '#e9e4da', accent: style.accent, shadow: 'rgba(0,0,0,0.55)' };
+    }
+  }
+  const brandStyle = style; // العلامة واللوجو مكانهم برّه المساحة، فبيفضلوا بألوانك
+  if (ink) style = { ...style, textColor: ink.text, subColor: ink.sub, accent: ink.accent };
 
-  ctx.shadowColor = 'rgba(0,0,0,0.55)';
-  ctx.shadowBlur = 18 * unit;
-  ctx.shadowOffsetY = 3 * unit;
+  ctx.shadowColor = ink?.shadow || 'rgba(0,0,0,0.55)';
+  ctx.shadowBlur = (ink && ink.text !== '#ffffff' ? 8 : 18) * unit;
+  ctx.shadowOffsetY = (ink && ink.text !== '#ffffff' ? 0 : 3) * unit;
 
   // العنوان فوق (اسم السورة ورقم الآية)
   if (style.showLabel && seg.label) {
     ctx.fillStyle = style.accent;
     ctx.font = `bold ${Math.round(40 * unit * style.labelScale)}px ${TF}`;
-    drawLines(ctx, [seg.label], W / 2, top - 40 * unit, 40 * unit * style.labelScale, 1.2, 'rtl');
+    drawLines(ctx, [seg.label], cx, labelY, 40 * unit * style.labelScale, 1.2, 'rtl');
   }
   // رقم الجزء في السلسلة (مثلًا: الجزء ٣ من ١٢)
   if (seg.badge) {
     ctx.fillStyle = style.subColor;
     const bs = Math.round(30 * unit * style.labelScale);
     ctx.font = `${bs}px ${TF}`;
-    drawLines(ctx, [seg.badge], W / 2, top - 40 * unit - 62 * unit * style.labelScale, bs, 1.2, 'rtl');
+    drawLines(ctx, [seg.badge], cx, labelY - 62 * unit * style.labelScale, bs, 1.2, 'rtl');
   }
 
   const isQuran = seg.kind === 'ayah' || seg.kind === 'basmala';
@@ -323,7 +349,7 @@ export function drawOverlay(ctx, W, H, seg, style) {
     const cy = y + total / 2;
     ctx.globalAlpha = anim;
     if (style.textAnim === 'rise') ctx.translate(0, (1 - anim) * 60 * unit);
-    if (style.textAnim === 'zoom') { const k = 0.9 + 0.1 * anim; ctx.translate(W / 2, cy); ctx.scale(k, k); ctx.translate(-W / 2, -cy); }
+    if (style.textAnim === 'zoom') { const k = 0.9 + 0.1 * anim; ctx.translate(cx, cy); ctx.scale(k, k); ctx.translate(-cx, -cy); }
     if (style.textAnim === 'blur') ctx.filter = `blur(${((1 - anim) * 14 * unit).toFixed(1)}px)`;
   }
   // كارت أو شريط ورا النص
@@ -354,9 +380,9 @@ export function drawOverlay(ctx, W, H, seg, style) {
     PAINT = { stroke: Math.max(2, main.size * 0.035), strokeColor: 'rgba(60,35,0,0.85)' };
   }
   try {
-    if (grp) drawGroup(ctx, main.lines, W / 2, y, main.size, lineH, grp, style);
-    else if (words) drawWords(ctx, main.lines, W / 2, y, main.size, lineH, seg.wordCount, style.wordMode, style);
-    else drawLines(ctx, main.lines, W / 2, y, main.size, lineH, 'rtl');
+    if (grp) drawGroup(ctx, main.lines, cx, y, main.size, lineH, grp, style);
+    else if (words) drawWords(ctx, main.lines, cx, y, main.size, lineH, seg.wordCount, style.wordMode, style);
+    else drawLines(ctx, main.lines, cx, y, main.size, lineH, 'rtl');
   } finally { PAINT = null; }
   y += main.height + gapMS;
   ctx.restore();
@@ -366,7 +392,7 @@ export function drawOverlay(ctx, W, H, seg, style) {
   if (sub) {
     ctx.fillStyle = style.subColor;
     ctx.font = `${sub.size}px ${TF}, sans-serif`;
-    drawLines(ctx, sub.lines, W / 2, y, sub.size, 1.45, sub.dir);
+    drawLines(ctx, sub.lines, cx, y, sub.size, 1.45, sub.dir);
   }
   ctx.restore();
 
@@ -375,10 +401,10 @@ export function drawOverlay(ctx, W, H, seg, style) {
     ctx.fillStyle = style.accent;
     const fs = Math.round(32 * unit * style.labelScale);
     ctx.font = `${fs}px ${TF}`;
-    drawLines(ctx, [seg.footer], W / 2, bottom + 30 * unit, fs, 1.3, 'rtl');
+    drawLines(ctx, [seg.footer], cx, footerY, fs, 1.3, 'rtl');
   }
   // اللوجو وعلامة الحساب (@اسم_حسابك) — الحجم والمكان والشفافية من «🎨 الهوية والجرافيك»
-  drawBrand(ctx, W, H, style, TF);
+  drawBrand(ctx, W, H, brandStyle, TF);
   ctx.restore();
 }
 
@@ -410,3 +436,5 @@ const bandInk = h => { const [r, g, b] = hexRgb(h); return r * 0.299 + g * 0.587
 export function canvasToPng(canvas) {
   return new Promise(res => canvas.toBlob(b => res(b), 'image/png'));
 }
+// لون أغمق (عشان لون التمييز الدهبي يبان على خلفية فاتحة)
+function darken(h, k) { return `rgb(${hexRgb(h).map(v => Math.round(v * (1 - k))).join(',')})`; }

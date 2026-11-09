@@ -3,6 +3,7 @@
 import { Muxer, ArrayBufferTarget } from '../vendor/mp4-muxer/mp4-muxer.mjs';
 import { drawBackground, drawOverlay, ENTER_SECS, textFont } from './slides.js';
 import { drawLight, TRANS_SECS, subCardAge, drawSubCard } from './brand.js';
+import { ZONE_SRC } from './zone.js';
 import { overlayFrames, FPS } from './exporter.js';
 import { SAMPLE_RATE } from './audio.js';
 import { bgSchedule, pickBg, loadVideoSource, seekVideo } from './bglist.js';
@@ -109,6 +110,7 @@ export async function fastExportVideo(project, cfg, onProgress, onStage) {
     if (m.frames) {
       const fr = await m.frames.next();
       drawBackground(c, W, H, style, fr ? { kind: 'video', el: fr } : null);
+      if (m.el) ZONE_SRC.el = m.el; // 📐 مكان الكلام يتحسب من الفيديو نفسه (ثابت)، مش من كل فريم
       return;
     }
     if (m.kind === 'video') await seekVideo(m.el, local);
