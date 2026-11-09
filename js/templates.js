@@ -36,7 +36,7 @@ export const DEFAULT_STYLE = {
   look: '',                 // لون سينمائي للخلفية
   light: '', lightAmount: 1, // إضاءة: أشعة / تسريب نور / توهج / بوكيه / ذرات / نجوم
   cardTrans: '',            // انتقال بين الكروت: ومضة / غمقان / شعاع
-  bumper: '', channelName: 'قرآن يريح القلب 🤍', outroText: 'تابعنا لمزيد من التلاوات', bumperSecs: 2.5,
+  bumper: '', channelName: 'قرآن يريح القلب 🤍', outroText: 'تابعنا لمزيد من التلاوات', bumperSecs: 2.5, subCard: '', subCardPos: 'center',
   bgSwitch: 'ayah',         // ayah | seconds — لو فيه أكتر من خلفية
   bgEvery: 6,
   bgFade: true,

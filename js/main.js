@@ -3,7 +3,7 @@ import { RECITERS, findReciter, customReciter, ayahAudioUrls } from './reciters.
 import { COLLECTIONS, collection, getHadith, searchHadith, extractMatn, assessGrade } from './hadith.js';
 import { loadAudio, decode, buildTimeline, startRecording, trimSilence, bufferToWavBlob, sliceBuffer, enhanceVoice, ENHANCE_PRESETS, REC_FX } from './audio.js';
 import { autoMarks } from './automark.js';
-import { ASPECTS, TEXT_FONT, TEXT_FONTS, TEXT_FX, TEXT_ANIM, ensureFonts, drawBackground, drawOverlay, drawWave } from './slides.js';
+import { ASPECTS, TEXT_FONT, TEXT_FONTS, TEXT_FX, TEXT_ANIM, ensureFonts, drawBackground, drawOverlay, drawWave, textFont } from './slides.js';
 import { exportAudio, exportVideo, exportFilmoraPackage, renderStill, makeSrt, download } from './exporter.js';
 import { PROVIDERS, downloadStock } from './stock.js';
 import * as T from './templates.js';
@@ -380,7 +380,24 @@ function drawFrame(seg, analyser, t = null, idle = false) {
     ovCache.ver++; // أي رسم عادي (تعديل/تشغيل) بيلغي المحفوظ
     drawOverlay(ctx, W, H, seg, state.style);
   }
+  // 🔔 كارت الاشتراك: أثناء التشغيل في وقته، أو لما تدوس «شوف الكارت»
+  const sa = subPrev ? (performance.now() - subPrev) / 1000 : player && t != null ? BR.subCardAge(state.style, player.duration, t) : null;
+  if (sa != null && sa <= BR.SUB_SECS) drawSubCard2(sa);
   if (analyser && state.style.waveform) drawWave(ctx, W, H, analyser, state.style.accent);
+}
+let subPrev = 0;
+const drawSubCard2 = age => BR.drawSubCard(ctx, canvas.width, canvas.height, state.style, age, textFont(state.style));
+function previewSubCard() {
+  if (player) return;
+  BR.ensureLogo({ ...state.style, subCard: 'start' });
+  subPrev = performance.now();
+  const step = () => {
+    if (!subPrev) return;
+    if ((performance.now() - subPrev) / 1000 > BR.SUB_SECS) { subPrev = 0; drawFrame(previewSegs[state.segIndex]); return; }
+    drawFrame(previewSegs[state.segIndex], null, null, true);
+    requestAnimationFrame(step);
+  };
+  step();
 }
 
 // مصدر توقيت الكلمات للقارئ الحالي (بيظهر تحت «ظهور الآية»)
@@ -2541,7 +2558,7 @@ function setupReciters() {
 }
 
 // ===== الشكل =====
-const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'ayahLayout', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade'];
+const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'ayahLayout', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade'];
 
 function applyStyleToInputs() {
   const st = state.style;
@@ -2571,7 +2588,7 @@ function setupStyle() {
   $('#textFont').innerHTML = opts(TEXT_FONTS);
   $('#textFx').innerHTML = opts(TEXT_FX);
   $('#textAnim').innerHTML = opts(TEXT_ANIM);
-  for (const [id, o] of [['handlePos', BR.POSITIONS], ['logoPos', BR.POSITIONS], ['look', BR.LOOKS], ['light', BR.LIGHTS], ['cardTrans', BR.CARD_TRANS], ['bumper', BR.BUMPERS]]) $('#' + id).innerHTML = opts(o);
+  for (const [id, o] of [['handlePos', BR.POSITIONS], ['logoPos', BR.POSITIONS], ['look', BR.LOOKS], ['light', BR.LIGHTS], ['cardTrans', BR.CARD_TRANS], ['bumper', BR.BUMPERS], ['subCard', BR.SUB_CARD], ['subCardPos', BR.SUB_POS]]) $('#' + id).innerHTML = opts(o);
   $('#recFx').innerHTML = Object.entries(REC_FX).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
   applyStyleToInputs();
   for (const k of STYLE_INPUTS) {
@@ -2597,6 +2614,7 @@ function setupStyle() {
     $('#logo-clear').hidden = !state.style.logoData;
   };
   ['handlePos', 'logoPos'].forEach(id => $('#' + id).addEventListener('input', brandUi));
+  $('#sub-preview').onclick = previewSubCard;
   $('#logo-file').onchange = () => {
     const f = $('#logo-file').files[0];
     $('#logo-file').value = '';

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261109d">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261109e">
 </head>
 <body>
   <header class="topbar">
@@ -342,6 +342,13 @@
           <label>اسم القناة <input type="text" id="channelName" placeholder="قرآن يريح القلب 🤍"></label>
           <label>جملة الخاتمة <input type="text" id="outroText" placeholder="تابعنا لمزيد من التلاوات"></label>
         </div>
+        <h3>🔔 كارت الاشتراك</h3>
+        <div class="grid2">
+          <label>يظهر <select id="subCard"></select></label>
+          <label>مكانه <select id="subCardPos"></select></label>
+        </div>
+        <div class="row"><button class="btn" id="sub-preview" type="button">▶️ شوف الكارت</button></div>
+        <p class="hint">كارت أبيض فيه لوجو القناة (من «اللوجو» فوق) واسمها وحسابك، وإيد بتدوس «اشتراك» فيبقى «🔔 تم الاشتراك» — ٣ ثواني ونص. بيظهر في المعاينة والتصدير السريع، مش في البث.</p>
         <p class="hint">الألوان والمقدمة والانتقالات متاخدة من استوديو الريلز. المقدمة: لوجو بيكبر بنعومة + اسم القناة + خط ملوّن + حسابك. المقدمة والخاتمة بيظهروا في الفيديو بس، مش في البث. الإضاءة والانتقالات بتتحرك في المعاينة والبث والتصدير السريع.</p>
       </div>
       <!-- القوالب -->
@@ -498,7 +505,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261109d</div>
+    <div class="muted" id="app-version">الإصدار 20261109e</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -1476,6 +1483,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261109d"></script>
+  <script type="module" src="js/main.js?v=20261109e"></script>
 </body>
 </html>

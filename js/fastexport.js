@@ -1,8 +1,8 @@
 // تصدير سريع بالـ WebCodecs (بيستخدم كارت الشاشة / مُرمّز الجهاز) بدل ffmpeg.wasm
 // بيشتغل في Chrome و Edge لما الجهاز يدعم H.264 + AAC. لو مش مدعوم بنرجع لـ ffmpeg تلقائيًا.
 import { Muxer, ArrayBufferTarget } from '../vendor/mp4-muxer/mp4-muxer.mjs';
-import { drawBackground, drawOverlay, ENTER_SECS } from './slides.js';
-import { drawLight, TRANS_SECS } from './brand.js';
+import { drawBackground, drawOverlay, ENTER_SECS, textFont } from './slides.js';
+import { drawLight, TRANS_SECS, subCardAge, drawSubCard } from './brand.js';
 import { overlayFrames, FPS } from './exporter.js';
 import { SAMPLE_RATE } from './audio.js';
 import { bgSchedule, pickBg, loadVideoSource, seekVideo } from './bglist.js';
@@ -192,6 +192,8 @@ export async function fastExportVideo(project, cfg, onProgress, onStage) {
     }
     if (style.light) drawLight(ctx, W, H, style, t);
     ctx.drawImage(ov, 0, 0);
+    const sa = style.subCard ? subCardAge(style, timeline.duration, t) : null;
+    if (sa != null) drawSubCard(ctx, W, H, style, sa, textFont(style));
     if (waveform) drawWaveAt(ctx, W, H, timeline, t, style.accent);
 
     const vf = new VideoFrame(canvas, { timestamp: Math.round(i * frameDur), duration: Math.round(frameDur) });

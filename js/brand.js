@@ -175,7 +175,7 @@ export function logoImage(data) {
   return im.complete && im.naturalWidth ? im : null;
 }
 export function ensureLogo(style) {
-  if (!style?.logoOn || !style.logoData) return Promise.resolve();
+  if (!(style?.logoOn || style?.subCard) || !style.logoData) return Promise.resolve();
   logoImage(style.logoData);
   const im = logoCache.get(style.logoData);
   if (im.complete) return Promise.resolve();
@@ -277,6 +277,118 @@ export function drawBumper(ctx, W, H, seg, style, textFontName) {
     ctx.fillStyle = 'rgba(255,255,255,.85)';
     ctx.direction = 'ltr';
     ctx.fillText(style.handle, cx, y + size * 0.75 + (seg.sub ? 140 : 70) * u);
+  }
+  ctx.restore();
+}
+
+// ===== كارت الاشتراك 🔔 — كارت أبيض: لوجو القناة + الاسم + زرار «اشتراك» وإيد بتدوس عليه فيبقى «تم الاشتراك» =====
+// بيترسم فوق الريل في وقت معيّن (أوله/آخره)، من اسم القناة واللوجو اللي في البرنامج
+export const SUB_CARD = { '': 'من غير', start: 'في الأول', end: 'في الآخر', both: 'في الأول وفي الآخر' };
+export const SUB_POS = { center: 'في النص', top: 'فوق', bottom: 'تحت' };
+export const SUB_SECS = 3.4;
+// بدايات ظهور الكارت (بالثواني) حسب مدة الفيديو والمقدمة/الخاتمة
+export function subCardStarts(style, duration) {
+  if (!style?.subCard || !(duration > 0)) return [];
+  const bs = Math.max(1.5, Math.min(5, Number(style.bumperSecs) || 2.5));
+  const intro = style.bumper === 'intro' || style.bumper === 'both' ? bs : 0;
+  const outro = style.bumper === 'outro' || style.bumper === 'both' ? bs : 0;
+  const first = intro + 1, last = duration - outro - SUB_SECS - 0.6;
+  const out = [];
+  if (style.subCard === 'start' || style.subCard === 'both') out.push(first);
+  if ((style.subCard === 'end' || style.subCard === 'both') && last > (out[0] ?? -9) + SUB_SECS + 0.5) out.push(last);
+  if (!out.length && last >= 0) out.push(Math.max(0, Math.min(first, last)));
+  return out.filter(x => x >= 0 && x + SUB_SECS <= duration + 0.01);
+}
+// الكارت ظاهر في الوقت t؟ (بيرجّع عمره جوه الظهور، أو null)
+export function subCardAge(style, duration, t) {
+  if (t == null) return null;
+  for (const s of subCardStarts(style, duration)) if (t >= s && t < s + SUB_SECS) return t - s;
+  return null;
+}
+const easeBack = x => { x = Math.min(1, Math.max(0, x)); const c = 1.7; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+export function drawSubCard(ctx, W, H, style, age, textFontName = 'sans-serif') {
+  if (age == null || age < 0 || age > SUB_SECS) return;
+  const u = Math.min(W, H) / 1080;
+  const cw = Math.min(W * 0.66, 700 * u), ch = cw * 0.92;
+  const cy = H * ({ top: 0.3, bottom: 0.66 }[style.subCardPos] || 0.47), cx = W / 2;
+  const inA = easeBack(age / 0.5), outA = Math.min(1, Math.max(0, (SUB_SECS - age) / 0.45));
+  const scale = (0.55 + 0.45 * inA) * (0.85 + 0.15 * outA);
+  const clicked = age >= 1.45;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, age / 0.25) * outA;
+  ctx.translate(cx, cy); ctx.scale(scale, scale);
+  // الكارت
+  ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 40 * u; ctx.shadowOffsetY = 12 * u;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.roundRect(-cw / 2, -ch / 2, cw, ch, 46 * u); ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  // اللوجو في دايرة
+  const r = ch * 0.21, ly = -ch / 2 + ch * 0.07 + r;
+  const logo = logoImage(style.logoData);
+  ctx.save();
+  ctx.beginPath(); ctx.arc(0, ly, r, 0, Math.PI * 2); ctx.closePath();
+  if (logo) {
+    ctx.clip();
+    const k = Math.max(2 * r / logo.naturalWidth, 2 * r / logo.naturalHeight);
+    ctx.fillStyle = '#111'; ctx.fillRect(-r, ly - r, 2 * r, 2 * r);
+    ctx.drawImage(logo, -logo.naturalWidth * k / 2, ly - logo.naturalHeight * k / 2, logo.naturalWidth * k, logo.naturalHeight * k);
+  } else {
+    const g = ctx.createLinearGradient(0, ly - r, 0, ly + r);
+    g.addColorStop(0, style.accent || '#f4d58d'); g.addColorStop(1, '#1d2b3a');
+    ctx.fillStyle = g; ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `800 ${Math.round(r * 0.9)}px ${textFontName}, sans-serif`;
+    ctx.fillText('🤍', 0, ly + r * 0.05);
+  }
+  ctx.restore();
+  ctx.lineWidth = 6 * u; ctx.strokeStyle = style.accent || '#f4d58d';
+  ctx.beginPath(); ctx.arc(0, ly, r, 0, Math.PI * 2); ctx.stroke();
+  // الاسم + الحساب
+  const name = (style.channelName || '').trim() || 'قرآن يريح القلب 🤍';
+  let ny = ly + r + ch * 0.13;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = 'rtl';
+  let fs = 62 * u;
+  ctx.font = `800 ${fs}px ${textFontName}, sans-serif`;
+  while (ctx.measureText(name).width > cw - 70 * u && fs > 26 * u) { fs -= 3 * u; ctx.font = `800 ${fs}px ${textFontName}, sans-serif`; }
+  ctx.fillStyle = '#1f2328'; ctx.fillText(name, 0, ny);
+  if (style.handle) {
+    ny += fs * 0.62 + 36 * u;
+    ctx.font = `600 ${Math.round(32 * u)}px sans-serif`; ctx.direction = 'ltr';
+    ctx.fillStyle = '#6b7280'; ctx.fillText(style.handle, 0, ny);
+  }
+  // الزرار
+  const bw = cw * 0.62, bh = 88 * u, by = ch / 2 - ch * 0.07 - bh;
+  const press = age >= 1.3 && age < 1.6 ? 0.93 : 1;
+  ctx.save();
+  ctx.translate(0, by + bh / 2); ctx.scale(press, press);
+  ctx.fillStyle = clicked ? '#3a3f45' : '#e0241b';
+  ctx.beginPath(); ctx.roundRect(-bw / 2, -bh / 2, bw, bh, bh / 2); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.direction = 'rtl';
+  ctx.font = `800 ${Math.round(40 * u)}px ${textFontName}, sans-serif`;
+  const wig = clicked && age < 2.3 ? Math.sin((age - 1.45) * 28) * 0.35 * (1 - (age - 1.45) / 0.85) : 0;
+  const label = clicked ? 'تم الاشتراك' : 'اشتراك';
+  const tw = ctx.measureText(label).width, bell = 40 * u;
+  ctx.fillText(label, -bell * 0.55, 2 * u);
+  ctx.save(); ctx.translate(tw / 2 - bell * 0.55 + 14 * u + bell * 0.5, 0); ctx.rotate(wig);
+  ctx.font = `${Math.round(36 * u)}px sans-serif`; ctx.direction = 'ltr';
+  ctx.fillText(clicked ? '🔔' : '▶', 0, 2 * u);
+  ctx.restore();
+  ctx.restore();
+  // دايرة الضغطة
+  if (age >= 1.4 && age < 2.0) {
+    const k = (age - 1.4) / 0.6;
+    ctx.strokeStyle = `rgba(224,36,27,${0.6 * (1 - k)})`; ctx.lineWidth = 8 * u;
+    ctx.beginPath(); ctx.roundRect(-bw / 2 - k * 30 * u, by - k * 30 * u, bw + k * 60 * u, bh + k * 60 * u, bh / 2 + k * 30 * u); ctx.stroke();
+  }
+  // الإيد: بتيجي من تحت على الشمال، تدوس، وترجع شوية
+  if (age >= 0.45 && age < SUB_SECS - 0.3) {
+    const tx = bw * 0.18, ty = by + bh * 0.7;
+    const m = easeOut((age - 0.45) / 0.8), back = age > 1.75 ? easeOut((age - 1.75) / 0.6) : 0;
+    const hx = tx + (1 - m) * cw * 0.45 + back * 40 * u, hy = ty + (1 - m) * ch * 0.5 + back * 50 * u;
+    const hs = (age >= 1.3 && age < 1.6 ? 0.86 : 1) * 96 * u;
+    ctx.font = `${Math.round(hs)}px sans-serif`; ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.direction = 'ltr';
+    ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 10 * u;
+    ctx.fillText('👆', hx - hs * 0.3, hy - hs * 0.05);
   }
   ctx.restore();
 }
