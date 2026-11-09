@@ -5565,10 +5565,48 @@ function renderRefCands(rc) {
   $('#ref-items-actions').hidden = !refCands.some(c => !['hadith', 'unknown'].includes(c.kind));
 }
 
+// ريل فيسبوك ← البرنامج بينزّله عن طريق «رابط الوسيط» (للفيديوهات العامة بس) ← نفس الاستخراج من ملف
+async function fbExtract(url) {
+  const st = $('#ref-extract-status');
+  if (!LLM.canReadMedia()) { st.textContent = '🔑 محتاج مفتاح Gemini (مجاني): ⚙️ الإعدادات ← ✨ مساعد الكتابة (Gemini) أو 🔊 صوت Gemini'; return; }
+  const { proxyUrl } = getSettings();
+  if (!proxyUrl) { st.textContent = 'فيسبوك مش بيسمح لـ Gemini يفتح الريلز. عشان البرنامج ينزّل الريل بنفسه محتاج «رابط الوسيط» (⚙️ الإعدادات ← 🌐). أو نزّل الريل بأي موقع تحميل وارفعه بـ «📁 من ملف فيديو».'; return; }
+  const P = u => `${proxyUrl.replace(/\/+$/, '')}/?url=${encodeURIComponent(u)}`;
+  const btn = $('#ref-extract');
+  btn.disabled = true;
+  try {
+    st.textContent = '⏳ بيدوّر على الريل في فيسبوك…';
+    let id = fbIdFrom(url);
+    if (!id) { const r = await fetch(P(url)); id = fbIdFrom(r.headers.get('x-final-url') || '') || fbIdFrom(await r.text().catch(() => '')); }
+    if (!id) throw new Error('مقدرتش أعرف رقم الريل من اللينك — افتحه على فيسبوك من الكمبيوتر وانسخ اللينك اللي فيه /reel/ ورقم.');
+    const pages = [`https://www.facebook.com/reel/${id}`, `https://www.facebook.com/watch/?v=${id}`, fbEmbedSrc(`https://www.facebook.com/watch/?v=${id}`)];
+    let video = '';
+    for (const pg of pages) {
+      const html = await (await fetch(P(pg))).text().catch(() => '');
+      for (const k of ['browser_native_sd_url', 'playable_url', 'sd_src', 'browser_native_hd_url', 'playable_url_quality_hd', 'hd_src']) {
+        const m = new RegExp(`"${k}"\\s*:\\s*"([^"]+)"`).exec(html);
+        if (m) { try { video = JSON.parse(`"${m[1]}"`); } catch { video = m[1].replace(/\\\//g, '/'); } break; }
+      }
+      if (video) break;
+    }
+    if (!video) throw new Error('فيسبوك ماادّاش الفيديو — غالبًا الريل مش «عام»، أو فيسبوك طالب تسجيل دخول. نزّله بأي موقع تحميل وارفعه بـ «📁 من ملف فيديو».');
+    st.textContent = '⏳ بينزّل الريل…';
+    const r = await fetch(P(video));
+    if (!r.ok) throw new Error(`تحميل الريل فشل (${r.status}) — لو الوسيط قديم، حدّث كوده من ⚙️ الإعدادات ← 📋 انسخ كود الوسيط.`);
+    const blob = await r.blob();
+    if (blob.size < 20000) throw new Error('الملف اللي رجع صغير أوي — فيسبوك رفض. نزّله وارفعه بـ «📁 من ملف فيديو».');
+    btn.disabled = false;
+    await refExtract({ file: new File([blob], `facebook_${id}.mp4`, { type: 'video/mp4' }) });
+  } catch (e) {
+    st.textContent = '⚠️ ' + e.message;
+  } finally { btn.disabled = false; }
+}
+
 function setupRefExtract() {
   $('#ref-extract').onclick = () => {
     const url = $('#ref-url').value.trim();
-    if (!/youtu\.?be/.test(url)) { $('#ref-extract-status').textContent = 'الصق لينك يوتيوب فوق. لتيك توك وإنستجرام وفيسبوك: احفظ الفيديو وارفعه بـ «📁 من ملف فيديو».'; return; }
+    if (/facebook\.com|fb\.watch/.test(url)) { fbExtract(url); return; }
+    if (!/youtu\.?be/.test(url)) { $('#ref-extract-status').textContent = 'الصق لينك يوتيوب أو فيسبوك فوق. لتيك توك وإنستجرام: احفظ الفيديو وارفعه بـ «📁 من ملف فيديو».'; return; }
     refExtract({ youtube: url });
   };
   $('#ref-extract-file').onchange = () => {

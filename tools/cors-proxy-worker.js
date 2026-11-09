@@ -18,7 +18,7 @@ const ALLOWED_HOSTS = [
   'cdn.freesound.org',
 ];
 // مواقع الصور والفيديوهات: الدومين نفسه وأي دومين فرعي منه (زي ar.pinterest.com و i.pinimg.com)
-const ALLOWED_SUFFIXES = ['pinterest.com', 'pin.it', 'pinimg.com', 'mixkit.co', 'coverr.co', 'pexels.com', 'pixabay.com', 'facebook.com', 'fb.watch'];
+const ALLOWED_SUFFIXES = ['pinterest.com', 'pin.it', 'pinimg.com', 'mixkit.co', 'coverr.co', 'pexels.com', 'pixabay.com', 'facebook.com', 'fb.watch', 'fbcdn.net'];
 const allowed = h => ALLOWED_HOSTS.includes(h) || ALLOWED_SUFFIXES.some(s => h === s || h.endsWith('.' + s));
 // بعض المواقع (زي Pinterest) بترجع صفحة ناقصة للبرامج، فبنطلب زي المتصفح العادي
 const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
