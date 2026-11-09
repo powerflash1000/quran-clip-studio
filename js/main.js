@@ -3263,6 +3263,27 @@ function setupTemplates() {
 // ===== الإعدادات =====
 function setupSettings() {
   const dlg = $('#dlg-settings');
+  // 🌐 الوسيط: نسخ كوده (من نفس الموقع) وتجربته
+  $('#proxy-copy-code').onclick = async e => {
+    try {
+      const code = await (await fetch('tools/cors-proxy-worker.js', { cache: 'no-store' })).text();
+      await navigator.clipboard.writeText(code);
+      e.target.textContent = '✅ اتنسخ — الصقه في Cloudflare';
+    } catch { window.open('https://raw.githubusercontent.com/powerflash1000/quran-clip-studio/main/tools/cors-proxy-worker.js', '_blank', 'noopener'); }
+    setTimeout(() => { e.target.textContent = '📋 انسخ كود الوسيط'; }, 2500);
+  };
+  $('#proxy-test').onclick = async e => {
+    const base = $('#set-proxy').value.trim().replace(/\/+$/, '');
+    if (!base) { status('حط لينك الوسيط في الخانة الأول', null, true); return; }
+    e.target.disabled = true;
+    try {
+      const r = await fetch(`${base}/?url=${encodeURIComponent('https://www.pinterest.com/')}`);
+      const ok = r.ok || r.status === 403 && (await r.text()).includes('host not allowed') ? r.ok : false;
+      status(ok ? (r.headers.get('x-final-url') ? '✅ الوسيط شغال وبنسخته الجديدة (بيدعم Pinterest وفيسبوك)' : '⚠️ الوسيط شغال بس بنسخة قديمة — انسخ الكود الجديد وحدّثه في Cloudflare')
+        : '⚠️ الوسيط ردّ بس رافض Pinterest — يبقى بنسخة قديمة. انسخ الكود الجديد وحدّثه في Cloudflare', null, !ok);
+    } catch { status('❌ مقدرتش أوصل للوسيط — اتأكد من اللينك (آخره workers.dev) وإنك عملت Deploy', null, true); }
+    e.target.disabled = false;
+  };
   $('#btn-settings').onclick = () => {
     const s = getSettings();
     $('#set-pexels').value = s.pexelsKey;

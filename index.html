@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261109b">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261109c">
 </head>
 <body>
   <header class="topbar">
@@ -498,7 +498,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261109b</div>
+    <div class="muted" id="app-version">الإصدار 20261109c</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -523,6 +523,12 @@
       <label>رابط الوسيط (اختياري)
         <input type="url" id="set-proxy" dir="ltr" placeholder="https://quran-proxy.yourname.workers.dev">
       </label>
+      <div class="btn-row">
+        <a class="btn" href="https://dash.cloudflare.com/?to=/:account/workers-and-pages" target="_blank" rel="noopener">↗ افتح Cloudflare Workers</a>
+        <button class="btn" id="proxy-copy-code" type="button">📋 انسخ كود الوسيط</button>
+        <button class="btn ghost" id="proxy-test" type="button">🧪 جرّب الوسيط</button>
+      </div>
+      <p class="hint">أول مرة: Cloudflare ← <b>Create</b> ← <b>Hello World</b> ← Deploy ← <b>Edit code</b> ← امسح اللي فيه والصق الكود ← <b>Deploy</b> ← انسخ لينك الـ Worker (آخره <code>workers.dev</code>) وحطه في الخانة فوق. لو عامله قبل كده: افتحه من القايمة ← <b>Edit code</b> ← الصق الكود الجديد ← <b>Deploy</b>.</p>
       <label>مفتاح Freesound (مجاني — لأصوات الخلفية)
         <input type="text" id="set-freesound" dir="ltr" autocomplete="off">
       </label>
@@ -1470,6 +1476,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261109b"></script>
+  <script type="module" src="js/main.js?v=20261109c"></script>
 </body>
 </html>
