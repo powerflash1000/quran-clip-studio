@@ -16,6 +16,7 @@ import { THUMB_SIZES, THUMB_STYLES, drawThumb } from './thumbs.js';
 import * as BR from './brand.js';
 import { SOURCES, STATUS } from './sources.js';
 import * as STY from './stories.js';
+import { pinnedOptions, withSource } from './pinned.js';
 import * as CP from './competitors.js';
 import * as FX from './livefx.js';
 import { OBS } from './obs.js';
@@ -3445,6 +3446,7 @@ async function refreshPublish(force = false) {
 }
 
 function renderPublish() {
+  renderPinned();
   document.querySelectorAll('#pub-tabs .tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.p === pub.platform)));
   const p = PLATFORMS[pub.platform];
   const d = pub.data?.[pub.platform] || {};
@@ -3460,6 +3462,23 @@ function renderPublish() {
   }
   $('#pub-open').href = PLATFORM_URLS[pub.platform];
   $('#pub-open').textContent = `↗ افتح ${p.name}`;
+}
+
+// 📌 التعليق المثبت: بيتغيّر مع محتوى الريل، و🔁 بيجيب اقتراح تاني
+const pin = { opts: [], i: 0, sig: '' };
+function renderPinned(force = false) {
+  const sig = JSON.stringify(state.blocks.map(b => [b.type, b.surah, b.from, b.to, (b.text || '').slice(0, 60)]));
+  if (force || sig !== pin.sig) { pin.opts = pinnedOptions(state.blocks); pin.i = 0; pin.sig = sig; }
+  const o = pin.opts[pin.i % pin.opts.length];
+  if (!o) return;
+  const el = $('#pin-text');
+  if (document.activeElement !== el) el.value = $('#pin-src').checked ? withSource(o) : o.text;
+  $('#pin-why').textContent = `• ${o.why} — ${pin.i % pin.opts.length + 1} من ${pin.opts.length}`;
+}
+function setupPinned() {
+  $('#pin-next').onclick = () => { pin.i++; renderPinned(); };
+  $('#pin-src').onchange = () => renderPinned();
+  $('#pin-copy').onclick = e => copyText($('#pin-text').value, e.currentTarget);
 }
 
 function updateCount(f, max) {
@@ -5962,6 +5981,7 @@ async function init() {
   setupTafsir();
   setupSources();
   setupStories();
+  setupPinned();
   document.querySelectorAll('[data-preset]').forEach(btn => { btn.onclick = () => applyPreset(btn.dataset.preset); });
   $('#btn-play').onclick = play;
   $('#btn-stop').onclick = stop;
