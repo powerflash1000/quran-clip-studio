@@ -10,7 +10,7 @@ export const stamp = t => {
   return h ? `${h}:${p(m)}:${p(s)}` : `${p(m)}:${p(s)}`;
 };
 const firstWords = (s, a, n = 5) => {
-  const w = Q.ayahText(s, a).split(/\s+/).filter(x => x && !/^[ۖ-ۭ]+$/.test(x));
+  const w = Q.ayahText(s, a).replace(/[\u06D6-\u06DC\u06DE\u06E9]/g, '').split(/\s+/).filter(Boolean);
   return w.slice(0, n).join(' ') + (w.length > n ? '…' : '');
 };
 
