@@ -58,6 +58,25 @@ export function parseRefs(text, surahs) {
   return { ok, bad };
 }
 
+// فيسبوك: مشغّل التضمين بيشتغل أحسن مع لينك watch?v=رقم على www — لينكات الموبايل والريلز بتتحوّل له
+export const fbEmbedSrc = href => `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(href)}&show_text=false&width=560`;
+export function fbCanonical(u) {
+  const path = u.pathname, q = u.searchParams;
+  let m = path.match(/\/reels?\/(\d+)/) || path.match(/\/videos\/(?:[^/]+\/)*(\d+)/);
+  const id = m?.[1] || (/\/watch\/?$/.test(path) && /^\d+$/.test(q.get('v') || '') ? q.get('v') : null)
+    || (/video\.php|story\.php|photo\.php/.test(path) && /^\d+$/.test(q.get('v') || q.get('story_fbid') || '') ? (q.get('v') || null) : null);
+  if (id) return { kind: 'video', href: `https://www.facebook.com/watch/?v=${id}` };
+  if (u.hostname === 'fb.watch' || /^\/share\/(r|v|p)\//.test(path)) return { kind: 'share' };
+  if (/^\/(groups|stories)\//.test(path)) return { kind: 'group' };
+  return { kind: 'other' };
+}
+// رقم الفيديو من أي نص (لينك نهائي بعد التحويل، أو صفحة)
+export function fbIdFrom(text) {
+  const t = decodeURIComponent(String(text || '')).replace(/\\\//g, '/');
+  const m = t.match(/facebook\.com\/(?:reels?|[^/"'\s]+\/videos)\/(\d{6,})/) || t.match(/[?&]v=(\d{6,})/) || t.match(/"video_id":"(\d{6,})"/);
+  return m ? m[1] : null;
+}
+
 // التضمين الرسمي (Embed) — الفيديو بيفضل على منصته، ومحتاج يكون عام
 export function embedFor(link) {
   let u;
@@ -72,8 +91,13 @@ export function embedFor(link) {
     const m = u.pathname.match(/\/(reels?|p|tv)\/([\w-]+)/);
     if (m) return { platform: 'instagram', name: 'إنستجرام', src: `https://www.instagram.com/${m[1] === 'reels' ? 'reel' : m[1]}/${m[2]}/embed`, url: u.href };
   }
-  if (h === 'facebook.com' || h === 'fb.watch') {
-    return { platform: 'facebook', name: 'فيسبوك', src: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(u.href)}&show_text=false`, url: u.href };
+  if (h === 'facebook.com' || h === 'fb.watch' || h === 'mbasic.facebook.com') {
+    const fb = fbCanonical(u);
+    const base = { platform: 'facebook', name: 'فيسبوك', url: u.href };
+    if (fb.kind === 'video') return { ...base, src: fbEmbedSrc(fb.href), canon: fb.href };
+    if (fb.kind === 'share') return { ...base, src: fbEmbedSrc(u.href.replace(/\/\/(m|web|mbasic)\./, '//www.')), needsResolve: true };
+    if (fb.kind === 'group') return { ...base, error: 'ده فيديو جوه جروب أو ستوري — فيسبوك مش بيسمح بتضمينه. افتحه من فيسبوك، أو نزّله وارفعه.' };
+    return { ...base, src: fbEmbedSrc(u.href.replace(/\/\/(m|web|mbasic)\./, '//www.')) };
   }
   // Pinterest: التضمين الرسمي للـ Pin (للإلهام بس — الصور هناك ملك أصحابها)
   if (h.endsWith('pinterest.com') || h.startsWith('pinterest.') || h === 'pin.it') {

@@ -28,7 +28,7 @@ import { fetchFirst } from './net.js';
 import { bgSchedule, pickBg } from './bglist.js';
 import { saveMediaList, loadMediaList, saveLiveVideo, loadLiveVideo, deleteLiveVideo } from './mediastore.js';
 import { splitRange, chaptersText, chaptersWarnings } from './series.js';
-import { parseRefs, embedFor, surahInText } from './automation.js';
+import { parseRefs, embedFor, surahInText, fbIdFrom, fbEmbedSrc } from './automation.js';
 import * as PL from './planner.js';
 import * as ST from './stats.js';
 import { PLATFORMS, generate, getPublishSettings, setPublishSettings, canShareFile, shareFile } from './publish.js';
@@ -4651,10 +4651,36 @@ function showRef(url) {
   $('#ref-frame').hidden = false;
   $('#ref-frame').src = e.src;
   $('#ref-player').hidden = false;
-  msg.textContent = `${e.name}: لو الفيديو ما ظهرش، يبقى صاحبه قافل التضمين أو الحساب خاص — افتح الأصلي.`;
+  msg.textContent = e.platform === 'facebook'
+    ? 'فيسبوك: لو الفيديو ما ظهرش، يبقى إما الفيديو مش «عام» (Public)، أو صاحبه قافل التضمين، أو في جروب. افتح الأصلي، أو نزّله وارفعه في «استخراج من فيديو».'
+    : `${e.name}: لو الفيديو ما ظهرش، يبقى صاحبه قافل التضمين أو الحساب خاص — افتح الأصلي.`;
+  if (e.needsResolve) resolveFbShare(e);
   refs.current = e;
   const old = refs.list.find(r => r.url === e.url);
   if (old) { $('#ref-note').value = old.note || ''; $('#ref-ayat').value = old.ayat || ''; fillRecipe(old.recipe || {}); }
+}
+
+// لينكات فيسبوك المختصرة (share/fb.watch): بنفكّها عن طريق «رابط الوسيط» لرقم الفيديو، ونشغّل اللينك العادي
+async function resolveFbShare(e) {
+  const { proxyUrl } = getSettings();
+  const msg = $('#ref-msg');
+  if (!proxyUrl) {
+    msg.textContent = 'ده لينك فيسبوك مختصر (share أو fb.watch) — ساعات بيشتغل وساعات لأ. الأضمن: افتح الريل على فيسبوك ← ⋯ ← «نسخ الرابط» من الكمبيوتر (اللي فيه /reel/ ورقم)، أو اضبط «رابط الوسيط» وحدّث كوده عشان البرنامج يفكّ اللينك لوحده.';
+    return;
+  }
+  try {
+    const r = await fetch(`${proxyUrl.replace(/\/+$/, '')}/?url=${encodeURIComponent(e.url)}`);
+    const fin = r.headers.get('x-final-url') || '';
+    const id = fbIdFrom(fin) || fbIdFrom(await r.text().catch(() => ''));
+    if (refs.current !== e) return; // المستخدم فتح لينك تاني
+    if (!id) { msg.textContent = 'مقدرتش أعرف رقم الفيديو من اللينك المختصر. افتحه على فيسبوك وانسخ اللينك اللي فيه /reel/ ورقم.'; return; }
+    e.canon = `https://www.facebook.com/watch/?v=${id}`;
+    e.src = fbEmbedSrc(e.canon);
+    $('#ref-frame').src = e.src;
+    msg.textContent = `فيسبوك: فكّيت اللينك المختصر (فيديو رقم ${id}). لو لسه ما ظهرش، يبقى الفيديو مش عام أو صاحبه قافل التضمين.`;
+  } catch {
+    if (refs.current === e) msg.textContent = 'الوسيط مارجّعش اللينك — حدّث كود الوسيط من tools/cors-proxy-worker.js، أو افتح الريل وانسخ اللينك اللي فيه /reel/ ورقم.';
+  }
 }
 
 function renderRefs() {

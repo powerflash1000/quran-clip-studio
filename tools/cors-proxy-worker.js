@@ -1,5 +1,6 @@
 // وسيط CORS صغير على Cloudflare Workers (مجاني حتى 100 ألف طلب في اليوم).
-// استخدمه لو ملفات القراء أو الأحاديث مش بتتحمل، أو عشان تجيب صور وفيديوهات بلينك من Pinterest و Mixkit و Coverr.
+// استخدمه لو ملفات القراء أو الأحاديث مش بتتحمل، أو عشان تجيب صور وفيديوهات بلينك من Pinterest و Mixkit و Coverr،
+// وعشان لينكات فيسبوك المختصرة (fb.watch و facebook.com/share) تشتغل في «الفيديو المرجعي».
 // لو عامله قبل كده: افتحه تاني ← Edit code ← الصق الكود الجديد ده مكان القديم ← Deploy.
 // الطريقة: dash.cloudflare.com ← Workers & Pages ← Create ← Hello World ← Edit code
 // الصق الكود ده ← Deploy ← انسخ الرابط وحطه في «رابط الوسيط» في إعدادات البرنامج.
@@ -17,7 +18,7 @@ const ALLOWED_HOSTS = [
   'cdn.freesound.org',
 ];
 // مواقع الصور والفيديوهات: الدومين نفسه وأي دومين فرعي منه (زي ar.pinterest.com و i.pinimg.com)
-const ALLOWED_SUFFIXES = ['pinterest.com', 'pin.it', 'pinimg.com', 'mixkit.co', 'coverr.co', 'pexels.com', 'pixabay.com'];
+const ALLOWED_SUFFIXES = ['pinterest.com', 'pin.it', 'pinimg.com', 'mixkit.co', 'coverr.co', 'pexels.com', 'pixabay.com', 'facebook.com', 'fb.watch'];
 const allowed = h => ALLOWED_HOSTS.includes(h) || ALLOWED_SUFFIXES.some(s => h === s || h.endsWith('.' + s));
 // بعض المواقع (زي Pinterest) بترجع صفحة ناقصة للبرامج، فبنطلب زي المتصفح العادي
 const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
@@ -57,6 +58,9 @@ export default {
     }
     const headers = new Headers(upstream.headers);
     for (const [k, v] of Object.entries(cors)) headers.set(k, v);
+    // اللينك النهائي بعد التحويلات (للينكات المختصرة زي fb.watch و facebook.com/share)
+    headers.set('x-final-url', upstream.url || url.toString());
+    headers.set('Access-Control-Expose-Headers', 'x-final-url');
     return new Response(upstream.body, { status: upstream.status, headers });
   },
 };
