@@ -149,28 +149,78 @@ export function encodeWav({ left, right }, rate = SAMPLE_RATE) {
 }
 
 // ===== التسجيل من الميكروفون =====
+// الميكروفون المختار من ⚙️ الإعدادات (localStorage مباشرة عشان audio.js مايعتمدش على storage)
+const micId = () => { try { return JSON.parse(localStorage.getItem('qcs:settings') || '{}').micId || ''; } catch { return ''; } };
+
+// رسالة واضحة لكل سبب فشل المايك
+export function micError(e) {
+  const n = e?.name || '';
+  if (n === 'NotAllowedError' || n === 'SecurityError') return 'المتصفح مانع المايك — دوس علامة القفل 🔒 جنب عنوان الموقع ← الميكروفون ← «سماح»، وبعدين حدّث الصفحة.';
+  if (n === 'NotFoundError' || n === 'OverconstrainedError') return 'مفيش مايك متوصل (أو المايك المختار اتشال) — وصّل المايك واختاره من ⚙️ الإعدادات ← 🎙️ المايك.';
+  if (n === 'NotReadableError' || n === 'AbortError') return 'المايك مشغول في برنامج تاني (زووم، ديسكورد، واتساب ويب…) أو الويندوز قافله — اقفل البرامج دي، أو من إعدادات الويندوز ← الخصوصية ← الميكروفون اسمح للمتصفح.';
+  return 'مقدرتش أفتح المايك: ' + (e?.message || n || 'خطأ مش معروف');
+}
+
+export async function openMic() {
+  const id = micId();
+  const audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, ...(id ? { deviceId: { exact: id } } : {}) };
+  try { return await navigator.mediaDevices.getUserMedia({ audio }); }
+  catch (e) {
+    if (id && (e.name === 'NotFoundError' || e.name === 'OverconstrainedError')) return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    throw e;
+  }
+}
+
+// مقياس صوت المايك (٠–١) — بيتقرا كل شوية من الواجهة
+export function micMeter(stream) {
+  const ac = new AudioContext();
+  const an = ac.createAnalyser(); an.fftSize = 1024;
+  ac.createMediaStreamSource(stream).connect(an);
+  const d = new Float32Array(an.fftSize);
+  let peak = 0;
+  return {
+    level() { an.getFloatTimeDomainData(d); let m = 0; for (const v of d) m = Math.max(m, Math.abs(v)); peak = Math.max(peak, m); return m; },
+    get peak() { return peak; },
+    close() { ac.close().catch(() => {}); },
+  };
+}
+
 export async function startRecording() {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+  const stream = await openMic();
   const rec = new MediaRecorder(stream);
+  const meter = micMeter(stream);
+  const iv = setInterval(() => meter.level(), 100);
   const chunks = [];
   rec.ondataavailable = e => e.data.size && chunks.push(e.data);
   rec.start();
   return {
+    label: stream.getAudioTracks()[0]?.label || '',
+    level: () => meter.level(),
     stop: () => new Promise(resolve => {
       rec.onstop = async () => {
+        clearInterval(iv); meter.close();
         stream.getTracks().forEach(t => t.stop());
         const blob = new Blob(chunks, { type: rec.mimeType });
-        resolve({ blob, buffer: await decode(await blob.arrayBuffer()) });
+        const buffer = await decode(await blob.arrayBuffer());
+        let peak = 0;
+        for (let c = 0; c < buffer.numberOfChannels; c++) { const x = buffer.getChannelData(c); for (let i = 0; i < x.length; i += 4) peak = Math.max(peak, Math.abs(x[i])); }
+        resolve({ blob, buffer, peak, label: stream.getAudioTracks()[0]?.label || '' });
       };
       rec.stop();
     }),
   };
 }
 
+// تسجيل ساكت؟ (المايك الغلط متختار أو صوته مقفول)
+export const SILENT_PEAK = 0.01;
+export const silentMsg = label => `التسجيل طلع ساكت تقريبًا${label ? ` (المايك المستخدم: «${label}»)` : ''} — غالبًا المتصفح واخد مايك غلط أو صوته مقفول. اختار المايك الصح من ⚙️ الإعدادات ← 🎙️ المايك وجرّبه بزرار «اختبر».`;
+
 // قص السكوت من أول التسجيل وآخره (مع هامش صغير)
-export function trimSilence(buffer, { threshold = 0.02, pad = 0.2 } = {}) {
+export function trimSilence(buffer, { threshold = null, pad = 0.2 } = {}) {
   const ch = [];
   for (let c = 0; c < buffer.numberOfChannels; c++) ch.push(buffer.getChannelData(c));
+  // الحد بيتظبط على علو التسجيل نفسه (المايك الواطي ماكانش بيتقص صح)
+  if (threshold == null) { let pk = 0; for (const d of ch) for (let i = 0; i < d.length; i += 8) pk = Math.max(pk, Math.abs(d[i])); threshold = Math.min(0.02, Math.max(0.003, pk * 0.08)); }
   const loud = i => ch.some(d => Math.abs(d[i]) > threshold);
   let start = 0, end = buffer.length - 1;
   while (start < end && !loud(start)) start++;

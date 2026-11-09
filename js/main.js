@@ -1,6 +1,7 @@
 import * as Q from './quran.js';
 import { RECITERS, findReciter, customReciter, ayahAudioUrls } from './reciters.js';
 import { COLLECTIONS, collection, getHadith, searchHadith, extractMatn, assessGrade } from './hadith.js';
+import { openMic, micMeter, micError, SILENT_PEAK, silentMsg } from './audio.js';
 import { loadAudio, decode, buildTimeline, startRecording, trimSilence, bufferToWavBlob, sliceBuffer, enhanceVoice, ENHANCE_PRESETS, REC_FX } from './audio.js';
 import { autoMarks } from './automark.js';
 import { ASPECTS, TEXT_FONT, TEXT_FONTS, TEXT_FX, TEXT_ANIM, ensureFonts, drawBackground, drawOverlay, drawWave, textFont } from './slides.js';
@@ -1083,12 +1084,14 @@ async function flRecord() {
   flStopAudio();
   flBeep();
   await new Promise(r => setTimeout(r, 250)); // عشان الصفارة ماتتسجلش
-  try { follow.rec = await startRecording(); } catch {
-    showError(new Error('المتصفح مش سامح بالمايك — اسمح له من علامة القفل 🔒 جنب العنوان، وجرّب تاني.'));
+  try { follow.rec = await startRecording(); } catch (e) {
+    showError(new Error(micError(e)));
     return;
   }
   renderFollow();
-  flState('🔴 بيسجّل… اقرا، ولما تخلص دوس «⏹ خلصت» (أو زرار المسافة).');
+  const r = follow.rec;
+  const tick = () => { if (follow.rec !== r) return; flState(`🔴 بيسجّل… ${micBar(r.level())} اقرا، ولما تخلص دوس «⏹ خلصت» (أو زرار المسافة).`); setTimeout(tick, 150); };
+  tick();
 }
 
 async function flStop() {
@@ -1096,7 +1099,8 @@ async function flStop() {
   follow.rec = null;
   renderFollow();
   if (!r) return;
-  const { buffer } = await r.stop();
+  const { buffer, peak, label } = await r.stop();
+  if (peak < SILENT_PEAK) { flState('⚠️ ' + silentMsg(label)); renderFollow(); return; }
   const t = trimSilence(buffer);
   const old = follow.takes[follow.i];
   if (old?.url) URL.revokeObjectURL(old.url);
@@ -2501,12 +2505,12 @@ function openPrompter(text) {
     try {
       rec = await startRecording();
     } catch (e) {
-      setStatus('مقدرتش أفتح الميكروفون: ' + e.message + ' — اسمح للموقع باستخدام الميكروفون من شريط العنوان.', 'rec');
+      setStatus(micError(e), 'rec');
       show('start');
       return;
     }
     const t0 = Date.now();
-    const tick = () => setStatus(`● بيسجّل… ${((Date.now() - t0) / 1000).toFixed(0)} ث`, 'rec');
+    const tick = () => setStatus(`● بيسجّل… ${((Date.now() - t0) / 1000).toFixed(0)} ث ${rec ? micBar(rec.level()) : ''}`, 'rec');
     tick();
     timer = setInterval(tick, 500);
     el('text').scrollTop = 0;
@@ -2517,8 +2521,9 @@ function openPrompter(text) {
     clearInterval(timer);
     if (!rec) return;
     setStatus('بيجهز التسجيل…');
-    let { buffer } = await rec.stop();
+    let { buffer, peak, label } = await rec.stop();
     rec = null;
+    if (peak < SILENT_PEAK) { setStatus('⚠️ ' + silentMsg(label), 'rec'); show('start'); return; }
     if (el('trim').checked) buffer = trimSilence(buffer);
     const blob = bufferToWavBlob(buffer);
     result = { buffer, blob };
@@ -3353,7 +3358,43 @@ function setupTemplates() {
 }
 
 // ===== الإعدادات =====
+// شريط مستوى المايك
+const micBar = l => { const n = Math.min(10, Math.round(Math.sqrt(l) * 14)); return '🎙️' + '▮'.repeat(n) + '▯'.repeat(10 - n); };
+
+// 🎙️ اختيار المايك واختباره
+async function fillMics() {
+  const sel = $('#set-mic');
+  try {
+    const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput' && d.deviceId !== 'default' && d.deviceId !== 'communications');
+    const cur = getSettings().micId || '';
+    sel.innerHTML = '<option value="">المايك الافتراضي في الجهاز</option>' + devs.map((d, i) => `<option value="${d.deviceId}">${d.label || `مايك ${i + 1} (اختبر المايك عشان تظهر الأسماء)`}</option>`).join('');
+    sel.value = devs.some(d => d.deviceId === cur) ? cur : '';
+  } catch { /* المتصفح مش بيدعم */ }
+}
+function setupMic() {
+  fillMics();
+  $('#set-mic').onchange = () => setSettings({ micId: $('#set-mic').value });
+  navigator.mediaDevices?.addEventListener?.('devicechange', fillMics);
+  let live = null;
+  $('#mic-test').onclick = async () => {
+    const out = $('#mic-meter');
+    if (live) { live.stop(); return; }
+    let stream;
+    try { stream = await openMic(); } catch (e) { out.textContent = '❌ ' + micError(e); return; }
+    await fillMics(); // بعد الإذن الأسماء بتظهر
+    const m = micMeter(stream), label = stream.getAudioTracks()[0]?.label || '';
+    const t0 = Date.now();
+    let on = true;
+    live = { stop: () => { on = false; live = null; m.close(); stream.getTracks().forEach(t => t.stop()); $('#mic-test').textContent = '🎙️ اختبر المايك';
+      out.textContent = m.peak < SILENT_PEAK ? `⚠️ مفيش صوت واصل من «${label}» — جرّب مايك تاني من القايمة، أو شوف المايك مش مقفول (Mute).` : `✅ المايك «${label}» شغال.`; } };
+    $('#mic-test').textContent = '⏹ وقّف الاختبار';
+    const loop = () => { if (!on) return; out.textContent = `${micBar(m.level())} اتكلم… (${label})`; if (Date.now() - t0 > 8000) live.stop(); else requestAnimationFrame(loop); };
+    loop();
+  };
+}
+
 function setupSettings() {
+  setupMic();
   const dlg = $('#dlg-settings');
   // 🌐 الوسيط: نسخ كوده (من نفس الموقع) وتجربته
   $('#proxy-copy-code').onclick = async e => {
