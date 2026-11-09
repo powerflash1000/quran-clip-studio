@@ -31,6 +31,7 @@ import { splitRange, chaptersText, chaptersWarnings } from './series.js';
 import { parseRefs, embedFor, surahInText, fbIdFrom, fbEmbedSrc } from './automation.js';
 import * as PL from './planner.js';
 import * as ST from './stats.js';
+import { youtubeChapters } from './chapters.js';
 import { PLATFORMS, generate, getPublishSettings, setPublishSettings, canShareFile, shareFile } from './publish.js';
 
 const $ = s => document.querySelector(s);
@@ -3539,7 +3540,31 @@ async function copyText(text, btn) {
   if (btn) { const o = btn.textContent; btn.textContent = '✅'; setTimeout(() => { btn.textContent = o; }, 1200); }
 }
 
+// ⏱️ فصول يوتيوب: بيبني الفيديو (الصوت متخزن) عشان يعرف وقت كل آية، ويحط الفصول آخر وصف يوتيوب
+async function addChapters(btn) {
+  if (state.busy) return;
+  try {
+    setBusy(true);
+    const project = await buildProject();
+    status('');
+    const r = youtubeChapters(project.segments, project.timeline.duration);
+    if (r.error) { alert(r.error + (r.lines?.length ? '\n\n' + r.lines.join('\n') : '')); return; }
+    pub.platform = 'youtube'; save('pubPlatform', 'youtube');
+    if (!pub.data?.youtube) await refreshPublish(true);
+    const d = pub.data.youtube;
+    d.caption = (d.caption || '').replace(/\n*⏱️ الفصول\n[\s\S]*$/, '').trimEnd() + '\n\n' + r.text;
+    pub.edited = true;
+    renderPublish();
+    await copyText(r.text, btn);
+  } catch (e) {
+    showError(e);
+  } finally {
+    setBusy(false);
+  }
+}
+
 function setupPublish() {
+  $('#pub-chapters').onclick = e => addChapters(e.currentTarget);
   $('#pub-tabs').innerHTML = Object.entries(PLATFORMS)
     .map(([id, p]) => `<button type="button" class="tab" role="tab" data-p="${id}">${p.name}</button>`).join('');
   $('#pub-tabs').onclick = e => {
