@@ -823,6 +823,7 @@ const stripMarks = t => t.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06E
 // بنقارن طول الملف بسرعة التلاوة المعتادة (≈ 0.28 ث لكل حرف) للآيات المختارة وللسورة كلها
 const alignCache = new Map();
 function wholeSurahFile(b, buffer) {
+  if (b.rec?.whole && b.rec.wholeSurah === b.surah) return true; // اتعرف قبل كده إن الملف سورة كاملة
   const s0 = Number(b.rec?.start) || 0, e0 = Number(b.rec?.end) || buffer.duration;
   if (s0 > 1 || e0 < buffer.duration - 1) return false; // انت محدد مقطع بنفسك
   const n = Q.surah(b.surah).count;
@@ -892,6 +893,10 @@ function wireRecitation(li, b) {
     el('recMarks').textContent = n
       ? `علّمت ${Q.arabicNum(Math.min(n, need))} من ${Q.arabicNum(need)}${n >= need ? ' ✅' : ''}`
       : 'من غير توقيتات: هيتقسم حسب طول الآيات';
+    const range = b.to > b.from ? `الآيات ${Q.arabicNum(b.from)}–${Q.arabicNum(b.to)}` : `الآية ${Q.arabicNum(b.from)}`;
+    el('recSummary').textContent = b.rec.whole
+      ? `✅ ${range} من سورة ${Q.surah(b.surah).ar} — لقيتها في الملف (${fmtDur(b.rec.start || 0)} → ${fmtDur(b.rec.end || 0)}). غيّر رقم الآية فوق وهتتجاب على طول.`
+      : `🎙️ الملف ${fmtDur(au.buffer.duration)} — اكتب رقم الآية فوق ودوس «🪄 دوّر على الآيات».`;
   };
   const changed = () => { sync(); persist(); refreshPublish(true); refreshPreview(); };
   f('recFile').onchange = async () => {
@@ -907,8 +912,11 @@ function wireRecitation(li, b) {
       const guess = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').replace(/\d+/g, '').trim();
       b.rec = { name: b.rec?.name || '', file: file.name, start: 0, end: buffer.duration, marks: [] };
       if (!b.rec.name && /[\u0600-\u06FF]/.test(guess)) b.rec.name = guess;
-      status(`✅ اتحمّلت التلاوة (${fmtDur(buffer.duration)}). حدد البداية والنهاية.`);
+      status(`✅ اتحمّلت التلاوة (${fmtDur(buffer.duration)}).`);
       changed();
+      // سورة كاملة؟ نلاقي الآيات على طول من غير ما تدوس حاجة
+      if (wholeSurahFile(b, buffer)) setTimeout(() => act('recAuto').click(), 60);
+      else status(`✅ اتحمّلت التلاوة (${fmtDur(buffer.duration)}). شكلها مش السورة كاملة — حدد البداية والنهاية من «ضبط يدوي».`);
       if (!b.rec.name) f('recName').focus();
     } catch {
       showError(new Error('الملف ده مش ملف صوت مدعوم'));
@@ -921,14 +929,15 @@ function wireRecitation(li, b) {
       const au = hadithAudio.get(b.id);
       if (!b.rec || !au) return;
       b.rec[k] = Math.min(au.buffer.duration, Math.max(0, Number(f(name).value) || 0));
-      delete b.rec.bas;
+      delete b.rec.bas; delete b.rec.whole;
       changed();
     };
   };
   num('start', 'recStart');
   num('end', 'recEnd');
-  act('recSetStart').onclick = () => { if (!b.rec) return; b.rec.start = player.currentTime; b.rec.marks = []; delete b.rec.bas; changed(); };
-  act('recSetEnd').onclick = () => { if (!b.rec) return; b.rec.end = player.currentTime; changed(); };
+  act('recSetStart').onclick = () => { if (!b.rec) return; b.rec.start = player.currentTime; b.rec.marks = []; delete b.rec.bas; delete b.rec.whole; changed(); };
+  act('recSetEnd').onclick = () => { if (!b.rec) return; b.rec.end = player.currentTime; delete b.rec.whole; changed(); };
+  act('recPlayRange2').onclick = () => act('recPlayRange').click();
   act('recPlayRange').onclick = () => {
     if (!b.rec) return;
     player.currentTime = b.rec.start || 0;
@@ -992,7 +1001,7 @@ function wireRecitation(li, b) {
     const marks = [];
     if (withB && from === 1) marks.push(starts[0]);
     for (let a = from + 1; a <= to; a++) marks.push(starts[a - 1]);
-    Object.assign(b.rec, { start: +start.toFixed(2), end: +end.toFixed(2), marks });
+    Object.assign(b.rec, { start: +start.toFixed(2), end: +end.toFixed(2), marks, whole: true, wholeSurah: b.surah });
     // البسملة مع آيات من نص السورة: بناخدها من أول الملف (قبل الآية الأولى)
     if (b.basmala && al.lead && from > 1) b.rec.bas = [0, +starts[0].toFixed(2)]; else delete b.rec.bas;
     changed();
@@ -1008,7 +1017,15 @@ function wireRecitation(li, b) {
     changed();
   };
   sync();
-  return sync;
+  // لما تغيّر رقم الآية: لو الملف سورة كاملة اتحللت، بنجيب الآيات الجديدة على طول (التحليل محفوظ)
+  let t = null;
+  return () => {
+    sync();
+    const au = hadithAudio.get(b.id);
+    if (!b.rec?.whole || !au || b.rec.wholeSurah !== b.surah) return;
+    clearTimeout(t);
+    t = setTimeout(() => { try { autoWholeSurah(b, au.buffer); } catch (e) { showError(e); } }, 250);
+  };
 }
 
 // ===== 🎧 اقرا ورا الشيخ: صوت القارئ للتعلّم بس، والفيديو بيطلع بصوتك أنت =====

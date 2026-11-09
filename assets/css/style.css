@@ -456,3 +456,4 @@ dialog.ctrl-panel { position: fixed; inset: auto auto 12px 12px; margin: 0; widt
 .st-para { display: flex; gap: .5rem; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; padding: .45rem .6rem; background: var(--field); line-height: 1.9; cursor: pointer; }
 .st-para.sel { border-color: var(--primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 30%, transparent); }
 .st-para input { margin-top: .5rem; }
+.rec-summary { margin: .4rem 0; padding: .5rem .7rem; border-radius: 10px; background: color-mix(in srgb, var(--accent, #d4af37) 12%, transparent); font-weight: 600; }
