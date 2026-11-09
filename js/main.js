@@ -818,6 +818,27 @@ function quranBlockEl(b, i) {
 // ===== تلاوة من ملف (قارئ مش في القايمة) =====
 const stripMarks = t => t.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\s]/g, '');
 
+// تلاوة مرفوعة: الملف سورة كاملة ولا الآيات المختارة بس؟ لو البداية والنهاية مش متحددين،
+// بنقارن طول الملف بسرعة التلاوة المعتادة (≈ 0.28 ث لكل حرف) للآيات المختارة وللسورة كلها
+const alignCache = new Map();
+function wholeSurahFile(b, buffer) {
+  const s0 = Number(b.rec?.start) || 0, e0 = Number(b.rec?.end) || buffer.duration;
+  if (s0 > 1 || e0 < buffer.duration - 1) return false; // انت محدد مقطع بنفسك
+  const n = Q.surah(b.surah).count;
+  const chars = (f, t) => { let c = 0; for (let a = f; a <= t; a++) c += stripMarks(Q.ayahText(b.surah, a)).length; return c; };
+  const sel = chars(b.from, b.to || b.from), all = chars(1, n);
+  if (sel >= all * 0.9) return true;
+  const d = r => Math.abs(Math.log(buffer.duration / r / 0.28));
+  return d(all) < d(sel);
+}
+
+function toMono(buf) {
+  const out = new AudioBuffer({ length: buf.length, numberOfChannels: 1, sampleRate: buf.sampleRate });
+  const o = out.getChannelData(0), n = buf.numberOfChannels;
+  for (let c = 0; c < n; c++) { const d = buf.getChannelData(c); for (let i = 0; i < d.length; i++) o[i] += d[i] / n; }
+  return out;
+}
+
 function recUnits(b, from = b.from, to = b.to, withBasmala = b.basmala && b.surah !== 1 && b.surah !== 9) {
   const u = withBasmala ? [Q.BASMALA] : [];
   for (let a = from; a <= to; a++) u.push(Q.ayahText(b.surah, a));
@@ -826,6 +847,8 @@ function recUnits(b, from = b.from, to = b.to, withBasmala = b.basmala && b.sura
 
 // بيقسم المقطع [start, end] على الآيات: بتوقيتاتك لو علّمتها، وإلا حسب طول كل آية
 function recPieces(b, buffer, from, to, withBasmala) {
+  // سورة كاملة والآيات من النص: البسملة بتتاخد من أول الملف، والآيات من مكانها
+  if (withBasmala && Array.isArray(b.rec.bas)) return [sliceBuffer(buffer, b.rec.bas[0], b.rec.bas[1]), ...recPieces(b, buffer, from, to, false)];
   const units = recUnits(b, from, to, withBasmala);
   const start = Math.max(0, Number(b.rec.start) || 0);
   const end = Math.min(buffer.duration, Number(b.rec.end) > start ? Number(b.rec.end) : buffer.duration);
@@ -875,8 +898,10 @@ function wireRecitation(li, b) {
     f('recFile').value = '';
     if (!file) return;
     try {
-      status('بيقرا ملف التلاوة…');
-      const buffer = await decode(await file.arrayBuffer());
+      status('⏳ بيقرا ملف التلاوة… (السورة الكاملة بتاخد كام ثانية)');
+      let buffer = await decode(await file.arrayBuffer());
+      // ملف طويل (سورة كاملة): نخليه قناة واحدة — التلاوة مش محتاجة ستيريو، والذاكرة بتقل للنص
+      if (buffer.duration > 600 && buffer.numberOfChannels > 1) buffer = toMono(buffer);
       setHadithAudio(b, buffer, file.name, file);
       const guess = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').replace(/\d+/g, '').trim();
       b.rec = { name: b.rec?.name || '', file: file.name, start: 0, end: buffer.duration, marks: [] };
@@ -895,12 +920,13 @@ function wireRecitation(li, b) {
       const au = hadithAudio.get(b.id);
       if (!b.rec || !au) return;
       b.rec[k] = Math.min(au.buffer.duration, Math.max(0, Number(f(name).value) || 0));
+      delete b.rec.bas;
       changed();
     };
   };
   num('start', 'recStart');
   num('end', 'recEnd');
-  act('recSetStart').onclick = () => { if (!b.rec) return; b.rec.start = player.currentTime; b.rec.marks = []; changed(); };
+  act('recSetStart').onclick = () => { if (!b.rec) return; b.rec.start = player.currentTime; b.rec.marks = []; delete b.rec.bas; changed(); };
   act('recSetEnd').onclick = () => { if (!b.rec) return; b.rec.end = player.currentTime; changed(); };
   act('recPlayRange').onclick = () => {
     if (!b.rec) return;
@@ -920,19 +946,58 @@ function wireRecitation(li, b) {
     const au = hadithAudio.get(b.id);
     if (!b.rec || !au) return;
     const units = recUnits(b);
-    if (units.length < 2) { status('آية واحدة بس — مش محتاجة توقيتات'); return; }
-    const start = Math.max(0, Number(b.rec.start) || 0);
-    const end = Math.min(au.buffer.duration, Number(b.rec.end) > start ? Number(b.rec.end) : au.buffer.duration);
-    const { marks, pauses } = autoMarks(au.buffer, start, end, units.map(t => stripMarks(t).length + 6));
-    if (!marks) {
-      showError(new Error(`لقيت ${Q.arabicNum(pauses)} وقفة بس، والمطلوب ${Q.arabicNum(units.length - 1)}. اتأكد إن البداية والنهاية مظبوطين على الآيات اللي اخترتها، أو علّم بإيدك.`));
-      return;
-    }
-    b.rec.marks = marks;
-    changed();
-    status(`🪄 حدّدت ${Q.arabicNum(marks.length)} بداية آية — اسمع المعاينة، ولو فيه آية مش في مكانها امسح وعلّم بإيدك`);
+    if (units.length < 2 && !wholeSurahFile(b, au.buffer)) { status('آية واحدة بس — مش محتاجة توقيتات'); return; }
+    const btn = act('recAuto');
+    btn.disabled = true;
+    status('⏳ بيسمع التلاوة ويدوّر على الآيات…');
+    // نسيب الصفحة ترسم الرسالة الأول (التحليل بياخد ثانية أو اتنين في السورة الطويلة)
+    setTimeout(() => {
+      try {
+        if (wholeSurahFile(b, au.buffer)) return autoWholeSurah(b, au.buffer);
+        const start = Math.max(0, Number(b.rec.start) || 0);
+        const end = Math.min(au.buffer.duration, Number(b.rec.end) > start ? Number(b.rec.end) : au.buffer.duration);
+        const { marks, pauses } = autoMarks(au.buffer, start, end, units.map(t => stripMarks(t).length + 6));
+        if (!marks) {
+          showError(new Error(`لقيت ${Q.arabicNum(pauses)} وقفة بس، والمطلوب ${Q.arabicNum(units.length - 1)}. اتأكد إن البداية والنهاية مظبوطين على الآيات اللي اخترتها، أو علّم بإيدك.`));
+          return;
+        }
+        b.rec.marks = marks;
+        changed();
+        status(`🪄 حدّدت ${Q.arabicNum(marks.length)} بداية آية — اسمع المعاينة، ولو فيه آية مش في مكانها امسح وعلّم بإيدك`);
+      } catch (e) { showError(e); } finally { btn.disabled = false; }
+    }, 40);
   };
-  act('recMarksClear').onclick = () => { if (!b.rec) return; b.rec.marks = []; changed(); };
+  // الملف سورة كاملة: بنلاقي كل آيات السورة، ونطلّع منها الآيات اللي انت مختارها (البداية والنهاية والتوقيتات)
+  const autoWholeSurah = (b, buffer) => {
+    const key = `${b.surah}|${b.rec.file}|${buffer.duration.toFixed(2)}`;
+    let al = alignCache.get(key);
+    if (!al) {
+      const n = Q.surah(b.surah).count;
+      const lead = b.surah !== 1 && b.surah !== 9;
+      const w = [lead ? stripMarks(Q.BASMALA).length + 30 : 1];
+      for (let a = 1; a <= n; a++) w.push(stripMarks(Q.ayahText(b.surah, a)).length + 6);
+      const r = autoMarks(buffer, 0, buffer.duration, w, { leadFree: true });
+      if (!r.marks) throw new Error(`لقيت ${Q.arabicNum(r.pauses)} وقفة بس والسورة ${Q.arabicNum(n)} آية — يمكن الملف مش السورة كاملة؟ حدد البداية والنهاية بإيدك على الآيات اللي عايزها.`);
+      // r.marks[k-1] = بداية الآية k (k من 1)، وr.ends[k-1] = آخر صوت قبلها
+      al = { starts: r.marks, ends: r.ends, n, lead };
+      alignCache.set(key, al);
+    }
+    const { starts, ends, n } = al;
+    const from = Math.max(1, b.from), to = Math.min(n, b.to || b.from);
+    // البسملة مع أول السورة: من أول الملف (فيه البسملة وساعات الاستعاذة)
+    const withB = b.basmala && al.lead && from === 1;
+    const start = withB ? 0 : starts[from - 1];
+    const end = to < n ? Math.min(buffer.duration, ends[to] + 0.25) : buffer.duration;
+    const marks = [];
+    if (withB && from === 1) marks.push(starts[0]);
+    for (let a = from + 1; a <= to; a++) marks.push(starts[a - 1]);
+    Object.assign(b.rec, { start: +start.toFixed(2), end: +end.toFixed(2), marks });
+    // البسملة مع آيات من نص السورة: بناخدها من أول الملف (قبل الآية الأولى)
+    if (b.basmala && al.lead && from > 1) b.rec.bas = [0, +starts[0].toFixed(2)]; else delete b.rec.bas;
+    changed();
+    status(`🪄 لقيت آيات السورة كلها (${Q.arabicNum(n)} آية)، وحددت الآيات ${Q.arabicNum(from)}–${Q.arabicNum(to)}: من ${fmtDur(start)} لـ ${fmtDur(end)}. اسمع «▶ اسمع المقطع» — ولو غيّرت الآيات دوس 🪄 تاني (هيبقى فوري).`);
+  };
+  act('recMarksClear').onclick = () => { if (!b.rec) return; b.rec.marks = []; delete b.rec.bas; changed(); };
   act('recClear').onclick = () => {
     player.pause();
     delete b.rec;
