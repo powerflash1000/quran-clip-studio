@@ -3637,6 +3637,8 @@ function renderPublish() {
     if (document.activeElement !== el) el.value = d[f] || '';
     updateCount(f, limits[f]);
   }
+  $('[data-pf=sound]').hidden = !d.sound;
+  $('#pub-sound').value = d.sound || '';
   $('#pub-open').href = PLATFORM_URLS[pub.platform];
   $('#pub-open').textContent = `↗ افتح ${p.name}`;
 }
@@ -3730,6 +3732,7 @@ function setupPublish() {
     copyText(parts.join('\n\n'), $('#pub-copy-all'));
   };
   $('#pub-regen').onclick = () => refreshPublish(true);
+  $('#pub-sound-copy').onclick = e => copyText($('#pub-sound').value, e.currentTarget);
   $('#pub-share').onclick = async () => {
     if (!pub.lastFile) return;
     const d = pub.data?.[pub.platform] || {};

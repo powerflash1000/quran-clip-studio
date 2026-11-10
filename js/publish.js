@@ -16,13 +16,18 @@ export const PLATFORMS = {
 const DEFAULTS = {
   signature: '',
   extraHashtags: '',
-  includeText: true,
+  includeText: false,        // نص الآيات كامل في الوصف (السطر الأول فيه مقتطف دايمًا)
   includeTranslation: true,
-  includeCredits: true,
+  includeCredits: false,     // المصادر واسم القارئ — مقفولة: الوصف عام ومن غير تكرار
 };
 
-export const getPublishSettings = () => ({ ...DEFAULTS, ...load('publish', {}) });
-export const setPublishSettings = s => save('publish', { ...getPublishSettings(), ...s });
+// الإعدادات القديمة كانت بتكتب المصادر والنص كامل؛ النسخة ٢ بتبدأ نضيفة مرة واحدة
+export const getPublishSettings = () => {
+  const saved = load('publish', {});
+  if (!saved.v) { Object.assign(saved, { includeCredits: false, includeText: false, v: 2 }); save('publish', saved); }
+  return { ...DEFAULTS, ...saved };
+};
+export const setPublishSettings = s => save('publish', { ...getPublishSettings(), ...s, v: 2 });
 
 // أسماء مشهورة لبعض المقاطع
 const FAMOUS = [
@@ -32,64 +37,110 @@ const FAMOUS = [
 ];
 
 const tag = t => '#' + String(t).replace(/\(.*?\)/g, '').trim().replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_+|_+$/g, '');
-const reciterShort = r => r.name.replace(/\s*\(.*?\)\s*/g, '').replace(/^مخصص:\s*/, '').trim();
 const N = Q.arabicNum;
+const plain = t => String(t || '').replace(/[ؐ-ًؚ-ٰٟۖ-ۭـ]/g, '').replace(/[ٱأإآ]/g, 'ا').replace(/ى/g, 'ي');
+const words = (t, n) => { const w = String(t).replace(/[ۖ-ۜ۞۩]/g, '').split(/\s+/).filter(Boolean); return w.slice(0, n).join(' ') + (w.length > n ? '…' : ''); };
 
-function rangeLabel(b) {
-  return b.from === b.to ? `الآية ${N(b.from)}` : `الآيات ${N(b.from)}–${N(b.to)}`;
+// موضوع المقطع من كلمات الآيات نفسها (من غير ذكاء اصطناعي) — أول تطابق هو الأقوى
+const TOPICS = [
+  { rx: /نبا|قصص|اذ قال|ابني ادم|فلما|قالوا يا/, name: 'قصة من القرآن', tag: 'قصص_القرآن', kw: 'قصص القرآن' },
+  { rx: /^ربنا|^رب |ربنا لا|ربنا اتنا|رب اغفر|رب اشرح/, name: 'دعاء من القرآن', tag: 'دعاء_من_القرآن', kw: 'أدعية من القرآن' },
+  { rx: /تطمئن القلوب|ذكر الله|السكينه|لا تحزن|يسرا|اليسر/, name: 'آيات الطمأنينة', tag: 'راحة_نفسية', kw: 'راحة نفسية' },
+  { rx: /الصبر|اصبروا|الصابرين|صبر/, name: 'آيات الصبر', tag: 'آيات_الصبر', kw: 'آيات عن الصبر' },
+  { rx: /غفور|يغفر|المغفره|التوبه|توبوا|رحمه|الرحيم/, name: 'آيات الرحمة والمغفرة', tag: 'رحمة_الله', kw: 'آيات الرحمة' },
+  { rx: /الجنه|جنات|الفردوس|نعيم/, name: 'آيات عن الجنة', tag: 'الجنة', kw: 'آيات عن الجنة' },
+  { rx: /القيامه|الساعه|النار|جهنم|الصور|يوم الدين/, name: 'آيات عن يوم القيامة', tag: 'يوم_القيامة', kw: 'آيات مؤثرة' },
+  { rx: /السماوات|الارض|الليل|النهار|خلق/, name: 'آيات من عظمة الخلق', tag: 'تدبر_القرآن', kw: 'تدبر القرآن' },
+];
+const topicOf = text => TOPICS.find(t => t.rx.test(plain(text).replace(/\s+/g, ' ')));
+
+// مقتطف للسطر الأول: آية قصيرة كاملة، وإلا الجملة اللي بتخلص عند علامة وقف (غالبًا خلاصة الآية
+// زي «ألا بذكر الله تطمئن القلوب»)، وإلا أول كلمات أول آية — كله من نص المصحف كما هو
+const WAQF = /[ۖ-ۛ]/;
+const clean = t => t.replace(/[ۖ-ۜ۞۩]/g, '').replace(/\s+/g, ' ').trim();
+const wc = t => clean(t).split(' ').filter(Boolean).length;
+function hookAyah(b) {
+  let short = null;
+  for (let a = b.from; a <= b.to; a++) { const t = Q.ayahText(b.surah, a); if (wc(t) >= 4 && t.length <= 60 && (!short || t.length < short.length)) short = t; }
+  if (short) return clean(short);
+  for (let a = b.from; a <= b.to; a++) {
+    const segs = Q.ayahText(b.surah, a).split(WAQF).map(clean).filter(Boolean);
+    if (segs.length > 1) { const last = segs[segs.length - 1]; if (wc(last) >= 3 && wc(last) <= 10) return last; }
+  }
+  return words(Q.ayahText(b.surah, b.from), 9);
 }
 
-function quranTitle(b, reciter, extra) {
-  const s = Q.surah(b.surah);
-  const famous = FAMOUS.find(f => f.s === b.surah && f.from === b.from && f.to === b.to);
-  const whole = b.from === 1 && b.to === s.count;
-  const what = famous ? famous.name : whole ? `سورة ${s.ar} كاملة` : `سورة ${s.ar} | ${rangeLabel(b)}`;
-  return `${what}${extra} | ${reciterShort(reciter)}`;
-}
+// دعوات للإرسال والحفظ (أقوى إشارتين) — من غير وعود ولا «اكتب آمين»
+const CTA = {
+  quran: ['ابعتها لحد محتاجها النهارده 🌿 واحفظها عشان ترجعلها', 'احفظها وارجعلها كل ما قلبك يتعب 🤍 وابعتها لحد بتحبه', 'شاركها مع حد محتاج يسمعها النهارده 🌿'],
+  dua: ['احفظ الدعاء ده وادعي بيه 🤍 وابعته لحد محتاجه', 'ابعته لحد بتحبه وادعوا لبعض 🌿'],
+  hadith: ['احفظه واعمل بيه 🤍 وابعته لحد ينتفع بيه'],
+};
+const pick = (arr, seed) => arr[Math.abs(seed) % arr.length];
 
 function clip(text, max) {
   if (text.length <= max) return text;
   return text.slice(0, Math.max(0, max - 1)).replace(/\s+\S*$/, '') + '…';
 }
 
-// يرجع { title, caption, tags } لكل منصة
+// يرجع { title, caption, tags } لكل منصة — نفس الشكل في كل مكان (النشر والسلاسل والتصدير):
+// ١) سطر يشد: مقتطف من الآية + موضوعها  ٢) كلمات البحث  ٣) دعوة للإرسال/الحفظ  ٤) هاشتاجات قليلة مرتبطة
+// من غير اسم القارئ ولا المصادر (إلا لو فعّلت «ذكر المصادر»)
 // series (اختياري): { index, total } لو المقطع جزء من سلسلة
 export async function generate(blocks, style, translationOf, series = null) {
   const ps = getPublishSettings();
   const quran = blocks.filter(b => b.type === 'quran');
-  // تلاوة مرفوعة من ملف: اسم القارئ اللي كتبه المستخدم
-  const custom = quran.find(b => b.rec?.name);
-  const reciter = custom ? { name: custom.rec.name } : findReciter(style.reciter);
   const hadith = blocks.filter(b => b.type === 'hadith');
   const zikr = blocks.filter(b => b.type === 'zikr');
+  const allText = [...quran.flatMap(b => { const t = []; for (let a = b.from; a <= b.to; a++) t.push(Q.ayahText(b.surah, a)); return t; }), ...zikr.map(z => z.text || ''), ...hadith.map(h => h.text || '')].join(' ');
+  const topic = topicOf(allText);
+  const seed = quran[0] ? quran[0].surah * 1000 + quran[0].from : (allText.length || 1);
 
-  // ===== العنوان =====
-  let title;
+  // ===== السطر الأول + العنوان =====
+  let hook, title, kind;
   if (quran.length) {
-    const extra = (quran.length > 1 ? ' وآيات أخرى' : '') + (hadith.length ? ' + حديث شريف' : '');
+    kind = 'quran';
+    const b = quran[0], s = Q.surah(b.surah);
+    const famous = FAMOUS.find(f => f.s === b.surah && f.from === b.from && f.to === b.to);
+    const whole = b.from === 1 && b.to === s.count;
+    const about = famous ? famous.name : topic ? topic.name : 'آيات تريح القلب';
+    hook = `﴿${famous ? words(Q.ayahText(b.surah, b.from), 8) : hookAyah(b)}﴾ 🤍\n${about} من سورة ${s.ar}`;
     title = series
-      ? `سورة ${Q.surah(quran[0].surah).ar} | الجزء ${N(series.index)} من ${N(series.total)} (${rangeLabel(quran[0])}) | ${reciterShort(reciter)}`
-      : quranTitle(quran[0], reciter, extra);
-  } else if (hadith.length) {
-    const h = hadith[0];
-    title = `حديث شريف | ${collection(h.col).name} ${N(h.number)}`;
+      ? `سورة ${s.ar} | الجزء ${N(series.index)} من ${N(series.total)} | ${about}`
+      : whole ? `سورة ${s.ar} كاملة | تلاوة خاشعة تريح القلب`
+        : famous ? `${famous.name} | تلاوة خاشعة تريح القلب`
+          : `﴿${words(hookAyah(b), 6)}﴾ | ${about} | سورة ${s.ar}`;
   } else if (zikr.length) {
+    kind = 'dua';
     const z = zikr[0];
-    const first = z.text.replace(/\s+/g, ' ').split(' ').slice(0, 7).join(' ');
-    title = `${z.custom ? (z.label || 'دعاء') : z.cat} | ${first}…`;
+    hook = `«${words(z.text || '', 12)}» 🤍`;
+    title = `${words(z.text || '', 8)} | ${z.custom ? (z.label || 'دعاء') : z.cat}`;
+  } else if (hadith.length) {
+    kind = 'hadith';
+    const h = hadith[0];
+    hook = `«${words(h.text || '', 14)}» 🤍`;
+    title = `${words(h.text || '', 8)} | حديث شريف`;
   } else {
-    title = 'تلاوة قرآنية';
+    kind = 'quran';
+    hook = 'آيات تريح القلب 🤍';
+    title = 'تلاوة خاشعة تريح القلب';
   }
 
-  // ===== أجزاء الوصف =====
-  const body = [];   // النصوص (الآيات والأحاديث) — أول حاجة بتتقص لو الوصف طويل
-  const info = [];   // معلومات المقطع
-  for (const b of blocks) {
-    if (b.type === 'quran') {
-      const s = Q.surah(b.surah);
-      if (ps.includeText) {
-        const ayat = [];
-        const trs = [];
+  // ===== كلمات البحث (سطر واحد) =====
+  const kw = [];
+  if (quran.length) {
+    kw.push('تلاوة خاشعة', topic?.kw || 'راحة نفسية', 'قرآن قبل النوم');
+    for (const b of quran) kw.push(`سورة ${Q.surah(b.surah).ar}`);
+  } else if (zikr.length) kw.push('دعاء', 'أذكار', topic?.kw || 'راحة نفسية');
+  else kw.push('حديث شريف', 'السنة النبوية');
+  const kwLine = [...new Set(kw)].join(' | ');
+
+  // ===== النص الكامل (اختياري) =====
+  const body = [];
+  if (ps.includeText) {
+    for (const b of blocks) {
+      if (b.type === 'quran') {
+        const ayat = [], trs = [];
         for (let a = b.from; a <= b.to; a++) {
           ayat.push(`${Q.ayahText(b.surah, a)} ${N(a)}`);
           if (ps.includeTranslation && style.showTranslation && style.translation) {
@@ -97,67 +148,51 @@ export async function generate(blocks, style, translationOf, series = null) {
           }
         }
         body.push(`﴿${ayat.join(' ')}﴾`);
-        if (trs.length) body.push(Q.tafsirInfo(style.translation) ? `📖 ${Q.tafsirInfo(style.translation).name}: ${trs.join(' ')}` : trs.join(' '));
-      }
-      info.push(`📖 سورة ${s.ar} • ${rangeLabel(b)}`);
-    } else if (b.type === 'zikr' && b.custom) {
-      // نص خاص كتبه المستخدم (دعاء أو كلام من عنده)
-      if (ps.includeText && b.text) body.push(b.text);
-      info.push(`✍️ ${b.label || 'دعاء'}${b.ref ? ` (${b.ref})` : ''}`);
-    } else if (b.type === 'zikr') {
-      if (ps.includeText && b.text) body.push(b.text);
-      info.push(`📿 ${b.cat}${b.count > 1 ? ` — يُقال ${N(b.count)} ${b.count <= 10 ? 'مرات' : 'مرة'}` : ''}${b.ref ? ` (${b.ref})` : ''}`);
-    } else {
-      const col = collection(b.col);
-      const g = assessGrade(b.col, b.grades);
-      if (ps.includeText && b.text) body.push(b.text);
-      info.push(`📚 ${col.cite} (${N(b.number)}) • الدرجة: ${g.label}`);
+        if (trs.length) body.push(trs.join(' '));
+      } else if (b.text) body.push(b.text);
     }
   }
-  if (quran.length) info.push(`🎙️ بصوت القارئ: ${reciterShort(reciter)}`);
+
+  // ===== سطور لازمة بس =====
+  const info = [];
   // إفصاح مطلوب على يوتيوب وغيره لو فيه صوت مولّد بالذكاء الاصطناعي
   if ([...hadith, ...zikr].some(b => b.audioMode === 'ai')) info.push('🔊 صوت قراءة الحديث مولّد بتقنية الذكاء الاصطناعي (نسخة من صوتي)');
   else if ([...hadith, ...zikr].some(b => b.audioMode === 'gtts')) info.push('🔊 صوت القراءة مولّد بتقنية الذكاء الاصطناعي');
   if (series) {
     info.push(series.index < series.total
-      ? `📌 الجزء ${N(series.index)} من ${N(series.total)} — تابع باقي الأجزاء في قائمة التشغيل`
-      : `📌 الجزء الأخير (${N(series.total)} من ${N(series.total)}) — السلسلة كاملة في قائمة التشغيل`);
+      ? `📌 الجزء ${N(series.index)} من ${N(series.total)} — تابع باقي الأجزاء`
+      : `📌 الجزء الأخير — السلسلة كاملة على القناة`);
   }
-
   const credits = [];
   if (ps.includeCredits) {
-    if (quran.length) credits.push('نص المصحف: مجمع الملك فهد (QuranEnc) • التلاوة: EveryAyah.com');
-    if (quran.length && Q.tafsirInfo(style.translation) && style.showTranslation) credits.push(`${Q.tafsirInfo(style.translation).name}: ${Q.tafsirInfo(style.translation).by}`);
-    if (hadith.length) credits.push('نص الحديث: hadith-api (fawazahmed0)');
-    if (zikr.some(b => !b.custom)) credits.push('الأذكار: حصن المسلم');
+    if (quran.length) {
+      const custom = quran.find(b => b.rec?.name);
+      const r = custom ? custom.rec.name : findReciter(style.reciter)?.name?.replace(/\s*\(.*?\)\s*/g, '');
+      if (r) credits.push(`🎙️ ${r}`);
+      credits.push('نص المصحف: مجمع الملك فهد (QuranEnc)');
+    }
+    if (hadith.length) credits.push(`📚 ${hadith.map(h => `${collection(h.col).cite} (${N(h.number)}) • ${assessGrade(h.col, h.grades).label}`).join(' — ')}`);
   }
 
-  // ===== الهاشتاجات =====
+  // ===== هاشتاجات قليلة ومرتبطة =====
   const base = [];
   if (quran.length) {
-    base.push('#قرآن', '#القرآن_الكريم', '#تلاوة');
-    for (const b of quran) base.push(tag('سورة ' + Q.surah(b.surah).ar));
-    base.push(tag(reciterShort(reciter)));
-  }
-  if (zikr.length) {
-    base.push('#أذكار', '#دعاء', '#ذكر_الله');
-    if (zikr.some(b => !b.custom)) base.push('#حصن_المسلم');
-    for (const b of zikr) if (!b.custom) base.push(tag(b.cat));
-  }
-  if (hadith.length) {
-    base.push('#حديث', '#السنة_النبوية');
-    for (const b of hadith) base.push(tag(collection(b.col).name));
-  }
+    base.push('#قرآن_كريم', '#تلاوة_خاشعة');
+    base.push(tag('سورة ' + Q.surah(quran[0].surah).ar));
+    base.push('#' + (topic?.tag || 'راحة_نفسية'));
+  } else if (zikr.length) base.push('#دعاء', '#أذكار', '#' + (topic?.tag || 'راحة_نفسية'), '#ذكر_الله');
+  else base.push('#حديث_شريف', '#السنة_النبوية', '#ذكر_الله');
   const user = ps.extraHashtags.split(/[\s,،]+/).filter(Boolean).map(h => (h.startsWith('#') ? h : '#' + h));
-  const latin = quran.length ? ['#quran', '#islam'] : zikr.length && !hadith.length ? ['#dua', '#islam'] : ['#hadith', '#islam'];
+  const cta = pick(CTA[kind], seed);
 
   const out = {};
   for (const [id, p] of Object.entries(PLATFORMS)) {
-    const hs = [...new Set([...(p.extra || []), ...user, ...base, ...latin])].slice(0, p.hashtags);
-    const tail = [info.join('\n'), ps.signature, credits.join('\n'), hs.join(' ')].filter(Boolean).join('\n\n');
-    const room = p.captionMax - tail.length - 2;
+    const hs = [...new Set([...(p.extra || []), ...base, ...user])].slice(0, Math.min(p.hashtags, 4 + (p.extra?.length || 0) + user.length));
+    const head = [hook, kwLine].join('\n');
+    const tail = [cta, info.join('\n'), ps.signature, credits.join('\n'), hs.join(' ')].filter(Boolean).join('\n\n');
+    const room = p.captionMax - head.length - tail.length - 4;
     const text = body.length && room > 40 ? clip(body.join('\n\n'), room) : '';
-    const caption = [text, tail].filter(Boolean).join('\n\n');
+    const caption = [head, text, tail].filter(Boolean).join('\n\n');
 
     const res = { caption: clip(caption, p.captionMax) };
     if (p.title) {
@@ -166,16 +201,18 @@ export async function generate(blocks, style, translationOf, series = null) {
       res.title = clip(t, p.titleMax);
     }
     if (p.tags) {
-      const words = [...new Set([...base, ...user, ...latin].map(h => h.replace(/^#/, '').replace(/_/g, ' ')))];
-      if (quran.length) words.push('قران كريم', 'تلاوة خاشعة', 'quran recitation');
+      const ws = [...new Set([...kw, ...base.map(h => h.replace(/^#/, '').replace(/_/g, ' ')), ...user.map(h => h.replace(/^#/, ''))])];
+      if (quran.length) ws.push('قرآن كريم', 'تلاوة قرآن', 'quran recitation');
       let tags = '';
-      for (const w of words) {
+      for (const w of [...new Set(ws)]) {
         const next = tags ? `${tags}, ${w}` : w;
         if (next.length > p.tagsMax) break;
         tags = next;
       }
       res.tags = tags;
     }
+    // اسم الصوت المقترح (تيك توك / إنستجرام)
+    if (id === 'tiktok' || id === 'instagram') res.sound = quran.length ? `تلاوة خاشعة – سورة ${Q.surah(quran[0].surah).ar}${topic ? ' – ' + topic.name : ''}` : (zikr.length ? 'دعاء يريح القلب' : 'حديث شريف');
     out[id] = res;
   }
   return out;
