@@ -1,6 +1,7 @@
 // 🎨 الهوية والجرافيك: لوجو وعلامة الحساب (حجم/مكان/شفافية)، ألوان سينمائية، إضاءة، مقدمة وخاتمة، انتقالات بين الكروت
 // الألوان والمقدمة والانتقالات متاخدة من استوديو الريلز (news-reels-studio) ومتظبطة على محتوى القرآن
 // كل الرسم هنا دالة في الوقت t (من غير حالة) — عشان يطلع نفس الشكل في المعاينة والتصدير والبث
+import { artRect } from './frame.js';
 
 export const POSITIONS = {
   bottom: 'تحت في النص', top: 'فوق في النص',
@@ -75,6 +76,9 @@ export function drawLight(ctx, W, H, style, t = 0) {
   const u = Math.min(W, H) / 1080, k = Math.max(0, Math.min(1.5, style.lightAmount ?? 1));
   const acc = style.accent || '#f4d58d';
   ctx.save();
+  // 🖼️ مع البرواز: النور جوه اللوحة بس، مش على البرواز والحيطة
+  const A = artRect(W, H, style);
+  if (A.w !== W) { ctx.beginPath(); ctx.rect(A.x, A.y, A.w, A.h); ctx.clip(); }
   ctx.globalCompositeOperation = 'screen';
   if (kind === 'rays') {
     // أشعة نازلة من فوق: الزاوية من الاتجاه لتحت
@@ -129,6 +133,29 @@ export function drawLight(ctx, W, H, style, t = 0) {
       ctx.drawImage(spr, x - r, y - r, r * 2, r * 2);
     }
   }
+  ctx.restore();
+}
+
+// 🔁 إضاءة لمقطع بيلف: مزج بين النور في اللحظة t واللحظة t+D، فآخر إطار بيكمّل على أول إطار من غير قفزة
+// (الحبيبات والأشعة مش دورية لوحدها). بنرسم كل واحدة على طبقة شفافة وندمجهم بنسبة الوقت.
+let loopLayers = null;
+export function drawLightLoop(ctx, W, H, style, t, D) {
+  if (!style?.light) return;
+  if (!(D > 0) || typeof document === 'undefined') { drawLight(ctx, W, H, style, t); return; }
+  if (!loopLayers || loopLayers[0].width !== W || loopLayers[0].height !== H) {
+    loopLayers = [0, 1].map(() => Object.assign(document.createElement('canvas'), { width: W, height: H }));
+  }
+  const w = Math.min(1, Math.max(0, t / D));
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  [[t + D, 1 - w], [t, w]].forEach(([tt, a], i) => {
+    if (a <= 0.001) return;
+    const g = loopLayers[i].getContext('2d');
+    g.clearRect(0, 0, W, H);
+    drawLight(g, W, H, style, tt);
+    ctx.globalAlpha = a;
+    ctx.drawImage(loopLayers[i], 0, 0);
+  });
   ctx.restore();
 }
 

@@ -1,8 +1,9 @@
 // تصدير سريع بالـ WebCodecs (بيستخدم كارت الشاشة / مُرمّز الجهاز) بدل ffmpeg.wasm
 // بيشتغل في Chrome و Edge لما الجهاز يدعم H.264 + AAC. لو مش مدعوم بنرجع لـ ffmpeg تلقائيًا.
-import { Muxer, ArrayBufferTarget } from '../vendor/mp4-muxer/mp4-muxer.mjs';
+import { Muxer, ArrayBufferTarget, StreamTarget } from '../vendor/mp4-muxer/mp4-muxer.mjs';
 import { drawBackground, drawOverlay, ENTER_SECS, textFont } from './slides.js';
-import { drawLight, TRANS_SECS, subCardAge, drawSubCard } from './brand.js';
+import { drawLight, drawLightLoop, TRANS_SECS, subCardAge, drawSubCard } from './brand.js';
+import { kbAmount } from './frame.js';
 import { ZONE_SRC } from './zone.js';
 import { overlayFrames, FPS } from './exporter.js';
 import { SAMPLE_RATE } from './audio.js';
@@ -80,6 +81,10 @@ export async function fastExportVideo(project, cfg, onProgress, onStage) {
   if (project.quality === '720') { const k = 720 / Math.min(W, H); W = Math.round(W * k / 2) * 2; H = Math.round(H * k / 2) * 2; }
 
   onStage?.('تجهيز الخلفية…');
+  const totalFrames = Math.ceil(timeline.duration * FPS);
+  // 🔁 مدة الدورة = عدد الإطارات بالظبط، فالحركة (Ken Burns / الإضاءة) بترجع لأول إطار بعد آخر إطار
+  const D = totalFrames / FPS;
+  const moving = kbAmount(style) > 0;
   const bg = newCanvas(W, H);
   drawBackground(bg.getContext('2d'), W, H, style, media?.kind === 'image' ? media : null);
   // خلفيات متعددة أو فيديو: بنرسم الخلفية لكل إطار
@@ -91,7 +96,6 @@ export async function fastExportVideo(project, cfg, onProgress, onStage) {
     sources = await Promise.all(list.map(async m => m.kind === 'video' ? { kind: 'video', el: await loadVideoSource(m.url) } : m));
   }
   const fade = dynamic && style.bgFade !== false ? 0.6 : 0;
-  const totalFrames = Math.ceil(timeline.duration * FPS);
   // فيديوهات الخلفية: بنحسب مسبقًا كل الإطارات المطلوبة من كل فيديو بالترتيب، ونفكها بـ Mediabunny.
   // لو فشل (صيغة مش مدعومة مثلًا) بنرجع للطريقة القديمة (seek لكل إطار).
   if (dynamic && sources.some(m => m.kind === 'video') && !globalThis.__noMB) { // __noMB: للاختبار (يقارن بالطريقة القديمة)
@@ -106,15 +110,16 @@ export async function fastExportVideo(project, cfg, onProgress, onStage) {
       try { m.frames = await videoFrames(list[k].url, reqs[k]); } catch (e) { console.warn('mediabunny → seek', e); }
     }));
   }
+  let clock = { t: 0, dur: D };
   const drawItemAt = async (c, m, local) => {
     if (m.frames) {
       const fr = await m.frames.next();
-      drawBackground(c, W, H, style, fr ? { kind: 'video', el: fr } : null);
+      drawBackground(c, W, H, style, fr ? { kind: 'video', el: fr } : null, clock);
       if (m.el) ZONE_SRC.el = m.el; // 📐 مكان الكلام يتحسب من الفيديو نفسه (ثابت)، مش من كل فريم
       return;
     }
     if (m.kind === 'video') await seekVideo(m.el, local);
-    drawBackground(c, W, H, style, m);
+    drawBackground(c, W, H, style, m, clock);
   };
 
   const frames = overlayFrames(segments, timeline.duration);
@@ -128,8 +133,15 @@ export async function fastExportVideo(project, cfg, onProgress, onStage) {
   });
 
   let encodeError = null;
+  // 🔁 مقطع Loop: بنحتفظ بالإطارات المترمّزة عشان «النسخة الطويلة» تتعمل منها من غير ترميز تاني
+  const keep = style.loop ? { video: [], audio: [] } : null;
+  const raw = (list, chunk, meta) => {
+    const data = new Uint8Array(chunk.byteLength);
+    chunk.copyTo(data);
+    list.push({ data, type: chunk.type, ts: chunk.timestamp, dur: chunk.duration ?? 0, meta: meta?.decoderConfig ? meta : undefined });
+  };
   const venc = new VideoEncoder({
-    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+    output: (chunk, meta) => { muxer.addVideoChunk(chunk, meta); if (keep) raw(keep.video, chunk, meta); },
     error: e => { encodeError = e; },
   });
   venc.configure(cfg.video.config);
@@ -138,7 +150,7 @@ export async function fastExportVideo(project, cfg, onProgress, onStage) {
   if (cfg.audio) {
     onStage?.('ترميز الصوت…');
     const aenc = new AudioEncoder({
-      output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
+      output: (chunk, meta) => { muxer.addAudioChunk(chunk, meta); if (keep) raw(keep.audio, chunk, meta); },
       error: e => { encodeError = e; },
     });
     aenc.configure(cfg.audio.config);
@@ -184,15 +196,18 @@ export async function fastExportVideo(project, cfg, onProgress, onStage) {
       octx.clearRect(0, 0, W, H);
       if (f) drawOverlay(octx, W, H, f.count == null ? { ...f.seg, age: entering ? age : null } : { ...f.seg, wordCount: f.count }, style);
     }
-    if (!dynamic) ctx.drawImage(bg, 0, 0);
-    else {
+    clock = { t, dur: D };
+    if (!dynamic) {
+      if (moving) drawBackground(ctx, W, H, style, media?.kind === 'image' ? media : null, clock);
+      else ctx.drawImage(bg, 0, 0);
+    } else {
       const p = pickBg(sched, t, fade);
       if (p.prev) await drawItemAt(ctx, sources[p.prev.k], t - p.prev.from);
       ctx.globalAlpha = p.alpha;
       await drawItemAt(ctx, sources[p.cur.k], t - p.cur.from);
       ctx.globalAlpha = 1;
     }
-    if (style.light) drawLight(ctx, W, H, style, t);
+    if (style.light) { if (style.loop) drawLightLoop(ctx, W, H, style, t, D); else drawLight(ctx, W, H, style, t); }
     ctx.drawImage(ov, 0, 0);
     const sa = style.subCard ? subCardAge(style, timeline.duration, t) : null;
     if (sa != null) drawSubCard(ctx, W, H, style, sa, textFont(style));
@@ -214,6 +229,55 @@ export async function fastExportVideo(project, cfg, onProgress, onStage) {
   venc.close();
   if (encodeError) throw encodeError;
   muxer.finalize();
+  lastLoop = keep ? { ...keep, D: Math.round(D * 1e6), W, H, video: keep.video, vmux: cfg.video.mux, amux: cfg.audio?.mux || null } : null;
   onProgress?.(1);
   return new Blob([target.buffer], { type: 'video/mp4' });
+}
+
+// ===== ⏩ النسخة الطويلة من مقطع Loop (ساعة / ساعتين للتلفزيون) =====
+// بنكرر نفس الإطارات المترمّزة بتوقيت جديد (من غير ترميز تاني): سريع، ونفس الجودة بالظبط.
+// الملف بيتكتب على الهارد على طول (مش في الذاكرة) — محتاج Chrome/Edge على الكمبيوتر.
+let lastLoop = null;
+export const loopReady = () => (lastLoop ? { secs: lastLoop.D / 1e6, W: lastLoop.W, H: lastLoop.H, bytes: [...lastLoop.video, ...lastLoop.audio].reduce((n, c) => n + c.data.byteLength, 0) } : null);
+
+export async function exportLongLoop(totalSecs, writable, onProgress) {
+  const L = lastLoop;
+  if (!L) throw new Error('صدّر مقطع Loop الأول (فيديو MP4 والـ 🔁 Loop شغال)');
+  const reps = Math.max(1, Math.round(totalSecs * 1e6 / L.D));
+  let chain = Promise.resolve(), werr = null;
+  const target = new StreamTarget({
+    onData: (data, position) => {
+      const copy = data.slice();
+      chain = chain.then(() => writable.write({ type: 'write', position, data: copy })).catch(e => { werr = werr || e; });
+    },
+    chunked: true,
+  });
+  const muxer = new Muxer({
+    target,
+    video: { codec: L.vmux, width: L.W, height: L.H, frameRate: FPS },
+    audio: L.amux && L.audio.length ? { codec: L.amux, sampleRate: SAMPLE_RATE, numberOfChannels: 2 } : undefined,
+    fastStart: false,
+    firstTimestampBehavior: 'offset',
+  });
+  // الصوت اللي بيعدّي آخر الدورة بيتشال (أقل من ٢٥ مللي ثانية) عشان التوقيت مايتداخلش
+  const items = [
+    ...L.video.map(c => ({ ...c, v: true })),
+    ...(L.amux ? L.audio.filter(c => c.ts + c.dur <= L.D + 1000).map(c => ({ ...c, v: false })) : []),
+  ].sort((a, b) => a.ts - b.ts || (a.v ? -1 : 1));
+  for (let r = 0; r < reps; r++) {
+    const off = r * L.D;
+    for (const c of items) {
+      if (c.v) muxer.addVideoChunkRaw(c.data, c.type, c.ts + off, c.dur, r === 0 ? c.meta : undefined);
+      else muxer.addAudioChunkRaw(c.data, c.type, c.ts + off, c.dur, r === 0 ? c.meta : undefined);
+    }
+    await chain;
+    if (werr) throw werr;
+    onProgress?.((r + 1) / reps);
+    await new Promise(res => setTimeout(res, 0));
+  }
+  muxer.finalize();
+  await chain;
+  if (werr) throw werr;
+  await writable.close();
+  return { secs: reps * L.D / 1e6, reps };
 }

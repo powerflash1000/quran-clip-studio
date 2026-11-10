@@ -35,6 +35,8 @@ import * as PL from './planner.js';
 import * as ST from './stats.js';
 import { youtubeChapters } from './chapters.js';
 import { ZONES, INKS } from './zone.js';
+import { FRAMES, KEN_BURNS, PATTERNS } from './frame.js';
+import { loopReady, exportLongLoop } from './fastexport.js';
 import { PLATFORMS, generate, getPublishSettings, setPublishSettings, canShareFile, shareFile } from './publish.js';
 
 const $ = s => document.querySelector(s);
@@ -88,8 +90,13 @@ function status(msg, p = null, isError = false) {
 // ===== بناء المقاطع =====
 // withAudio=false: نص بس (للمعاينة السريعة من غير تحميل)
 // series: { index, total, endSlide, endSeconds } لو المقطع جزء من سلسلة
+// 🔁 مقطع Loop: من غير مقدمة/خاتمة/جملة افتتاحية/كارت اشتراك/حركة دخول — أي حاجة بتحصل «مرة واحدة» بتبان لما المقطع يتكرر
+function playStyle(st = state.style) {
+  return st.loop ? { ...st, intro: '', bumper: '', subCard: '', textAnim: '', cardTrans: '' } : st;
+}
+
 async function buildSegments(withAudio, onProgress, blocks = state.blocks, series = state.activeSeries) {
-  const st = state.style;
+  const st = playStyle();
   const reciter = findReciter(st.reciter);
   const wordSync = st.wordMode && st.wordMode !== 'full';
   const segs = [];
@@ -319,7 +326,7 @@ async function buildProject(blocks = state.blocks, series = state.activeSeries) 
   });
   const { w, h } = ASPECTS[state.style.aspect];
   const isMedia = state.style.bgType === 'media';
-  return { segments, timeline, style: state.style, media: isMedia ? state.media : null, mediaList: isMedia ? [...state.mediaList] : [], W: w, H: h, quality: $('#quality').value };
+  return { segments, timeline, style: playStyle(), media: isMedia ? state.media : null, mediaList: isMedia ? [...state.mediaList] : [], W: w, H: h, quality: $('#quality').value };
 }
 
 // ===== المعاينة =====
@@ -366,27 +373,30 @@ function drawFrame(seg, analyser, t = null, idle = false) {
   const W = canvas.width, H = canvas.height;
   ctx.clearRect(0, 0, W, H);
   const pb = previewBg(t);
-  if (pb.prev) drawBackground(ctx, W, H, state.style, pb.prev);
+  const st = playStyle();
+  // 🖼️ Ken Burns بيتحرك في المعاينة وقت التشغيل بنفس توقيت التصدير
+  const clock = player && t != null ? { t, dur: player.duration } : null;
+  if (pb.prev) drawBackground(ctx, W, H, st, pb.prev, clock);
   ctx.globalAlpha = pb.alpha;
-  drawBackground(ctx, W, H, state.style, pb.cur);
+  drawBackground(ctx, W, H, st, pb.cur, clock);
   ctx.globalAlpha = 1;
-  BR.drawLight(ctx, W, H, state.style, t ?? 2);
+  BR.drawLight(ctx, W, H, st, t ?? 2);
   if (idle) {
     const key = `${ovCache.ver}|${W}x${H}|${state.segIndex}`;
     if (ovCache.key !== key || !ovCache.canvas) {
       const c = ovCache.canvas && ovCache.canvas.width === W && ovCache.canvas.height === H ? ovCache.canvas : Object.assign(document.createElement('canvas'), { width: W, height: H });
       const g = c.getContext('2d');
       g.clearRect(0, 0, W, H);
-      drawOverlay(g, W, H, seg, state.style);
+      drawOverlay(g, W, H, seg, st);
       ovCache.canvas = c; ovCache.key = key;
     }
     ctx.drawImage(ovCache.canvas, 0, 0);
   } else {
     ovCache.ver++; // أي رسم عادي (تعديل/تشغيل) بيلغي المحفوظ
-    drawOverlay(ctx, W, H, seg, state.style);
+    drawOverlay(ctx, W, H, seg, st);
   }
   // 🔔 كارت الاشتراك: أثناء التشغيل في وقته، أو لما تدوس «شوف الكارت»
-  const sa = subPrev ? (performance.now() - subPrev) / 1000 : player && t != null ? BR.subCardAge(state.style, player.duration, t) : null;
+  const sa = subPrev ? (performance.now() - subPrev) / 1000 : player && t != null ? BR.subCardAge(st, player.duration, t) : null;
   if (sa != null && sa <= BR.SUB_SECS) drawSubCard2(sa);
   if (analyser && state.style.waveform) drawWave(ctx, W, H, analyser, state.style.accent);
 }
@@ -599,6 +609,7 @@ async function doExport(kind) {
       download(blob, `${baseName()}.mp4`);
       setLastExport(blob, `${baseName()}.mp4`, 'video/mp4');
       logExperiment(`${baseName()}.mp4`, d);
+      renderLong();
       status(`✅ الفيديو جاهز (${fmtDur(d)})${project.usedFast ? ' — تصدير سريع ⚡' : ''}`);
     } else if (kind === 'filmora') {
       status('تجهيز حزمة Filmora…', null);
@@ -2657,8 +2668,67 @@ function setupReciters() {
   };
 }
 
+// ===== 🖼️ لوحة للتلفزيون + ⏩ النسخة الطويلة =====
+const fmtLong = secs => {
+  const m = Math.round(secs / 60);
+  return m >= 60 ? `${Math.floor(m / 60)} ساعة${m % 60 ? ` و${m % 60} دقيقة` : ''}` : `${m} دقيقة`;
+};
+
+function renderLong() {
+  $('#long-wrap').hidden = !state.style.loop;
+  const info = loopReady();
+  const mins = Number($('#long-mins').value) || 60;
+  $('#long-info').textContent = info
+    ? `✅ جاهز: مقطع Loop مدته ${fmtDur(info.secs)} (${info.W}×${info.H}). نسخة ${fmtLong(mins * 60)} هتبقى حوالي ${(info.bytes * (mins * 60 / info.secs) / 1e9).toFixed(1)} جيجا، وبتتعمل في ثواني من غير تحويل تاني (نفس الجودة).`
+    : 'صدّر «🎬 فيديو MP4» الأول (والـ 🔁 Loop شغال)، وبعدها النسخة الطويلة بتتعمل منه في ثواني: نفس الإطارات بتتكرر من غير تحويل تاني، فالجودة هي هي. محتاج Chrome أو Edge على الكمبيوتر (الملف بيتكتب على الهارد على طول).';
+}
+
+// قالب «لوحة» جاهز: بنغيّر الشكل بس (المحتوى والقارئ والخلفيات زي ما هم)
+const PAINT_PRESET = {
+  aspect: '16:9', bgType: 'gradient', color1: '#f6f0e4', color2: '#e7dbc6', dim: 0,
+  textColor: '#2b211a', subColor: '#5b4a37', accent: '#a8781e', textSize: 92, textFx: '', textAnim: '', textZone: '', textInk: '',
+  ayahLayout: 'all', wordMode: 'full', showLabel: true, showFooter: false, showTranslation: false, waveform: false,
+  frame: 'gold', wall: '#0e0e0e', pattern: 'stars', kenBurns: 'slow', loop: true,
+  look: '', light: '', cardTrans: '', bumper: '', subCard: '', intro: '', handleOpacity: 0.45,
+};
+// نفس اللوحة بس الصور اللي رفعتها جوه البرواز
+const PAINT_MEDIA = { bgType: 'media', dim: 0.15, textColor: '#ffffff', subColor: '#e9e4da', accent: '#f4d58d', textInk: 'auto' };
+
+function setupPainting() {
+  $('#long-mins').onchange = renderLong;
+  $('#paint-preset').onclick = () => {
+    const media = state.mediaList.length > 0 && confirm('عندك خلفيات (صور/فيديو) — تحطها جوه البرواز؟\n\nموافق = الصور جوه البرواز\nإلغاء = خلفية عاجي بزخرفة');
+    Object.assign(state.style, PAINT_PRESET, media ? PAINT_MEDIA : {});
+    applyStyleToInputs(); persist(); renderLong(); scheduleDuration(); refreshPreview();
+    status('✨ اتجهزت اللوحة: 16:9، برواز دهبي، حركة هادية، Loop. صدّر MP4 قصير (دقيقة مثلًا) وبعدين «⏩ نسخة طويلة» من «⬇️ التصدير».');
+  };
+  $('#long-go').onclick = async () => {
+    if (state.busy) return;
+    const info = loopReady();
+    if (!info) { showError(new Error('صدّر «🎬 فيديو MP4» الأول والـ 🔁 Loop شغال — النسخة الطويلة بتتعمل منه. (لو التصدير السريع مش مدعوم على جهازك، استخدم أداة tools/loop-long — شرحها في الـ README.)')); return; }
+    if (!window.showSaveFilePicker) { showError(new Error('النسخة الطويلة محتاجة Chrome أو Edge على الكمبيوتر. على أي جهاز تاني استخدم أداة tools/loop-long (شرحها في الـ README).')); return; }
+    const mins = Number($('#long-mins').value) || 60;
+    let handle;
+    try {
+      handle = await window.showSaveFilePicker({ suggestedName: `${baseName()}_${mins}min.mp4`, types: [{ description: 'MP4', accept: { 'video/mp4': ['.mp4'] } }] });
+    } catch { return; } // لغى الحفظ
+    const w = await handle.createWritable();
+    setBusy(true);
+    try {
+      const r = await exportLongLoop(mins * 60, w, p => status(`⏩ النسخة الطويلة (${fmtLong(mins * 60)})…`, p));
+      status(`✅ النسخة الطويلة اتحفظت: ${fmtLong(r.secs)} (${r.reps} دورة). ارفعها على يوتيوب كفيديو عادي.`);
+    } catch (e) {
+      try { await w.abort(); } catch { /* اتقفل */ }
+      showError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  renderLong();
+}
+
 // ===== الشكل =====
-const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'textZone', 'textInk', 'ayahLayout', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade'];
+const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'textZone', 'textInk', 'ayahLayout', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade', 'frame', 'wall', 'pattern', 'kenBurns', 'loop'];
 
 function applyStyleToInputs() {
   const st = state.style;
@@ -2689,6 +2759,7 @@ function setupStyle() {
   $('#textFx').innerHTML = opts(TEXT_FX);
   $('#textAnim').innerHTML = opts(TEXT_ANIM);
   $('#textZone').innerHTML = opts(ZONES); $('#textInk').innerHTML = opts(INKS);
+  $('#frame').innerHTML = opts(FRAMES); $('#kenBurns').innerHTML = opts(KEN_BURNS); $('#pattern').innerHTML = opts(PATTERNS);
   for (const [id, o] of [['handlePos', BR.POSITIONS], ['logoPos', BR.POSITIONS], ['look', BR.LOOKS], ['light', BR.LIGHTS], ['cardTrans', BR.CARD_TRANS], ['bumper', BR.BUMPERS], ['subCard', BR.SUB_CARD], ['subCardPos', BR.SUB_POS]]) $('#' + id).innerHTML = opts(o);
   $('#recFx').innerHTML = Object.entries(REC_FX).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
   applyStyleToInputs();
@@ -2701,6 +2772,7 @@ function setupStyle() {
       if (k === 'textZone' && v === 'auto' && !state.style.textInk) { state.style.textInk = 'auto'; $('#textInk').value = 'auto'; }
       if (k === 'bgSwitch') { $('#bgEvery-wrap').hidden = v === 'ayah'; $('#bgEvery-lbl').textContent = v === 'custom' ? 'المدة الافتراضية (ث)' : 'كل (ث)'; }
       if (['bgSwitch', 'bgEvery'].includes(k)) renderBgList();
+      if (k === 'loop') { renderLong(); scheduleDuration(); }
       persist();
       if (k === 'textFont') ensureFonts(state.style).then(() => refreshPreview());
       refreshPreview();
@@ -2743,6 +2815,7 @@ function setupStyle() {
   brandUi();
   BR.ensureLogo(state.style).then(() => refreshPreview());
   $('#silent').onchange = () => { $('#silent-dur-wrap').hidden = !$('#silent').checked; };
+  setupPainting();
 
   // الرفع بيضيف للقايمة (مش بيمسح اللي قبله) — والمسح من ✕ أو «امسح كل الخلفيات»
   $('#bg-file').onchange = () => {

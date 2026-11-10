@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261110c">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261110d">
 </head>
 <body>
   <header class="topbar">
@@ -332,6 +332,16 @@
           <label class="logo-xy">رأسي ٪ <input type="range" id="logoY" min="0" max="100" step="1"></label>
         </div>
         <p class="hint">الأفضل لوجو PNG بخلفية شفافة. لو اللوجو والعلامة في نفس المكان، العلامة بتتحط تحت اللوجو (أو فوقه لو تحت).</p>
+        <h3>🖼️ لوحة للتلفزيون (برواز + حركة هادية)</h3>
+        <div class="grid2">
+          <label>البرواز <select id="frame"></select></label>
+          <label>لون الحيطة <input type="color" id="wall"></label>
+          <label>🎥 حركة الخلفية <select id="kenBurns"></select></label>
+          <label>✨ زخرفة (للون والتدرّج) <select id="pattern"></select></label>
+          <label class="check span2"><input type="checkbox" id="loop"> 🔁 مقطع بيلف (Loop) — آخره بيكمّل على أوله من غير ما يبان القطع</label>
+        </div>
+        <div class="btn-row"><button class="btn" id="paint-preset" type="button">✨ جهّز لوحة جاهزة (16:9، برواز دهبي، خلفية عاجي)</button></div>
+        <p class="hint">زي قنوات «لوحات للتلفزيون»: آية أو ذكر في برواز، والشاشة تبقى لوحة على الحيطة. الحركة بتلف دورة كاملة وترجع لأولها بالظبط، فتقدر تصدّر دقيقة أو اتنين وتعمل منهم «⏩ نسخة طويلة» ساعة أو ساعتين من «⬇️ التصدير». مع الـ Loop: المقدمة والخاتمة والجملة الافتتاحية وكارت الاشتراك وحركة دخول النص بيتقفلوا (عشان مايتكرروش كل دورة).</p>
         <h3>الجرافيك</h3>
         <div class="grid2">
           <label>🎞️ ألوان سينمائية للخلفية <select id="look"></select></label>
@@ -408,6 +418,19 @@
             <label class="inline" id="silent-dur-wrap" hidden>المدة (ث)
               <input type="number" id="silent-dur" min="3" max="600" step="0.5" placeholder="زي التلاوة">
             </label>
+            <div class="long-box" id="long-wrap" hidden>
+              <h3>⏩ نسخة طويلة للتلفزيون</h3>
+              <div class="row">
+                <select id="long-mins">
+                  <option value="30">نص ساعة</option>
+                  <option value="60" selected>ساعة</option>
+                  <option value="120">ساعتين</option>
+                  <option value="180">٣ ساعات</option>
+                </select>
+                <button class="btn" id="long-go" type="button">⏩ اعمل النسخة الطويلة</button>
+              </div>
+              <p class="hint" id="long-info">صدّر «🎬 فيديو MP4» الأول (والـ 🔁 Loop شغال)، وبعدها النسخة الطويلة بتتعمل منه في ثواني: نفس الإطارات بتتكرر من غير تحويل تاني، فالجودة هي هي. محتاج Chrome أو Edge على الكمبيوتر (الملف بيتكتب على الهارد على طول).</p>
+            </div>
           </div>
           <div>
             <h3>للمونتاج</h3>
@@ -514,7 +537,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261110c</div>
+    <div class="muted" id="app-version">الإصدار 20261110d</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -1573,6 +1596,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261110c"></script>
+  <script type="module" src="js/main.js?v=20261110d"></script>
 </body>
 </html>

@@ -461,3 +461,7 @@ dialog.ctrl-panel { position: fixed; inset: auto auto 12px 12px; margin: 0; widt
 /* ===== 🎧 كلام من ملف صوت ===== */
 audio.full { width: 100%; margin: .4rem 0; }
 .part textarea.grow { flex: 1 1 100%; min-height: 3.2em; }
+
+/* ⏩ النسخة الطويلة (Loop) */
+.long-box { margin-top: .6rem; padding: .6rem .7rem; border: 1px dashed var(--muted); border-radius: 10px; }
+.long-box h3 { margin: 0 0 .4rem; font-size: .95rem; }

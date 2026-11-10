@@ -42,11 +42,22 @@ export const DEFAULT_STYLE = {
   bgSwitch: 'ayah',         // ayah | seconds — لو فيه أكتر من خلفية
   bgEvery: 6,
   bgFade: true,
+  // 🖼️ لوحة للتلفزيون
+  frame: '',                // برواز: gold | thin | black | white
+  wall: '#0e0e0e',          // لون الحيطة حوالين البرواز
+  pattern: '',              // زخرفة إسلامية خفيفة على اللون/التدرّج
+  kenBurns: '',             // حركة الخلفية الهادية (بتلف وترجع لأولها)
+  loop: false,              // مقطع بيتكرر من غير ما يبان القطع
 };
 
 const BUILTIN = {
   'ريلز ليلي': { ...DEFAULT_STYLE },
   'يوتيوب أفقي': { ...DEFAULT_STYLE, aspect: '16:9', color1: '#1b1b2f', color2: '#3a3a6a', textSize: 70 },
+  'لوحة للتلفزيون 16:9 🖼️': {
+    ...DEFAULT_STYLE, aspect: '16:9', bgType: 'gradient', color1: '#f6f0e4', color2: '#e7dbc6', dim: 0,
+    textColor: '#2b211a', subColor: '#5b4a37', accent: '#a8781e', textSize: 92, ayahLayout: 'all',
+    showFooter: false, showTranslation: false, frame: 'gold', pattern: 'stars', kenBurns: 'slow', loop: true, handleOpacity: 0.45,
+  },
   'منشور مربع': { ...DEFAULT_STYLE, aspect: '1:1', bgType: 'color', color1: '#14332c', accent: '#d4af37' },
 };
 

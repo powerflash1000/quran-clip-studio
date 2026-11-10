@@ -125,6 +125,13 @@ export async function generate(blocks, style, translationOf, series = null) {
     hook = 'آيات تريح القلب 🤍';
     title = 'تلاوة خاشعة تريح القلب';
   }
+  // 🖼️ لوحة للتلفزيون (برواز + 16:9): عنوان «لوحة» بالعربي والإنجليزي للبحث على شاشات التلفزيون
+  const tv = !!(style?.frame && style.aspect === '16:9' && kind !== 'hadith');
+  if (tv) {
+    const name = title.split(' | ')[0];
+    title = `${name} | لوحة قرآنية للتلفزيون | Islamic Calligraphy TV Art`;
+    hook += '\nIslamic wall art for your TV screen — Quran calligraphy in a frame';
+  }
 
   // ===== كلمات البحث (سطر واحد) =====
   const kw = [];
@@ -133,6 +140,7 @@ export async function generate(blocks, style, translationOf, series = null) {
     for (const b of quran) kw.push(`سورة ${Q.surah(b.surah).ar}`);
   } else if (zikr.length) kw.push('دعاء', 'أذكار', topic?.kw || 'راحة نفسية');
   else kw.push('حديث شريف', 'السنة النبوية');
+  if (tv) kw.push('لوحة قرآنية', 'خلفية للتلفزيون', 'Islamic TV art', 'Quran screensaver');
   const kwLine = [...new Set(kw)].join(' | ');
 
   // ===== النص الكامل (اختياري) =====
@@ -182,6 +190,7 @@ export async function generate(blocks, style, translationOf, series = null) {
     base.push('#' + (topic?.tag || 'راحة_نفسية'));
   } else if (zikr.length) base.push('#دعاء', '#أذكار', '#' + (topic?.tag || 'راحة_نفسية'), '#ذكر_الله');
   else base.push('#حديث_شريف', '#السنة_النبوية', '#ذكر_الله');
+  if (tv) base.splice(2, 0, '#IslamicArt', '#TVArt');
   const user = ps.extraHashtags.split(/[\s,،]+/).filter(Boolean).map(h => (h.startsWith('#') ? h : '#' + h));
   const cta = pick(CTA[kind], seed);
 
