@@ -182,9 +182,10 @@ export function planItems(segs) {
   for (const f of merged) {
     const p = qItems[qItems.length - 1];
     if (p && !p.part && f.whole && p.s === f.s && f.a === p.to + 1 && f.seg <= p.seg + 1) {
-      p.to = f.a; p.t1 = f.t1; p.seg = f.seg;
+      // وقت بداية كل آية من التفريغ نفسه (لو الشيخ عاد آية، اللي بعدها مابتبدأش غير لما يخلّص الإعادة)
+      p.to = f.a; p.t1 = f.t1; p.seg = f.seg; p.starts.push(f.t0);
     } else {
-      qItems.push({ kind: 'quran', s: f.s, from: f.a, to: f.a, part: f.whole ? null : { w1: f.w1, w2: f.w2 }, t0: f.t0, t1: f.t1, seg: f.seg });
+      qItems.push({ kind: 'quran', s: f.s, from: f.a, to: f.a, part: f.whole ? null : { w1: f.w1, w2: f.w2 }, t0: f.t0, t1: f.t1, seg: f.seg, starts: [] });
     }
   }
   // 5) الباقي
