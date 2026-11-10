@@ -86,6 +86,9 @@ const nWords = (s, a) => WT.words(Q.ayahText(s, a)).length;
 
 // كمّل كل جزء كلمة كلمة على الآيات اللي جنبه (الآيات القصيرة زي «اللَّهُ الصَّمَدُ» مابتتلاقاش لوحدها)
 // u = هياكل كلمات التفريغ؛ الأجزاء فيها u1/u2 (من 1)
+// تطابق متسامح لكلمة على حرف الآية: نفس الهيكل، أو بعد شيل الحروف المكررة (لل/ل)
+const squeeze = w => String(w).replace(/(.)\1+/g, '$1');
+const same = (a, b) => a === b || (a && b && squeeze(a) === squeeze(b));
 function extendFrags(frags, u) {
   const used = new Uint8Array(u.length);
   for (const f of frags) for (let k = f.u1 - 1; k < f.u2; k++) used[k] = 1;
@@ -98,7 +101,7 @@ function extendFrags(frags, u) {
     while (k < u.length && !used[k]) {
       let na = a, nw = w + 1;
       if (nw > W(s, a).length) { na = a + 1; nw = 1; if (na > Q.surah(s).count) break; }
-      if (W(s, na)[nw - 1] !== u[k]) break;
+      if (!same(W(s, na)[nw - 1], u[k])) break;
       used[k] = 1;
       if (na === cur.a) { cur.w2 = nw; cur.u2 = k + 1; } else { cur = { s, a: na, w1: 1, w2: 1, u1: k + 1, u2: k + 1 }; added.push(cur); }
       a = na; w = nw; k++;
@@ -108,7 +111,7 @@ function extendFrags(frags, u) {
     while (k >= 0 && !used[k]) {
       let pa = a, pw = w - 1;
       if (pw < 1) { pa = a - 1; if (pa < 1) break; pw = W(s, pa).length; }
-      if (W(s, pa)[pw - 1] !== u[k]) break;
+      if (!same(W(s, pa)[pw - 1], u[k])) break;
       used[k] = 1;
       if (pa === cur.a) { cur.w1 = pw; cur.u1 = k + 1; } else { cur = { s, a: pa, w1: pw, w2: pw, u1: k + 1, u2: k + 1 }; added.push(cur); }
       a = pa; w = pw; k--;
