@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261110f">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261110g">
 </head>
 <body>
   <header class="topbar">
@@ -537,7 +537,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261110f</div>
+    <div class="muted" id="app-version">الإصدار 20261110g</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -730,6 +730,11 @@
         <div class="span3 part-words" data-el="partBox" hidden></div>
         <p class="muted span3" data-el="partInfo"></p>
       </div>
+      <details class="ayah-preview">
+        <summary>📖 نص الآيات (من المصحف)</summary>
+        <p class="ayah-text" data-el="ayahText"></p>
+        <p class="muted">النص من المصحف بالظبط ومش بيتعدّل. لو الآية غلط، غيّر «من آية / إلى آية».</p>
+      </details>
       <div class="btn-row">
         <button class="btn" data-act="tafsir" type="button" title="تفسير الآيات دي من كتب التفسير المعتمدة — انسخه أو حطه كارت في الفيديو">📖 التفسير</button>
         <button class="btn" data-act="genBg" type="button" title="برومبت خلفية للآيات دي: انسخه، ولّد في Flow أو Higgsfield أو Gemini أو ChatGPT، وارجع حط اللي ولّدته">🎨 خلفية بالذكاء الاصطناعي</button>
@@ -1596,6 +1601,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261110f"></script>
+  <script type="module" src="js/main.js?v=20261110g"></script>
 </body>
 </html>

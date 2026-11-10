@@ -787,6 +787,14 @@ function quranBlockEl(b, i) {
     const s = Q.surah(b.surah);
     f('from').max = f('to').max = s.count;
     title.textContent = `${s.ar}: ${Q.arabicNum(b.from)}${b.to > b.from ? ' – ' + Q.arabicNum(b.to) : ''}${ayahPart(b) ? ' (جزء)' : ''}`;
+    // نص الآيات للعرض بس (من المصحف)
+    const at = li.querySelector('[data-el=ayahText]');
+    if (at) {
+      const p = ayahPart(b), t = [];
+      if (p) t.push(WT.words(Q.ayahText(b.surah, b.from)).slice(p.w1 - 1, p.w2).join(' '));
+      else for (let a = b.from; a <= Math.min(b.to, b.from + 40); a++) t.push(`${Q.ayahText(b.surah, a)} ﴿${Q.arabicNum(a)}﴾`);
+      at.textContent = t.join(' ') + (!p && b.to > b.from + 40 ? ' …' : '');
+    }
     f('basmala').disabled = b.surah === 1 || b.surah === 9;
     f('basmala').parentElement.title = b.surah === 1 ? 'البسملة هي أول آية في الفاتحة' : b.surah === 9 ? 'سورة التوبة من غير بسملة' : '';
   };
@@ -5963,8 +5971,37 @@ function renderSpeechItems() {
       ta.rows = 2; ta.value = it.text; ta.className = 'grow';
       ta.oninput = () => { it.text = ta.value; };
       info.replaceWith(ta);
+    } else if (it.kind === 'quran') {
+      // نص المصحف (مش بيتعدّل) + اللي اتسمع + تعديل أرقام الآيات لو اتعرفت غلط
+      const box = document.createElement('div');
+      box.className = 'grow sp-quran';
+      const n = Q.surah(it.s).count;
+      box.innerHTML = `<div class="sp-nums">سورة <select class="sp-s"></select> من آية <input type="number" class="sp-f" min="1"> لـ <input type="number" class="sp-t" min="1"></div>
+        <div class="ayah-text sp-mushaf"></div>
+        <div class="muted sp-heard"></div>`;
+      const sel = box.querySelector('.sp-s');
+      sel.innerHTML = Q.surahs().map((x, k) => `<option value="${k + 1}">${Q.arabicNum(k + 1)}. ${x.ar}</option>`).join('');
+      sel.value = it.s;
+      const f = box.querySelector('.sp-f'), t = box.querySelector('.sp-t');
+      f.value = it.part ? it.from : it.from; t.value = it.to;
+      const show = () => {
+        box.querySelector('.sp-mushaf').textContent = SP.quranText(it);
+        box.querySelector('.sp-heard').textContent = it.heard ? `🎧 اللي اتسمع: ${it.heard}` : '';
+        li.querySelector('.pname').textContent = `${when}  📖 ${Q.surah(it.s).ar} ${it.part ? `${Q.arabicNum(it.from)} (جزء)` : it.to > it.from ? `${Q.arabicNum(it.from)}–${Q.arabicNum(it.to)}` : Q.arabicNum(it.from)} — نص المصحف`;
+      };
+      const apply = () => {
+        const s = Number(sel.value), c = Q.surah(s).count;
+        const a = Math.max(1, Math.min(c, Number(f.value) || 1)), z = Math.max(a, Math.min(c, Number(t.value) || a));
+        if (s !== it.s || a !== it.from || z !== it.to) delete it.part; // لو غيّرت الأرقام: الآية كاملة
+        Object.assign(it, { s, from: a, to: z });
+        f.value = a; t.value = z;
+        show();
+      };
+      sel.onchange = apply; f.onchange = apply; t.onchange = apply;
+      show();
+      info.replaceWith(box);
     } else {
-      info.textContent = it.kind === 'quran' ? SP.quranText(it) : it.text;
+      info.textContent = it.heard ? `${it.text}\n🎧 اللي اتسمع: ${it.heard}` : it.text;
     }
     ol.appendChild(li);
   });
@@ -5994,6 +6031,10 @@ async function speechTranscribe() {
     if (!segs.length) throw new Error(`Gemini ماكتبش أي كلام من المقطع (${SP.fmtTime(lo)} → ${SP.fmtTime(hi)}). جرّب مقطع أقصر (دقيقة لـ ٣)، أو اتأكد إن مفتاح Gemini شغال من ⚙️ الإعدادات.`);
     speech.lo = lo; speech.hi = hi;
     speech.items = SP.placeCuts(speech.buffer, SP.planItems(segs), lo, hi);
+    // اللي Gemini سمعه فعلًا (عشان تقارنه بنص المصحف)
+    for (const it of speech.items) if (it.kind === 'quran' || it.kind === 'unknown') {
+      it.heard = segs.filter(sg => sg.end > it.a + 0.05 && sg.start < it.b - 0.05).map(sg => sg.text).join(' ');
+    }
     const q = speech.items.filter(x => x.kind === 'quran').length, t = speech.items.filter(x => x.kind === 'text').length;
     const bad = speech.items.filter(x => x.kind === 'unknown').length;
     st.textContent = `✅ ${q ? `${Q.arabicNum(q)} مقطع قرآن (بنص المصحف)` : ''}${q && t ? ' و' : ''}${t ? `${Q.arabicNum(t)} جملة كلام` : ''}${bad ? ` — و${Q.arabicNum(bad)} مقطع شكله قرآن ومش لاقيه في المصحف (مش هيتحط)` : ''}. راجع واسمع، وبعدين «حطهم في الفيديو».`;

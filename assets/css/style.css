@@ -465,3 +465,11 @@ audio.full { width: 100%; margin: .4rem 0; }
 /* ⏩ النسخة الطويلة (Loop) */
 .long-box { margin-top: .6rem; padding: .6rem .7rem; border: 1px dashed var(--muted); border-radius: 10px; }
 .long-box h3 { margin: 0 0 .4rem; font-size: .95rem; }
+.ayah-preview { margin-top: .4rem; }
+.ayah-preview summary { cursor: pointer; font-weight: 600; }
+.ayah-text { font-family: 'UthmanicHafs', 'Amiri', serif; font-size: 1.25rem; line-height: 2.1; direction: rtl; margin: .4rem 0; }
+.sp-quran { display: grid; gap: .3rem; }
+.sp-nums { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; font-size: .9rem; }
+.sp-nums select { max-width: 11rem; }
+.sp-nums input { width: 4.2rem; }
+.sp-heard { font-size: .85rem; }
