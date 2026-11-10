@@ -3,6 +3,7 @@
 // بنلاقي الآيات في المصحف (Q.findFragments) ونعرض نص المصحف بالظبط، والكلام العادي بيبقى «نص خاص» تقدر تعدّله.
 import * as Q from './quran.js';
 import * as WT from './words.js';
+import { autoMarks } from './automark.js';
 
 // «1:23» أو «83» أو «1:02:03» ← ثواني
 export function parseTime(s) {
@@ -173,8 +174,11 @@ export function planItems(segs) {
   for (const f of frags) {
     const p = merged[merged.length - 1];
     if (p && p.s === f.s && p.a === f.a && f.w1 <= p.w2 + 1 && f.seg <= p.seg + 1) {
+      // تكملة (نفس القراية) ← نطوّل آخر قراية؛ إعادة (رجع لكلمة قالها) ← قراية جديدة لنفس الآية
+      const last = p.reps[p.reps.length - 1];
+      if (f.w1 === last.w2 + 1) { last.w2 = f.w2; last.t1 = f.t1; } else p.reps.push({ a: f.a, w1: f.w1, w2: f.w2, t0: f.t0, t1: f.t1 });
       p.w2 = Math.max(p.w2, f.w2); p.w1 = Math.min(p.w1, f.w1); p.t1 = f.t1; p.seg = f.seg;
-    } else merged.push({ ...f });
+    } else merged.push({ ...f, reps: [{ a: f.a, w1: f.w1, w2: f.w2, t0: f.t0, t1: f.t1 }] });
   }
   for (const f of merged) f.whole = f.w1 === 1 && f.w2 === nWords(f.s, f.a);
   // 4) آيات كاملة متتالية ← كارت واحد
@@ -183,9 +187,9 @@ export function planItems(segs) {
     const p = qItems[qItems.length - 1];
     if (p && !p.part && f.whole && p.s === f.s && f.a === p.to + 1 && f.seg <= p.seg + 1) {
       // وقت بداية كل آية من التفريغ نفسه (لو الشيخ عاد آية، اللي بعدها مابتبدأش غير لما يخلّص الإعادة)
-      p.to = f.a; p.t1 = f.t1; p.seg = f.seg; p.starts.push(f.t0);
+      p.to = f.a; p.t1 = f.t1; p.seg = f.seg; p.starts.push(f.t0); p.reps.push(...f.reps);
     } else {
-      qItems.push({ kind: 'quran', s: f.s, from: f.a, to: f.a, part: f.whole ? null : { w1: f.w1, w2: f.w2 }, t0: f.t0, t1: f.t1, seg: f.seg, starts: [] });
+      qItems.push({ kind: 'quran', s: f.s, from: f.a, to: f.a, part: f.whole ? null : { w1: f.w1, w2: f.w2 }, t0: f.t0, t1: f.t1, seg: f.seg, starts: [], reps: [...f.reps] });
     }
   }
   // 5) الباقي
@@ -223,4 +227,30 @@ export function quranText(it) {
   const t = [];
   for (let a = it.from; a <= it.to; a++) t.push(Q.ayahText(it.s, a));
   return t.join(' ۝ ');
+}
+
+// بداية كل آية جوه كارت فيه أكتر من آية (بتوقيت الملف):
+// بنمشي على ترتيب الشيخ الحقيقي (الآية ٥، وإعادتها، وبعدين ٦) ونطابقه على وقفات الصوت،
+// فالآية اللي بعدها مابتظهرش غير لما الشيخ يبدأها فعلًا. لو الوقفات مش راكبة، بناخد وقت التفريغ (على أهدى نقطة)
+export function ayahStarts(buf, it) {
+  const reps = it.reps || [];
+  const out = [];
+  if (it.to <= it.from) return out;
+  const est = reps.map(r => r.t0);
+  let cut = est.map(t => t);
+  if (reps.length > 1) {
+    const w = reps.map(r => WT.words(Q.ayahText(it.s, r.a)).slice(r.w1 - 1, r.w2).map(Q.skel).join('').length + 6);
+    let r = null;
+    try { r = autoMarks(buf, it.a, it.b, w); } catch { r = null; }
+    for (let k = 1; k < reps.length; k++) {
+      const p = r?.marks?.[k - 1];
+      cut[k] = p != null && Math.abs(p - est[k]) < 2.5 ? p : snap(buf, Math.max(it.a, est[k] - 0.15), 0.4);
+    }
+  }
+  for (let a = it.from + 1; a <= it.to; a++) {
+    const k = reps.findIndex(x => x.a === a);
+    if (k < 0) return [];
+    out.push(cut[k]);
+  }
+  return out;
 }

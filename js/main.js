@@ -5992,7 +5992,7 @@ function renderSpeechItems() {
       const apply = () => {
         const s = Number(sel.value), c = Q.surah(s).count;
         const a = Math.max(1, Math.min(c, Number(f.value) || 1)), z = Math.max(a, Math.min(c, Number(t.value) || a));
-        if (s !== it.s || a !== it.from || z !== it.to) { delete it.part; delete it.starts; } // لو غيّرت الأرقام: الآية كاملة، والتوقيت من وقفات الصوت
+        if (s !== it.s || a !== it.from || z !== it.to) { delete it.part; delete it.starts; delete it.reps; } // لو غيّرت الأرقام: الآية كاملة، والتوقيت من وقفات الصوت
         Object.assign(it, { s, from: a, to: z });
         f.value = a; t.value = z;
         show();
@@ -6057,7 +6057,11 @@ async function speechAdd() {
       if (it.part) b.part = { ...it.part };
       b.rec = { name: who || 'الشيخ', file: speech.file.name, start: 0, end: buf.duration, marks: [], partAudio: !!it.part };
       // أكتر من آية في المقطع: بداية كل آية من توقيت التفريغ (بيمشي مع إعادة الشيخ)، وإلا من وقفات الصوت
-      if (it.to > it.from && it.starts?.length === it.to - it.from) {
+      if (it.to > it.from && it.reps?.length) {
+        b.rec.marks = SP.ayahStarts(speech.buffer, it).map(t => t - it.a).filter(t => t > 0.2 && t < buf.duration - 0.2);
+        if (b.rec.marks.length !== it.to - it.from) b.rec.marks = [];
+      }
+      if (it.to > it.from && !b.rec.marks.length && it.starts?.length === it.to - it.from) {
         b.rec.marks = it.starts.map(t => SP.snap(speech.buffer, Math.max(it.a, t - 0.15), 0.4) - it.a).filter(t => t > 0.2 && t < buf.duration - 0.2);
         if (b.rec.marks.length !== it.to - it.from) b.rec.marks = [];
       }

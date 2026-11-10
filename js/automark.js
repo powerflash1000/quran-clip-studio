@@ -74,8 +74,9 @@ export function autoMarks(buffer, start, end, weights, opts = {}) {
   // نطاق كل قطع: ± band حوالين مكانه المتوقع
   const band = Math.max(45, D * (K > 40 ? 0.15 : 0.5));
   const lowerIdx = t => { let lo = 0, hi = M; while (lo < hi) { const m = (lo + hi) >> 1; if (cut[m] - start < t) lo = m + 1; else hi = m; } return lo; };
-  const rng = expCum.map((e, k) => [Math.max(k, lowerIdx(e - band)), Math.min(M - (K - k), lowerIdx(e + band + 1e-9) )]);
-  for (const r of rng) if (r[1] <= r[0]) r[1] = Math.min(M - 1, r[0] + 1);
+  // [من، لحد) — القطع k لازم يسيب K-1-k وقفة بعده، فآخر مكان مسموح M-(K-k) (داخل النطاق)
+  const rng = expCum.map((e, k) => [Math.max(k, lowerIdx(e - band)), Math.min(M - (K - k) + 1, lowerIdx(e + band + 1e-9))]);
+  for (const r of rng) if (r[1] <= r[0]) r[1] = Math.min(M, r[0] + 1);
 
   const INF = 1e18;
   let prev = new Float64Array(M).fill(INF);
