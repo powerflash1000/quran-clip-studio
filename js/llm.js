@@ -1,3 +1,4 @@
+import * as Q from './quran.js';
 // مساعد الكتابة (اختياري): افتتاحيات ووصف وهاشتاجات، وتحسين صياغة النص الخاص
 // بيشتغل بمفتاح المستخدم نفسه (Gemini أو OpenRouter أو OpenAI أو Claude) — المفتاح بيتحفظ في المتصفح بس
 // والطلب بيروح من المتصفح للخدمة مباشرة. ممنوع يكتب آيات أو أحاديث أو ينسب كلام لحد.
@@ -438,37 +439,87 @@ const SPEECH_RULES = `أنت أداة تفريغ صوت (تحويل الكلام
 - اكتب الكلام العربي اللي اتقال حرفيًا زي ما اتنطق. ماتصححش وماتكمّلش وماتلخصش وماتشرحش وماتزوّدش ولا كلمة.
 - قسّمه لجمل قصيرة (من ٣ لـ ١٤ كلمة) عند الوقفات الطبيعية في الكلام، ولكل جملة وقت بدايتها ونهايتها بالثواني من أول المقطع (رقم عشري، مش دقايق).
 - النوع: quran لو قراءة قرآن، dua لو دعاء أو ذكر، hadith لو حديث منسوب للنبي ﷺ، other لأي كلام تاني (شرح، درس، خطبة، تعليق).
-- تجاهل أصوات الجمهور («الله الله»، تكبير، تصفيق) والموسيقى والسكوت — ماتكتبهمش.
+- التلاوة المجوّدة أو المرتّلة (حتى لو فيها تنغيم أو صدى أو مدّ طويل) دي quran ولازم تتكتب — مش موسيقى.
+- تجاهل أصوات الجمهور («الله الله»، تكبير، تصفيق) والموسيقى الحقيقية والسكوت — ماتكتبهمش.
 - لو كلمة مش واضحة اكتب [؟] مكانها بدل ما تخمّن.
 - رجّع JSON بس.`;
 
-// b64wav: صوت WAV مونو base64، dur: مدته بالثواني ← [{ start, end, type, text }]
-export async function transcribeSpeech(b64wav, dur) {
-  const c = mediaConfig();
-  if (!c) throw new Error('محتاج مفتاح Gemini (مجاني) — من ⚙️ الإعدادات ← ✨ مساعد الكتابة (اختار Gemini) أو 🔊 صوت Gemini');
+// وقت من أي شكل: 3.4 / "3.4" / "0:03.4" / "00:00:03,400" / 3400 (ملّي ثانية)
+const toSec = v => {
+  if (typeof v === 'number') return v;
+  const t = String(v ?? '').trim().replace(',', '.');
+  if (t.includes(':')) return t.split(':').reduce((a, x) => a * 60 + Number(x), 0);
+  return Number(t.replace(/s$/i, ''));
+};
+// الرد ← [{ start, end, type, text, s?, a? }] — بيقبل { segments } أو مصفوفة على طول وأسامي مفاتيح مختلفة
+function parseSegs(out, dur) {
+  const arr = Array.isArray(out) ? out : Array.isArray(out?.segments) ? out.segments : Array.isArray(out?.ayat) ? out.ayat : [];
+  let segs = arr.map(x => ({
+    start: toSec(x.start ?? x.start_time ?? x.startTime ?? x.from), end: toSec(x.end ?? x.end_time ?? x.endTime ?? x.to),
+    type: String(x.type || 'other'), text: String(x.text || '').replace(/\s+/g, ' ').trim(),
+    s: Number(x.surah) || 0, a: Number(x.ayah ?? x.aya) || 0,
+  })).filter(x => (x.text || (x.s && x.a)) && Number.isFinite(x.start));
+  // لو كل الأوقات أكبر من المدة بكتير يبقى ملّي ثانية
+  const max = Math.max(0, ...segs.map(x => Math.max(x.start, x.end || 0)));
+  if (max > dur * 3 && max / 1000 <= dur * 1.2) segs = segs.map(x => ({ ...x, start: x.start / 1000, end: x.end / 1000 }));
+  return segs
+    .map((x, i) => ({ ...x, end: Number.isFinite(x.end) && x.end > x.start ? x.end : (segs[i + 1]?.start ?? dur) }))
+    .map(x => ({ ...x, start: Math.max(0, Math.min(dur, x.start)), end: Math.max(0, Math.min(dur, x.end)) }))
+    .filter(x => x.end > x.start)
+    .sort((a, b) => a.start - b.start);
+}
+
+async function speechCall(c, rules, prompt, b64wav) {
   let j;
   try {
     j = await geminiGenerate(c, {
-      systemInstruction: { parts: [{ text: SPEECH_RULES }] },
-      contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'audio/wav', data: b64wav } },
-        { text: `فرّغ المقطع ده (مدته ${dur.toFixed(1)} ثانية).\nالشكل: {"segments": [{"start": 0.0, "end": 3.4, "type": "quran|dua|hadith|other", "text": "..."}]}` }] }],
+      systemInstruction: { parts: [{ text: rules }] },
+      contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'audio/wav', data: b64wav } }, { text: prompt }] }],
       generationConfig: { responseMimeType: 'application/json', temperature: 0 },
     });
   } catch (e) {
     if (e instanceof TypeError) throw new Error('الطلب ماوصلش لجوجل (النت). جرّب تاني.');
     throw e;
   }
-  const out = parseJson((j.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join(''));
-  const num = v => {
-    if (typeof v === 'string' && v.includes(':')) return v.split(':').reduce((a, x) => a * 60 + Number(x), 0);
-    return Number(v);
-  };
-  return (Array.isArray(out.segments) ? out.segments : [])
-    .map(s => ({ start: num(s.start), end: num(s.end), type: String(s.type || 'other'), text: String(s.text || '').replace(/\s+/g, ' ').trim() }))
-    .filter(s => s.text && Number.isFinite(s.start) && Number.isFinite(s.end))
-    .map(s => ({ ...s, start: Math.max(0, Math.min(dur, s.start)), end: Math.max(0, Math.min(dur, s.end)) }))
-    .filter(s => s.end > s.start)
-    .sort((a, b) => a.start - b.start);
+  const cand = j.candidates?.[0];
+  const text = (cand?.content?.parts || []).map(p => p.text || '').join('');
+  let out = null;
+  try { out = text ? parseJson(text) : null; } catch { out = null; }
+  return { out, reason: cand?.finishReason || j.promptFeedback?.blockReason || '' };
+}
+
+// لو Gemini رفض يكتب نص القرآن حرفيًا (RECITATION) أو رجّع فاضي: نطلب أرقام السور والآيات بس ووقتها،
+// والبرنامج بيحط نص المصحف بنفسه — ده أدق كمان لأن النص عمره ما بيتاخد من التفريغ
+const AYAT_RULES = `أنت بتتعرف على تلاوة قرآن في مقطع صوتي.
+- لكل آية (أو جزء من آية) اتقرت: رقم السورة ورقم الآية ووقت بدايتها ونهايتها بالثواني من أول المقطع (رقم عشري).
+- لو الآية اتعادت، اكتبها كل مرة اتقرت فيها بوقتها.
+- ماتكتبش نص الآيات خالص — أرقام بس.
+- تجاهل الجمهور والموسيقى والسكوت. لو فيه دعاء أو كلام مش قرآن اكتبه بنوع dua أو other ونصه حرفيًا.
+- رجّع JSON بس.`;
+
+// b64wav: صوت WAV مونو base64، dur: مدته بالثواني ← [{ start, end, type, text }]
+export async function transcribeSpeech(b64wav, dur) {
+  const c = mediaConfig();
+  if (!c) throw new Error('محتاج مفتاح Gemini (مجاني) — من ⚙️ الإعدادات ← ✨ مساعد الكتابة (اختار Gemini) أو 🔊 صوت Gemini');
+  const first = await speechCall(c, SPEECH_RULES,
+    `فرّغ المقطع ده (مدته ${dur.toFixed(1)} ثانية).\nالشكل: {"segments": [{"start": 0.0, "end": 3.4, "type": "quran|dua|hadith|other", "text": "..."}]}`, b64wav);
+  let segs = first.out ? parseSegs(first.out, dur) : [];
+  if (segs.length) return segs.map(({ s, a, ...x }) => x);
+  // المحاولة التانية: أرقام الآيات بس
+  const second = await speechCall(c, AYAT_RULES,
+    `المقطع مدته ${dur.toFixed(1)} ثانية.\nالشكل: {"segments": [{"start": 0.0, "end": 6.2, "type": "quran", "surah": 91, "ayah": 1}, {"start": 7.0, "end": 9.0, "type": "dua", "text": "..."}]}`, b64wav);
+  segs = second.out ? parseSegs(second.out, dur) : [];
+  const ok = segs.map(x => {
+    if (x.s && x.a && x.s <= 114) {
+      try { return { start: x.start, end: x.end, type: 'quran', text: Q.ayahText(x.s, x.a) || '' }; } catch { return null; }
+    }
+    return x.text ? { start: x.start, end: x.end, type: x.type, text: x.text } : null;
+  }).filter(x => x && x.text);
+  if (ok.length) return ok;
+  const why = first.reason || second.reason;
+  if (/RECITATION/i.test(why)) throw new Error('Gemini رفض يكتب النص (حماية النصوص المعروفة) — جرّب مقطع أقصر (دقيقة أو اتنين) أو موديل تاني من ⚙️ الإعدادات.');
+  if (/SAFETY|BLOCK|PROHIBITED/i.test(why)) throw new Error(`Gemini رفض الطلب (${why}) — جرّب تاني بمقطع أقصر.`);
+  return [];
 }
 
 // ===== 🎨 برومبتات خلفيات للآيات (للتوليد في Flow / Higgsfield / Gemini / ChatGPT) =====

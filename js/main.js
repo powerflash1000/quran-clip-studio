@@ -5979,6 +5979,10 @@ async function speechTranscribe() {
   btn.disabled = true;
   try {
     const [lo, hi] = speechRange();
+    // المقطع ساكت فعلًا؟ (غالبًا الوقت اتكتب غلط، زي 1.30 بدل 1:30)
+    { const sr = speech.buffer.sampleRate, d = speech.buffer.getChannelData(0); let pk = 0;
+      for (let i = Math.floor(lo * sr), e = Math.min(d.length, Math.floor(hi * sr)); i < e; i += 16) pk = Math.max(pk, Math.abs(d[i]));
+      if (pk < 0.005) throw new Error(`المقطع من ${SP.fmtTime(lo)} لـ ${SP.fmtTime(hi)} ساكت فعلًا — اتأكد من الوقت (اكتبه كده: 1:30 مش 1.30)، أو شغّله بـ ▶ واسمعه.`); }
     const cuts = SP.chunkCuts(speech.buffer, lo, hi);
     const segs = [];
     for (let i = 0; i + 1 < cuts.length; i++) {
@@ -5987,7 +5991,7 @@ async function speechTranscribe() {
       const out = await LLM.transcribeSpeech(await SP.wav16k(speech.buffer, a, b), b - a);
       for (const sg of out) segs.push({ ...sg, start: sg.start + a, end: sg.end + a });
     }
-    if (!segs.length) throw new Error('مالقيتش كلام واضح في المقطع ده');
+    if (!segs.length) throw new Error(`Gemini ماكتبش أي كلام من المقطع (${SP.fmtTime(lo)} → ${SP.fmtTime(hi)}). جرّب مقطع أقصر (دقيقة لـ ٣)، أو اتأكد إن مفتاح Gemini شغال من ⚙️ الإعدادات.`);
     speech.lo = lo; speech.hi = hi;
     speech.items = SP.placeCuts(speech.buffer, SP.planItems(segs), lo, hi);
     const q = speech.items.filter(x => x.kind === 'quran').length, t = speech.items.filter(x => x.kind === 'text').length;
