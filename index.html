@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261110a">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261110b">
 </head>
 <body>
   <header class="topbar">
@@ -212,6 +212,7 @@
               <input type="file" id="bg-file" accept="image/*,video/*" multiple hidden>
             </label>
             <button class="btn" id="open-stock" type="button">🔎 خلفيات مجانية</button>
+            <button class="btn" id="open-gen" type="button" title="برومبت لكل آية، تولّده في أداة ذكاء اصطناعي وترجع تحطه هنا">🎨 ولّد بالذكاء الاصطناعي</button>
           </div>
           <div class="muted" id="bg-name">مفيش خلفية مختارة</div>
           <ol class="bg-list" id="bg-list"></ol>
@@ -509,7 +510,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261110a</div>
+    <div class="muted" id="app-version">الإصدار 20261110b</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -704,6 +705,7 @@
       </div>
       <div class="btn-row">
         <button class="btn" data-act="tafsir" type="button" title="تفسير الآيات دي من كتب التفسير المعتمدة — انسخه أو حطه كارت في الفيديو">📖 التفسير</button>
+        <button class="btn" data-act="genBg" type="button" title="برومبت خلفية للآيات دي: انسخه، ولّد في Flow أو Higgsfield أو Gemini أو ChatGPT، وارجع حط اللي ولّدته">🎨 خلفية بالذكاء الاصطناعي</button>
         <button class="btn" data-act="follow" type="button" title="تسمع الشيخ آية آية وتقرا وراه — الفيديو بيطلع بصوتك أنت بس">🎧 اقرا ورا الشيخ — والفيديو بصوتك</button>
       </div>
       <details class="adv custom-rec" hidden>
@@ -974,6 +976,35 @@
           <button class="btn primary" id="sp-add" type="button">➕ حطهم في الفيديو</button>
         </div>
       </div>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-gen">
+    <div class="dlg wide">
+      <div class="row">
+        <h2 class="grow" id="gen-title">🎨 خلفيات بالذكاء الاصطناعي</h2>
+        <button class="btn icon" id="gen-close" type="button" title="اقفل">✕</button>
+      </div>
+      <p class="hint">البرنامج بيكتب برومبت (وصف منظر بالإنجليزي) يناسب الجو العام للآيات. انسخه، وافتح الأداة، وولّد هناك، ونزّل اللي ولّدته على جهازك، وارجع دوس «📥 حط اللي ولّدته». البرومبتات بتمنع الناس والحيوانات والكتابة والأماكن المقدسة، والنص القرآني بيتكتب فوق الخلفية من البرنامج.</p>
+      <div class="row wrap">
+        <label>الأداة <select id="gen-tool"></select></label>
+        <label>الشكل <select id="gen-style"></select></label>
+        <label>البرومبتات <select id="gen-per">
+          <option value="ayah">برومبت لكل آية</option>
+          <option value="one">برومبت واحد للكل</option>
+        </select></label>
+      </div>
+      <div class="btn-row">
+        <button class="btn primary" id="gen-go" type="button">✍️ اكتب البرومبتات</button>
+        <span class="muted" id="gen-status"></span>
+      </div>
+      <ol class="parts" id="gen-list"></ol>
+      <div class="btn-row" id="gen-actions" hidden>
+        <button class="btn" id="gen-copy-all" type="button">📋 انسخ الكل</button>
+        <button class="btn primary" id="gen-open" type="button">↗ افتح الأداة</button>
+        <label class="btn file-btn">📥 حط اللي ولّدته<input type="file" id="gen-import" accept="image/*,video/*" multiple hidden></label>
+      </div>
+      <p class="hint" id="gen-tip" hidden>لو أكتر من برومبت: سمّي الملفات اللي هتنزّلها بالأرقام (1، 2، 3…) أو نزّلهم بالترتيب، عشان كل خلفية تيجي مع آيتها.</p>
     </div>
   </dialog>
 
@@ -1538,6 +1569,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261110a"></script>
+  <script type="module" src="js/main.js?v=20261110b"></script>
 </body>
 </html>

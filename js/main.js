@@ -813,6 +813,7 @@ function quranBlockEl(b, i) {
   li.addEventListener('change', e => { if (e.target.dataset.f === 'recFile') setTimeout(partUi, 500); });
   li.querySelector('[data-act=follow]').onclick = () => openFollow(b);
   li.querySelector('[data-act=tafsir]').onclick = () => openTafsir(b).catch(showError);
+  li.querySelector('[data-act=genBg]').onclick = () => openGen([b]);
   partUi();
   sync();
   return li;
@@ -6007,6 +6008,117 @@ function setupSpeech() {
   $('#sp-add').onclick = () => speechAdd().catch(showError);
 }
 
+// ===== 🎨 خلفيات بالذكاء الاصطناعي: برومبت ← تولّد في الأداة ← ترجع تحط الملفات =====
+// زي أداة الريلز: البرومبت وصف منظر بس (مفيش ناس ولا كتابة ولا أماكن مقدسة)، والمدخل الترجمة الإنجليزية للمعنى العام
+const gen = { blocks: [], units: [], prompts: [] };
+const GEN_ASPECT = { '9:16': '9:16 vertical', '1:1': '1:1 square', '16:9': '16:9 horizontal' };
+
+function genUnits(per) {
+  const units = [];
+  for (const b of gen.blocks) {
+    if (b.type === 'quran') {
+      const s = Q.surah(b.surah);
+      const from = b.from, to = Math.max(b.to, b.from);
+      for (let a = from; a <= to; a++) units.push({ ref: `${s.ar} ${Q.arabicNum(a)}`, refEn: `${s.en || s.name || b.surah}:${a}`, en: Q.ayahEnglish(b.surah, a) });
+    } else if (b.type === 'zikr' && String(b.text || '').trim()) {
+      units.push({ ref: b.custom ? (b.label || 'نص خاص') : (b.cat || 'ذكر'), refEn: 'dua', en: `(Arabic supplication, use only for the mood) ${String(b.text).slice(0, 300)}` });
+    }
+  }
+  if (per === 'one' && units.length > 1) {
+    return [{ ref: units.length > 1 ? `${units[0].ref} ← ${units[units.length - 1].ref}` : units[0].ref, refEn: 'all', en: units.map(u => u.en).join(' ').slice(0, 1800) }];
+  }
+  return units;
+}
+
+function renderGen() {
+  const ol = $('#gen-list');
+  ol.innerHTML = '';
+  gen.units.forEach((u, i) => {
+    const li = document.createElement('li');
+    li.className = 'part';
+    li.innerHTML = '<span class="pname"></span><button class="btn" type="button">📋 انسخ</button><textarea class="grow" rows="3" dir="ltr"></textarea>';
+    li.querySelector('.pname').textContent = `${Q.arabicNum(i + 1)}. ${u.ref}`;
+    const ta = li.querySelector('textarea');
+    ta.value = gen.prompts[i] || '';
+    ta.oninput = () => { gen.prompts[i] = ta.value; };
+    li.querySelector('button').onclick = async () => {
+      const ok = await navigator.clipboard.writeText(ta.value).then(() => true, () => false);
+      $('#gen-status').textContent = ok ? `✅ اتنسخ برومبت ${Q.arabicNum(i + 1)} — افتح الأداة والصقه` : '❌ المتصفح مسمحش بالنسخ — انسخه بإيدك';
+    };
+    ol.appendChild(li);
+  });
+  $('#gen-actions').hidden = !gen.prompts.some(Boolean);
+  $('#gen-tip').hidden = gen.units.length < 2 || $('#gen-actions').hidden;
+}
+
+function openGen(blocks) {
+  gen.blocks = (blocks || state.blocks).filter(b => b.type === 'quran' || (b.type === 'zikr' && String(b.text || '').trim()));
+  if (!gen.blocks.length) { status('ضيف آيات الأول'); return; }
+  const one = blocks && blocks.length === 1 && blocks[0].type === 'quran' ? blocks[0] : null;
+  $('#gen-title').textContent = one ? `🎨 خلفية لـ ${Q.surah(one.surah).ar} ${Q.arabicNum(one.from)}${one.to > one.from ? '–' + Q.arabicNum(one.to) : ''}` : '🎨 خلفيات بالذكاء الاصطناعي';
+  gen.units = genUnits($('#gen-per').value);
+  gen.prompts = [];
+  $('#gen-status').textContent = gen.units.length > 15 ? `⚠️ ${Q.arabicNum(gen.units.length)} آية — كتير على برومبت لكل آية. اختار «برومبت واحد للكل» أو قسّم الكارت.` : '';
+  renderGen();
+  $('#dlg-gen').showModal();
+}
+
+function setupGen() {
+  $('#gen-tool').innerHTML = Object.entries(LLM.GEN_TOOLS).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join('');
+  $('#gen-style').innerHTML = Object.entries(LLM.GEN_STYLES).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join('');
+  const saved = load('genPrefs', {});
+  if (saved.tool && LLM.GEN_TOOLS[saved.tool]) $('#gen-tool').value = saved.tool;
+  if (saved.style && LLM.GEN_STYLES[saved.style]) $('#gen-style').value = saved.style;
+  const remember = () => save('genPrefs', { tool: $('#gen-tool').value, style: $('#gen-style').value });
+  $('#gen-tool').onchange = remember;
+  $('#gen-style').onchange = remember;
+  $('#gen-per').onchange = () => { gen.units = genUnits($('#gen-per').value); gen.prompts = []; renderGen(); };
+  $('#open-gen').onclick = () => openGen(null);
+  $('#gen-close').onclick = () => $('#dlg-gen').close();
+  $('#gen-go').onclick = async () => {
+    const opts = { tool: $('#gen-tool').value, style: $('#gen-style').value, aspect: GEN_ASPECT[state.style.aspect] || '9:16 vertical' };
+    const units = gen.units.slice(0, 15);
+    if (!units.length) return;
+    const btn = $('#gen-go');
+    if (!LLM.canGen()) {
+      gen.prompts = units.map(() => LLM.genFallbackPrompt(opts));
+      $('#gen-status').textContent = '⚠️ من غير مفتاح ذكاء اصطناعي: ده برومبت عام بالشكل اللي اخترته. حط مفتاح Gemini المجاني (⚙️ الإعدادات ← ✨ مساعد الكتابة) عشان البرومبت يناسب معنى كل آية.';
+      renderGen();
+      return;
+    }
+    btn.disabled = true;
+    $('#gen-status').textContent = '⏳ بيكتب البرومبتات…';
+    try {
+      gen.prompts = await LLM.genBgPrompts(units, opts);
+      $('#gen-status').textContent = `✅ اتكتب ${Q.arabicNum(gen.prompts.filter(Boolean).length)} برومبت. انسخ وافتح ${LLM.GEN_TOOLS[opts.tool].name}، وبعد ما تولّد نزّل الملفات وحطها هنا.`;
+      renderGen();
+    } catch (e) { $('#gen-status').textContent = '❌ ' + e.message; }
+    btn.disabled = false;
+  };
+  $('#gen-copy-all').onclick = async () => {
+    const list = gen.prompts.map((p, i) => p ? (gen.prompts.length > 1 ? `${i + 1}. ${p}` : p) : '').filter(Boolean);
+    const ok = await navigator.clipboard.writeText(list.join('\n\n')).then(() => true, () => false);
+    $('#gen-status').textContent = ok ? `✅ اتنسخ ${Q.arabicNum(list.length)} برومبت${list.length > 1 ? ' (مترقّمين)' : ''}` : '❌ المتصفح مسمحش بالنسخ';
+  };
+  $('#gen-open').onclick = () => window.open(LLM.GEN_TOOLS[$('#gen-tool').value].url, '_blank', 'noopener');
+  $('#gen-import').onchange = () => {
+    // ترتيب بالأرقام اللي في اسم الملف (1، 2، 10…)، وإلا بالترتيب اللي اتختاروا بيه
+    const files = [...$('#gen-import').files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    $('#gen-import').value = '';
+    if (!files.length) return;
+    files.forEach((f, i) => setMedia(f, i > 0));
+    if (files.length > 1) {
+      state.style.bgSwitch = 'ayah';
+      if ($('#bgSwitch')) $('#bgSwitch').value = 'ayah';
+      renderBgList(); persist();
+    }
+    $('#dlg-gen').close();
+    showTab('look');
+    const n = gen.units.length;
+    status(`✅ اتحط ${Q.arabicNum(files.length)} خلفية${files.length > 1 ? ' — كل خلفية مع آية' : ''}${n > 1 && files.length !== n ? ` (البرومبتات ${Q.arabicNum(n)} — لو العدد مش زي بعض، الخلفيات بتتكرر بالترتيب)` : ''}. شوف المعاينة.`);
+  };
+}
+
 // ===== وصفة الريل =====
 const RC = { intro: 'rc-intro', wordMode: 'rc-wordMode', textSize: 'rc-size', reciter: 'rc-reciter', duration: 'rc-dur', bg: 'rc-bg', bgSwitch: 'rc-bgSwitch' };
 let recipeColors = null; // { color1, color2, textColor, accent }
@@ -6456,6 +6568,7 @@ async function init() {
   setupReference();
   setupRefExtract();
   setupSpeech();
+  setupGen();
   setupCompetitors();
   setupCtrl();
   setupThumbs();
