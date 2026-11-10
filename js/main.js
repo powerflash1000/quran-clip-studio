@@ -881,10 +881,12 @@ function wireRecitation(li, b) {
     el('recBody').hidden = !has;
     f('recName').value = b.rec?.name || '';
     act('recClear').hidden = !b.rec;
+    // القسم بيظهر بس لما الكارت صوته من ملف (من «🎧 كلام من ملف صوت» أو «اقرا ورا الشيخ»)
+    li.querySelector('.custom-rec').hidden = !b.rec;
     li.querySelector('.custom-rec summary').textContent = has
-      ? (b.rec.own ? `🎧 تلاوتك أنت (${b.rec.name}) — من «اقرا ورا الشيخ»` : `🎙️ تلاوة من ملف: ${b.rec.name || au.name}`)
-      : b.rec ? `⚠️ ارفع ملف التلاوة تاني (${b.rec.file || ''}) — الملفات مش بتتحفظ لما الصفحة تتقفل`
-      : '🎙️ تلاوة من ملف (لقارئ مش في القايمة، زي الشيخ سيد سعيد)';
+      ? (b.rec.own ? `🎧 تلاوتك أنت (${b.rec.name}) — من «اقرا ورا الشيخ»` : `🎧 بصوت الملف: ${b.rec.name || au.name}`)
+      : b.rec ? `⚠️ صوت الملف مش موجود (${b.rec.file || ''}) — اعمل الكارت تاني من «🎧 كلام من ملف صوت» أو دوس «✕ شيل الصوت ده»`
+      : '';
     if (b.rec && !has) li.querySelector('.custom-rec').open = true;
     if (!has) return;
     if (player.src !== au.url) player.src = au.url;

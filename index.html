@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261109k">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261110a">
 </head>
 <body>
   <header class="topbar">
@@ -509,7 +509,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261109k</div>
+    <div class="muted" id="app-version">الإصدار 20261110a</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -706,14 +706,13 @@
         <button class="btn" data-act="tafsir" type="button" title="تفسير الآيات دي من كتب التفسير المعتمدة — انسخه أو حطه كارت في الفيديو">📖 التفسير</button>
         <button class="btn" data-act="follow" type="button" title="تسمع الشيخ آية آية وتقرا وراه — الفيديو بيطلع بصوتك أنت بس">🎧 اقرا ورا الشيخ — والفيديو بصوتك</button>
       </div>
-      <details class="adv custom-rec">
-        <summary>🎙️ تلاوة من ملف (لقارئ مش في القايمة، زي الشيخ سيد سعيد)</summary>
-        <p class="hint">💡 عايز البرنامج يسمع الملف ويعرف الآيات اللي الشيخ بيقراها لوحده، من غير ما تختار السورة والآيات؟ استخدم <b>«🎧 كلام من ملف صوت»</b> فوق.</p>
-        <p class="hint">نزّل السورة <b>كاملة</b> من mp3quran.net أو أي موقع وارفعها هنا، واكتب رقم الآية فوق في «من آية / إلى آية» — البرنامج بيلاقي الآية في الملف لوحده. ولو غيّرت الرقم، بيجيب الآية الجديدة على طول.</p>
+      <details class="adv custom-rec" hidden>
+        <summary>🎙️ الصوت من ملف</summary>
+        <!-- الرفع من هنا اتشال: الملف بقى من «🎧 كلام من ملف صوت» (مستقل عن الكروت). العناصر دي متخبية بس عشان الكود القديم -->
         <div class="btn-row">
-          <label class="btn file-btn">📁 ارفع التلاوة<input type="file" accept="audio/*,video/*" data-f="recFile" hidden></label>
+          <input type="file" accept="audio/*,video/*" data-f="recFile" hidden>
           <input type="text" data-f="recName" class="grow" placeholder="اسم القارئ (مثلًا: سيد سعيد)">
-          <button class="btn ghost" data-act="recClear" type="button" title="ارجع لقارئ البرنامج">✕ شيل الملف</button>
+          <button class="btn ghost" data-act="recClear" type="button" title="ارجع لقارئ البرنامج">✕ شيل الصوت ده</button>
         </div>
         <div data-el="recBody" hidden>
           <audio controls data-el="recPlayer" preload="auto"></audio>
@@ -1539,6 +1538,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261109k"></script>
+  <script type="module" src="js/main.js?v=20261110a"></script>
 </body>
 </html>
