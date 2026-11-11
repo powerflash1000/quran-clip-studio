@@ -478,3 +478,5 @@ audio.full { width: 100%; margin: .4rem 0; }
 .sp-job.on { border-color: var(--accent, #1b6b5a); background: color-mix(in srgb, var(--accent, #1b6b5a) 8%, transparent); }
 .sp-job .sp-when { font-weight: 600; white-space: nowrap; }
 .sp-job .sp-st { min-width: 0; }
+.sp-job .sp-when input { width: 4.6rem; padding: .15rem .35rem; text-align: center; }
+.sp-job .sp-n { font-weight: 600; }

@@ -6082,14 +6082,19 @@ async function speechWorker() {
     for (let job; (job = speech.jobs.find(j => j.status === 'wait'));) {
       job.status = 'run'; renderSpeechQueue();
       try {
-        job.items = await transcribeRange(job.lo, job.hi, m => { job.msg = m; renderSpeechQueue(); });
+        const { lo, hi } = job;
+        const items = await transcribeRange(lo, hi, m => { job.msg = m; renderSpeechQueue(); });
         if (gen !== speech.gen) return; // الملف اتغيّر
+        if (!speech.jobs.includes(job)) continue; // اتشال وهو بيتكتب
+        if (job.lo !== lo || job.hi !== hi) { job.status = 'wait'; continue; } // اتعدّل وهو بيتكتب: يتكتب تاني بالوقت الجديد
+        job.items = items;
         job.status = 'done';
         const q = job.items.filter(x => x.kind === 'quran').length, t = job.items.filter(x => x.kind === 'text').length, bad = job.items.filter(x => x.kind === 'unknown').length;
         job.msg = `${q ? `${Q.arabicNum(q)} قرآن` : ''}${q && t ? ' و' : ''}${t ? `${Q.arabicNum(t)} كلام` : ''}${bad ? ` (+${Q.arabicNum(bad)} مش لاقيه)` : ''}`;
         if (!speech.view || !speech.jobs.some(j => j.id === speech.view && j.status === 'done')) speechShow(job.id);
       } catch (e) {
         if (gen !== speech.gen) return;
+        if (!speech.jobs.includes(job)) continue;
         job.status = 'err'; job.msg = e.message;
       }
       renderSpeechQueue();
@@ -6129,18 +6134,37 @@ function speechShow(id) {
 
 function renderSpeechQueue() {
   const ol = $('#sp-queue');
+  // وانت بتكتب وقت جديد مانعيدش رسم الجدول (عشان الكتابة ماتضيعش) — بيترسم أول ما تخرج من الخانة
+  if (ol.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') {
+    if (!ol.dataset.wait) { ol.dataset.wait = '1'; ol.addEventListener('focusout', () => { delete ol.dataset.wait; setTimeout(renderSpeechQueue, 0); }, { once: true }); }
+    return;
+  }
   ol.hidden = !speech.jobs.length;
   ol.innerHTML = '';
   const icon = { wait: '⏳ مستني', run: '📝', done: '✅', err: '❌' };
   speech.jobs.forEach((j, i) => {
     const li = document.createElement('li');
     li.className = 'sp-job' + (j.id === speech.view ? ' on' : '');
-    li.innerHTML = `<span class="sp-when"></span><span class="sp-st grow"></span><button class="btn ghost" type="button" data-a="show">👁 اعرض</button><button class="btn icon" type="button" data-a="del" title="شيله">✕</button>`;
-    li.querySelector('.sp-when').textContent = `${Q.arabicNum(i + 1)}. ⁦${SP.fmtTime(j.lo)} → ${SP.fmtTime(j.hi)}⁩`;
+    li.innerHTML = `<span class="sp-n"></span><span class="sp-when"><input type="text" dir="ltr" size="6" data-t="lo" title="من"> → <input type="text" dir="ltr" size="6" data-t="hi" title="إلى"></span><span class="sp-st grow"></span><button class="btn ghost" type="button" data-a="show">👁 اعرض</button><button class="btn icon" type="button" data-a="del" title="شيله">✕</button>`;
+    li.querySelector('.sp-n').textContent = `${Q.arabicNum(i + 1)}.`;
+    // تعديل الوقت: قبل ما يتكتب بيتعدّل وخلاص، وبعد ما يتكتب بيتكتب تاني بالوقت الجديد
+    for (const k of ['lo', 'hi']) {
+      const inp = li.querySelector(`[data-t=${k}]`);
+      inp.value = SP.fmtTime(j[k]);
+      inp.onchange = () => {
+        const v = SP.parseTime(inp.value), dur = speech.buffer.duration;
+        const lo = k === 'lo' ? v : j.lo, hi = k === 'hi' ? v : j.hi;
+        if (!Number.isFinite(v) || v < 0 || v > dur + 0.5 || hi - lo < 1) { $('#sp-status').textContent = '❌ الوقت مش مظبوط — اكتبه كده: 10:03، و«إلى» بعد «من» بثانية على الأقل'; inp.value = SP.fmtTime(j[k]); return; }
+        j.lo = Math.max(0, lo); j.hi = Math.min(dur, hi);
+        if (j.status === 'done' || j.status === 'err') { j.status = 'wait'; j.items = []; j.msg = ''; if (speech.view === j.id) { speech.view = null; speech.items = []; renderSpeechItems(); } }
+        $('#sp-status').textContent = `✏️ اتعدّل المقطع ${Q.arabicNum(i + 1)}: ${SP.fmtTime(j.lo)} → ${SP.fmtTime(j.hi)}${j.status === 'run' ? ' — هيتكتب تاني بالوقت الجديد بعد ما يخلص' : ''}`;
+        renderSpeechQueue();
+        speechWorker();
+      };
+    }
     li.querySelector('.sp-st').textContent = `${icon[j.status]} ${j.status === 'wait' ? '' : j.msg}`;
     li.querySelector('[data-a=show]').hidden = j.status !== 'done';
     li.querySelector('[data-a=show]').onclick = () => speechShow(j.id);
-    li.querySelector('[data-a=del]').disabled = j.status === 'run';
     li.querySelector('[data-a=del]').onclick = () => {
       speech.jobs = speech.jobs.filter(x => x !== j);
       if (speech.view === j.id) { speech.view = null; speech.items = []; renderSpeechItems(); }
