@@ -88,7 +88,8 @@ function clip(text, max) {
 // من غير اسم القارئ ولا المصادر (إلا لو فعّلت «ذكر المصادر»)
 // series (اختياري): { index, total } لو المقطع جزء من سلسلة
 export async function generate(blocks, style, translationOf, series = null) {
-  if (style?.frame || (style?.loop && style?.kenBurns)) return tvArt(blocks, style);
+  // وصف «لوحة للتلفزيون» بس لما تعلّم عليه بنفسك (مش من شكل الفيديو)
+  if (style?.tvPublish) return tvArt(blocks, style);
   const ps = getPublishSettings();
   const quran = blocks.filter(b => b.type === 'quran');
   const hadith = blocks.filter(b => b.type === 'hadith');

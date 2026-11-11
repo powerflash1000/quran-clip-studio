@@ -2711,6 +2711,7 @@ function setupPainting() {
     if (!state.style.frame) save('stylePrePaint', { ...state.style });
     Object.assign(state.style, PAINT_PRESET, media ? PAINT_MEDIA : {});
     $('#paint-undo').hidden = false;
+    state.style.tvPublish = true; $('#pub-tvart').checked = true;
     // اللوحة على شاشة تليفزيون كبيرة: أعلى جودة (4K، ولو الجهاز مش بيدعمه بيرجع 1080p لوحده)
     state.style.quality = '2160'; $('#quality').value = '2160';
     // اللوحة غالبًا صامتة (الكلام على الشاشة بيفضل) — والمدة من «المدة (ث)» جنبها
@@ -2721,10 +2722,13 @@ function setupPainting() {
     if (!state.mediaList.length && confirm('تحب تختار منظر طبيعي (صورة أو فيديو) يتحط جوه البرواز؟\n\nموافق = افتح مكتبة الصور والفيديوهات المجانية\nإلغاء = خليها خلفية عاجي')) openStock('nature landscape');
   };
   $('#paint-undo').hidden = !load('stylePrePaint', null);
+  $('#pub-tvart').checked = !!state.style.tvPublish;
+  $('#pub-tvart').onchange = () => { state.style.tvPublish = $('#pub-tvart').checked; persist(); refreshPublish(true); };
   $('#paint-undo').onclick = () => {
     const prev = load('stylePrePaint', null);
     if (!prev) return;
     state.style = { ...state.style, ...prev, frame: prev.frame || '' };
+    state.style.tvPublish = false; $('#pub-tvart').checked = false; refreshPublish(true);
     applyStyleToInputs(); updateBgVisibility(); renderBgList(); persist(); renderLong(); scheduleDuration(); refreshPreview();
     status('↩️ رجع الشكل اللي كان قبل اللوحة (الخلفيات والألوان والخط والمقاس).');
   };
@@ -3738,7 +3742,7 @@ function setLastExport(blob, name, type) {
 async function refreshPublish(force = false) {
   if (pub.edited && !force) return;
   try {
-    pub.data = await generate(state.blocks, { ...state.style, tvMins: Number($('#long-mins')?.value) || 120, tvSilent: !!$('#silent')?.checked, quality: $('#quality')?.value }, Q.translation, state.activeSeries);
+    pub.data = await generate(state.blocks, { ...state.style, tvPublish: !!state.style.tvPublish, tvMins: Number($('#long-mins')?.value) || 120, tvSilent: !!$('#silent')?.checked, quality: $('#quality')?.value }, Q.translation, state.activeSeries);
     pub.edited = false;
     renderPublish();
   } catch (e) {
