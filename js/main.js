@@ -2706,11 +2706,22 @@ function setupPainting() {
   $('#long-mins').onchange = renderLong;
   $('#paint-preset').onclick = () => {
     const media = state.mediaList.length > 0 && confirm('عندك خلفيات (صور/فيديو) — تحطها جوه البرواز؟\n\nموافق = الصور جوه البرواز\nإلغاء = خلفية عاجي بزخرفة');
+    // نحفظ الشكل الحالي الأول عشان «↩️ رجّع شكلي» يرجّعه
+    if (!state.style.frame) save('stylePrePaint', { ...state.style });
     Object.assign(state.style, PAINT_PRESET, media ? PAINT_MEDIA : {});
+    $('#paint-undo').hidden = false;
     applyStyleToInputs(); persist(); renderLong(); scheduleDuration(); refreshPreview();
     status('✨ اتجهزت اللوحة: 16:9، برواز دهبي، حركة هادية، Loop. صدّر MP4 قصير (دقيقة مثلًا) وبعدين «⏩ نسخة طويلة» من «⬇️ التصدير».');
     // مفيش خلفيات: نعرض نجيب منظر طبيعي (صورة أو فيديو) يتحط جوه البرواز
     if (!state.mediaList.length && confirm('تحب تختار منظر طبيعي (صورة أو فيديو) يتحط جوه البرواز؟\n\nموافق = افتح مكتبة الصور والفيديوهات المجانية\nإلغاء = خليها خلفية عاجي')) openStock('nature landscape');
+  };
+  $('#paint-undo').hidden = !load('stylePrePaint', null);
+  $('#paint-undo').onclick = () => {
+    const prev = load('stylePrePaint', null);
+    if (!prev) return;
+    state.style = { ...state.style, ...prev, frame: prev.frame || '' };
+    applyStyleToInputs(); updateBgVisibility(); renderBgList(); persist(); renderLong(); scheduleDuration(); refreshPreview();
+    status('↩️ رجع الشكل اللي كان قبل اللوحة (الخلفيات والألوان والخط والمقاس).');
   };
   $('#long-go').onclick = async () => {
     if (state.busy) return;
@@ -2759,6 +2770,14 @@ function updateBgVisibility() {
   document.querySelectorAll('.when-gradient').forEach(e => { e.hidden = t !== 'gradient'; });
   document.querySelectorAll('.when-color').forEach(e => { e.hidden = t === 'media'; });
   document.querySelectorAll('.when-media').forEach(e => { e.hidden = t !== 'media'; });
+  // أزرار إضافة صورة/فيديو (رفع، خلفيات مجانية، ذكاء اصطناعي) ظاهرة دايمًا — أول ما تضيف حاجة الخلفية بتتحول لصورة/فيديو
+  const box = document.querySelector('.media-box');
+  if (box && t !== 'media') {
+    box.hidden = false;
+    [...box.children].forEach((c, i) => { c.hidden = i > 0; });
+    const n = state.mediaList.length;
+    if (n) { let h = box.querySelector('.media-hint'); if (!h) { h = document.createElement('p'); h.className = 'hint media-hint'; box.firstElementChild.after(h); } h.hidden = false; h.textContent = `عندك ${Q.arabicNum(n)} خلفية محفوظة — اختار «الخلفية: صورة أو فيديو» فوق عشان ترجع.`; }
+  } else if (box) [...box.children].forEach(c => { if (!c.classList.contains('media-hint')) c.hidden = false; else c.hidden = true; });
 }
 
 function setupStyle() {
