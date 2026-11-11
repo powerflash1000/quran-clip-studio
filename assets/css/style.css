@@ -473,3 +473,8 @@ audio.full { width: 100%; margin: .4rem 0; }
 .sp-nums select { max-width: 11rem; }
 .sp-nums input { width: 4.2rem; }
 .sp-heard { font-size: .85rem; }
+.sp-queue { list-style: none; padding: 0; margin: .5rem 0; display: grid; gap: .3rem; }
+.sp-job { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; padding: .35rem .6rem; border: 1px solid var(--line, #ddd); border-radius: 10px; font-size: .92rem; }
+.sp-job.on { border-color: var(--accent, #1b6b5a); background: color-mix(in srgb, var(--accent, #1b6b5a) 8%, transparent); }
+.sp-job .sp-when { font-weight: 600; white-space: nowrap; }
+.sp-job .sp-st { min-width: 0; }

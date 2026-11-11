@@ -5946,14 +5946,15 @@ function setupRefExtract() {
 
 // ===== 🎧 كلام من ملف صوت ← كروت على الشاشة بنفس الصوت =====
 // الملف مستقل عن الكروت: بيتحفظ في المتصفح، ولو مسحت الكروت أو قفلت الصفحة بيفضل موجود
-const speech = { file: null, buffer: null, url: '', items: [], lo: 0, hi: 0 };
+const speech = { file: null, buffer: null, url: '', items: [], lo: 0, hi: 0, jobs: [], view: null, running: false, gen: 0 };
 
 async function speechLoadFile(file, save = true) {
   $('#sp-status').textContent = '⏳ بيقرا الملف…';
   let buf = await decode(await file.arrayBuffer());
   if (buf.duration > 600 && buf.numberOfChannels > 1) buf = toMono(buf);
   if (speech.url) URL.revokeObjectURL(speech.url);
-  Object.assign(speech, { file, buffer: buf, url: URL.createObjectURL(file), items: [] });
+  Object.assign(speech, { file, buffer: buf, url: URL.createObjectURL(file), items: [], jobs: [], view: null, gen: speech.gen + 1 });
+  renderSpeechQueue();
   $('#sp-player').src = speech.url;
   $('#sp-name').textContent = `${file.name} (${SP.fmtTime(buf.duration)})`;
   $('#sp-from').value = '0:00';
@@ -6051,43 +6052,108 @@ function renderSpeechItems() {
   $('#sp-actions').hidden = !speech.items.some(x => x.on);
 }
 
-async function speechTranscribe() {
+// ===== طابور التفريغ: تختار مقطع وتضيفه، وتختار اللي بعده على طول — بيتكتبوا واحد ورا التاني =====
+function speechEnqueue() {
   const st = $('#sp-status');
   if (!speech.buffer) return;
   if (!LLM.canReadMedia()) { st.textContent = '🔑 محتاج مفتاح Gemini (مجاني): ⚙️ الإعدادات ← ✨ مساعد الكتابة (Gemini) أو 🔊 صوت Gemini'; return; }
-  const btn = $('#sp-go');
-  btn.disabled = true;
   try {
     const [lo, hi] = speechRange();
     // المقطع ساكت فعلًا؟ (غالبًا الوقت اتكتب غلط، زي 1.30 بدل 1:30)
-    { const sr = speech.buffer.sampleRate, d = speech.buffer.getChannelData(0); let pk = 0;
-      for (let i = Math.floor(lo * sr), e = Math.min(d.length, Math.floor(hi * sr)); i < e; i += 16) pk = Math.max(pk, Math.abs(d[i]));
-      if (pk < 0.005) throw new Error(`المقطع من ${SP.fmtTime(lo)} لـ ${SP.fmtTime(hi)} ساكت فعلًا — اتأكد من الوقت (اكتبه كده: 1:30 مش 1.30)، أو شغّله بـ ▶ واسمعه.`); }
-    const cuts = SP.chunkCuts(speech.buffer, lo, hi);
-    const segs = [];
-    for (let i = 0; i + 1 < cuts.length; i++) {
-      st.textContent = cuts.length > 2 ? `⏳ بيسمع ويكتب… (جزء ${Q.arabicNum(i + 1)} من ${Q.arabicNum(cuts.length - 1)})` : '⏳ بيسمع ويكتب…';
-      const a = cuts[i], b = cuts[i + 1];
-      const out = await LLM.transcribeSpeech(await SP.wav16k(speech.buffer, a, b), b - a);
-      for (const sg of out) segs.push({ ...sg, start: sg.start + a, end: sg.end + a });
-    }
-    if (!segs.length) throw new Error(`Gemini ماكتبش أي كلام من المقطع (${SP.fmtTime(lo)} → ${SP.fmtTime(hi)}). جرّب مقطع أقصر (دقيقة لـ ٣)، أو اتأكد إن مفتاح Gemini شغال من ⚙️ الإعدادات.`);
-    speech.lo = lo; speech.hi = hi;
-    speech.items = SP.placeCuts(speech.buffer, SP.planItems(segs), lo, hi);
-    // اللي Gemini سمعه فعلًا (عشان تقارنه بنص المصحف)
-    for (const it of speech.items) if (it.kind === 'quran' || it.kind === 'unknown') {
-      it.heard = segs.filter(sg => sg.end > it.a + 0.05 && sg.start < it.b - 0.05).map(sg => sg.text).join(' ');
-    }
-    const q = speech.items.filter(x => x.kind === 'quran').length, t = speech.items.filter(x => x.kind === 'text').length;
-    const bad = speech.items.filter(x => x.kind === 'unknown').length;
-    st.textContent = `✅ ${q ? `${Q.arabicNum(q)} مقطع قرآن (بنص المصحف)` : ''}${q && t ? ' و' : ''}${t ? `${Q.arabicNum(t)} جملة كلام` : ''}${bad ? ` — و${Q.arabicNum(bad)} مقطع شكله قرآن ومش لاقيه في المصحف (مش هيتحط)` : ''}. راجع واسمع، وبعدين «حطهم في الفيديو».`;
-    renderSpeechItems();
+    const sr = speech.buffer.sampleRate, d = speech.buffer.getChannelData(0); let pk = 0;
+    for (let i = Math.floor(lo * sr), e = Math.min(d.length, Math.floor(hi * sr)); i < e; i += 16) pk = Math.max(pk, Math.abs(d[i]));
+    if (pk < 0.005) throw new Error(`المقطع من ${SP.fmtTime(lo)} لـ ${SP.fmtTime(hi)} ساكت فعلًا — اتأكد من الوقت (اكتبه كده: 1:30 مش 1.30)، أو شغّله بـ ▶ واسمعه.`);
+    if (speech.jobs.some(j => j.lo === lo && j.hi === hi && j.status !== 'err')) throw new Error('المقطع ده في الطابور أصلًا');
+    speech.jobs.push({ id: uid(), lo, hi, status: 'wait', items: [], msg: '' });
+    st.textContent = `✅ اتضاف للطابور (${SP.fmtTime(lo)} → ${SP.fmtTime(hi)}) — اختار المقطع اللي بعده لو عايز.`;
+    // نقترح المقطع اللي بعده يبدأ من آخر ده
+    $('#sp-from').value = SP.fmtTime(hi);
+    $('#sp-to').value = SP.fmtTime(Math.min(speech.buffer.duration, hi + (hi - lo)));
+    renderSpeechQueue();
+    speechWorker();
   } catch (e) { st.textContent = '❌ ' + e.message; }
-  btn.disabled = false;
 }
 
-async function speechAdd() {
-  const on = speech.items.filter(x => x.on && x.kind !== 'unknown');
+async function speechWorker() {
+  if (speech.running) return;
+  speech.running = true;
+  const gen = speech.gen;
+  try {
+    for (let job; (job = speech.jobs.find(j => j.status === 'wait'));) {
+      job.status = 'run'; renderSpeechQueue();
+      try {
+        job.items = await transcribeRange(job.lo, job.hi, m => { job.msg = m; renderSpeechQueue(); });
+        if (gen !== speech.gen) return; // الملف اتغيّر
+        job.status = 'done';
+        const q = job.items.filter(x => x.kind === 'quran').length, t = job.items.filter(x => x.kind === 'text').length, bad = job.items.filter(x => x.kind === 'unknown').length;
+        job.msg = `${q ? `${Q.arabicNum(q)} قرآن` : ''}${q && t ? ' و' : ''}${t ? `${Q.arabicNum(t)} كلام` : ''}${bad ? ` (+${Q.arabicNum(bad)} مش لاقيه)` : ''}`;
+        if (!speech.view || !speech.jobs.some(j => j.id === speech.view && j.status === 'done')) speechShow(job.id);
+      } catch (e) {
+        if (gen !== speech.gen) return;
+        job.status = 'err'; job.msg = e.message;
+      }
+      renderSpeechQueue();
+    }
+  } finally { speech.running = false; }
+}
+
+// تفريغ مقطع واحد ← عناصر (قرآن بنص المصحف / كلام)
+async function transcribeRange(lo, hi, onMsg) {
+  const cuts = SP.chunkCuts(speech.buffer, lo, hi);
+  const segs = [];
+  for (let i = 0; i + 1 < cuts.length; i++) {
+    onMsg(cuts.length > 2 ? `بيكتب… (جزء ${Q.arabicNum(i + 1)} من ${Q.arabicNum(cuts.length - 1)})` : 'بيسمع ويكتب…');
+    const a = cuts[i], b = cuts[i + 1];
+    const out = await LLM.transcribeSpeech(await SP.wav16k(speech.buffer, a, b), b - a);
+    for (const sg of out) segs.push({ ...sg, start: sg.start + a, end: sg.end + a });
+  }
+  if (!segs.length) throw new Error(`Gemini ماكتبش أي كلام من المقطع ده. جرّب مقطع أقصر (دقيقة لـ ٣)، أو اتأكد إن مفتاح Gemini شغال.`);
+  const items = SP.placeCuts(speech.buffer, SP.planItems(segs), lo, hi);
+  // اللي Gemini سمعه فعلًا (عشان تقارنه بنص المصحف)
+  for (const it of items) if (it.kind === 'quran' || it.kind === 'unknown') {
+    it.heard = segs.filter(sg => sg.end > it.a + 0.05 && sg.start < it.b - 0.05).map(sg => sg.text).join(' ');
+  }
+  return items;
+}
+
+// اعرض نتيجة مقطع من الطابور في القايمة اللي تحت (للمراجعة والتعديل)
+function speechShow(id) {
+  const job = speech.jobs.find(j => j.id === id);
+  if (!job) return;
+  speech.view = id;
+  speech.items = job.items; speech.lo = job.lo; speech.hi = job.hi;
+  $('#sp-status').textContent = `📋 بتراجع المقطع ${SP.fmtTime(job.lo)} → ${SP.fmtTime(job.hi)} — ${job.msg}. راجع واسمع، وبعدين «حطهم في الفيديو».`;
+  renderSpeechItems();
+  renderSpeechQueue();
+}
+
+function renderSpeechQueue() {
+  const ol = $('#sp-queue');
+  ol.hidden = !speech.jobs.length;
+  ol.innerHTML = '';
+  const icon = { wait: '⏳ مستني', run: '📝', done: '✅', err: '❌' };
+  speech.jobs.forEach((j, i) => {
+    const li = document.createElement('li');
+    li.className = 'sp-job' + (j.id === speech.view ? ' on' : '');
+    li.innerHTML = `<span class="sp-when"></span><span class="sp-st grow"></span><button class="btn ghost" type="button" data-a="show">👁 اعرض</button><button class="btn icon" type="button" data-a="del" title="شيله">✕</button>`;
+    li.querySelector('.sp-when').textContent = `${Q.arabicNum(i + 1)}. ⁦${SP.fmtTime(j.lo)} → ${SP.fmtTime(j.hi)}⁩`;
+    li.querySelector('.sp-st').textContent = `${icon[j.status]} ${j.status === 'wait' ? '' : j.msg}`;
+    li.querySelector('[data-a=show]').hidden = j.status !== 'done';
+    li.querySelector('[data-a=show]').onclick = () => speechShow(j.id);
+    li.querySelector('[data-a=del]').disabled = j.status === 'run';
+    li.querySelector('[data-a=del]').onclick = () => {
+      speech.jobs = speech.jobs.filter(x => x !== j);
+      if (speech.view === j.id) { speech.view = null; speech.items = []; renderSpeechItems(); }
+      renderSpeechQueue();
+    };
+    ol.appendChild(li);
+  });
+  const done = speech.jobs.filter(j => j.status === 'done');
+  $('#sp-add-all').hidden = done.length < 2;
+}
+
+async function speechAdd(list = speech.items) {
+  const on = list.filter(x => x.on && x.kind !== 'unknown');
   if (!on.length) return;
   const who = $('#sp-who').value.trim();
   const blocks = [];
@@ -6176,7 +6242,8 @@ function setupSpeech() {
       p.addEventListener('timeupdate', stopAt);
     } catch (e) { $('#sp-status').textContent = '❌ ' + e.message; }
   };
-  $('#sp-go').onclick = speechTranscribe;
+  $('#sp-go').onclick = speechEnqueue;
+  $('#sp-add-all').onclick = () => speechAdd(speech.jobs.filter(j => j.status === 'done').sort((a, b) => a.lo - b.lo).flatMap(j => j.items)).catch(showError);
   $('#sp-add').onclick = () => speechAdd().catch(showError);
 }
 
