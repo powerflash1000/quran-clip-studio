@@ -23,7 +23,8 @@ function testCodecs() {
 export async function fastConfig(W, H, silent, calm = false) {
   if (typeof VideoEncoder === 'undefined' || (!silent && typeof AudioEncoder === 'undefined')) return null;
   const short = Math.min(W, H), uhd = short >= 2000;
-  const bitrate = uhd ? (calm ? 40_000_000 : 30_000_000) : short >= 1080 ? (calm ? 12_000_000 : 6_000_000) : (calm ? 6_000_000 : 3_500_000);
+  // يوتيوب بيعيد ضغط أي فيديو (4K عنده ≈ ١٥–٢٠ ميجابت)، فأعلى من كده مابيبانش — بيكبّر الملف بس
+  const bitrate = uhd ? (calm ? 20_000_000 : 25_000_000) : short >= 1080 ? (calm ? 8_000_000 : 6_000_000) : (calm ? 4_000_000 : 3_500_000);
   const candidates = (uhd ? ['avc1.640033', 'avc1.4d0033', 'avc1.640034'] : AVC_CODECS).map(codec => ({ mux: 'avc', codec }));
   if (testCodecs()) candidates.push({ mux: 'vp9', codec: 'vp09.00.40.08' });
   let video = null;

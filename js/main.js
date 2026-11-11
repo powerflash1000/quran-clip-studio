@@ -2736,6 +2736,16 @@ function setupPainting() {
     const mins = Number($('#long-mins').value) || 60;
     // حجم الملف قبل ما نبدأ (الكروم بيرفض الكتابة لو الهارد مافيهوش مساحة)
     const gb = info.bytes * (mins * 60 / info.secs) / 1e9;
+    // كروم بيحسب الكتابة على «حد التخزين» بتاعه (مرتبط بالمساحة الفاضية على الدرايف اللي كروم متسطّب عليه، غالبًا C:)
+    try {
+      const est = await navigator.storage?.estimate?.();
+      const free = est ? (est.quota - est.usage) / 1e9 : Infinity;
+      if (free < gb * 1.05) {
+        const fit = Math.floor(free / (info.bytes / info.secs / 1e9) / 60 / 15) * 15;
+        showError(new Error(`كروم سامح بحوالي ${free.toFixed(1)} جيجا بس، والنسخة دي محتاجة ${gb.toFixed(1)} جيجا. الحد ده بيتحسب من المساحة الفاضية على درايف C: (اللي كروم متسطّب عليه)، مش الدرايف اللي بتحفظ عليه — فاضي مساحة على C:، أو اختار مدة أقل${fit >= 15 ? ` (أقصى حاجة دلوقتي حوالي ${fit} دقيقة)` : ''}، أو جودة 1080p.`));
+        return;
+      }
+    } catch { /* مش مدعوم — نكمّل */ }
     if (gb > 4 && !confirm(`النسخة دي (${fmtLong(mins * 60)}) هتبقى حوالي ${gb.toFixed(1)} جيجا.\nاتأكد إن الدرايف اللي هتحفظ عليه فيه مساحة فاضية أكتر من كده (يفضّل ${Math.ceil(gb * 1.2)} جيجا).\n\nنكمّل؟`)) return;
     let handle;
     try {
@@ -2749,7 +2759,7 @@ function setupPainting() {
     } catch (e) {
       try { await w.abort(); } catch { /* اتقفل */ }
       if (e?.name === 'QuotaExceededError' || /quota|storage|space/i.test(e?.message || '')) {
-        showError(new Error(`المساحة على الهارد مش كفاية — النسخة دي محتاجة حوالي ${gb.toFixed(1)} جيجا فاضية. الحل: احفظها على درايف تاني فيه مساحة (D: أو هارد خارجي)، أو امسح ملفات كبيرة، أو اختار مدة أقل (ساعة)، أو جودة 1080p بدل 4K (حجمها حوالي التلت).`));
+        showError(new Error(`المساحة مش كفاية — النسخة دي محتاجة حوالي ${gb.toFixed(1)} جيجا. كروم بيحسبها على المساحة الفاضية في درايف C: (مش الدرايف اللي بتحفظ عليه)، ولو الدرايف اللي بتحفظ عليه فلاشة FAT32 مابتقبلش ملف أكبر من ٤ جيجا. الحل: فاضي مساحة على C:، أو اختار مدة أقل، أو 1080p.`));
       } else showError(e);
     } finally {
       setBusy(false);
