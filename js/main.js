@@ -2734,6 +2734,9 @@ function setupPainting() {
     if (!info) { showError(new Error('صدّر «🎬 فيديو MP4» الأول والـ 🔁 Loop شغال — النسخة الطويلة بتتعمل منه. (لو التصدير السريع مش مدعوم على جهازك، استخدم أداة tools/loop-long — شرحها في الـ README.)')); return; }
     if (!window.showSaveFilePicker) { showError(new Error('النسخة الطويلة محتاجة Chrome أو Edge على الكمبيوتر. على أي جهاز تاني استخدم أداة tools/loop-long (شرحها في الـ README).')); return; }
     const mins = Number($('#long-mins').value) || 60;
+    // حجم الملف قبل ما نبدأ (الكروم بيرفض الكتابة لو الهارد مافيهوش مساحة)
+    const gb = info.bytes * (mins * 60 / info.secs) / 1e9;
+    if (gb > 4 && !confirm(`النسخة دي (${fmtLong(mins * 60)}) هتبقى حوالي ${gb.toFixed(1)} جيجا.\nاتأكد إن الدرايف اللي هتحفظ عليه فيه مساحة فاضية أكتر من كده (يفضّل ${Math.ceil(gb * 1.2)} جيجا).\n\nنكمّل؟`)) return;
     let handle;
     try {
       handle = await window.showSaveFilePicker({ suggestedName: `${baseName()}_${mins}min.mp4`, types: [{ description: 'MP4', accept: { 'video/mp4': ['.mp4'] } }] });
@@ -2745,7 +2748,9 @@ function setupPainting() {
       status(`✅ النسخة الطويلة اتحفظت: ${fmtLong(r.secs)} (${r.reps} دورة). ارفعها على يوتيوب كفيديو عادي.`);
     } catch (e) {
       try { await w.abort(); } catch { /* اتقفل */ }
-      showError(e);
+      if (e?.name === 'QuotaExceededError' || /quota|storage|space/i.test(e?.message || '')) {
+        showError(new Error(`المساحة على الهارد مش كفاية — النسخة دي محتاجة حوالي ${gb.toFixed(1)} جيجا فاضية. الحل: احفظها على درايف تاني فيه مساحة (D: أو هارد خارجي)، أو امسح ملفات كبيرة، أو اختار مدة أقل (ساعة)، أو جودة 1080p بدل 4K (حجمها حوالي التلت).`));
+      } else showError(e);
     } finally {
       setBusy(false);
     }
