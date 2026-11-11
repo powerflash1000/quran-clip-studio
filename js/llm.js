@@ -470,14 +470,21 @@ function parseSegs(out, dur) {
     .sort((a, b) => a.start - b.start);
 }
 
+// التفريغ مش محتاج «تفكير» — قفله بيخلّي الرد أسرع بكتير (لو الموديل مابيقبلش، بنعيد من غيره مرة واحدة)
+let noThinkOk = true;
 async function speechCall(c, rules, prompt, b64wav) {
   let j;
+  const body = think => ({
+    systemInstruction: { parts: [{ text: rules }] },
+    contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'audio/wav', data: b64wav } }, { text: prompt }] }],
+    generationConfig: { responseMimeType: 'application/json', temperature: 0, ...(think ? {} : { thinkingConfig: { thinkingBudget: 0 } }) },
+  });
   try {
-    j = await geminiGenerate(c, {
-      systemInstruction: { parts: [{ text: rules }] },
-      contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'audio/wav', data: b64wav } }, { text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json', temperature: 0 },
-    });
+    try { j = await geminiGenerate(c, body(!noThinkOk)); }
+    catch (e) {
+      if (noThinkOk && /think/i.test(e.message || '')) { noThinkOk = false; j = await geminiGenerate(c, body(true)); }
+      else throw e;
+    }
   } catch (e) {
     if (e instanceof TypeError) throw new Error('الطلب ماوصلش لجوجل (النت). جرّب تاني.');
     throw e;

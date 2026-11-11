@@ -6074,44 +6074,54 @@ function speechEnqueue() {
   } catch (e) { st.textContent = '❌ ' + e.message; }
 }
 
-async function speechWorker() {
-  if (speech.running) return;
-  speech.running = true;
-  const gen = speech.gen;
+// بيشتغل على مقطعين في نفس الوقت (كل مقطع كمان بيتقسم لأجزاء بتتبعت مع بعض)
+const SPEECH_PARALLEL = 2;
+function speechWorker() {
+  speech.active = speech.active || 0;
+  while (speech.active < SPEECH_PARALLEL) {
+    const job = speech.jobs.find(j => j.status === 'wait');
+    if (!job) break;
+    speech.active++;
+    runSpeechJob(job, speech.gen).finally(() => { speech.active--; speechWorker(); });
+  }
+}
+async function runSpeechJob(job, gen) {
+  job.status = 'run'; renderSpeechQueue();
   try {
-    for (let job; (job = speech.jobs.find(j => j.status === 'wait'));) {
-      job.status = 'run'; renderSpeechQueue();
-      try {
-        const { lo, hi } = job;
-        const items = await transcribeRange(lo, hi, m => { job.msg = m; renderSpeechQueue(); });
-        if (gen !== speech.gen) return; // الملف اتغيّر
-        if (!speech.jobs.includes(job)) continue; // اتشال وهو بيتكتب
-        if (job.lo !== lo || job.hi !== hi) { job.status = 'wait'; continue; } // اتعدّل وهو بيتكتب: يتكتب تاني بالوقت الجديد
-        job.items = items;
-        job.status = 'done';
-        const q = job.items.filter(x => x.kind === 'quran').length, t = job.items.filter(x => x.kind === 'text').length, bad = job.items.filter(x => x.kind === 'unknown').length;
-        job.msg = `${q ? `${Q.arabicNum(q)} قرآن` : ''}${q && t ? ' و' : ''}${t ? `${Q.arabicNum(t)} كلام` : ''}${bad ? ` (+${Q.arabicNum(bad)} مش لاقيه)` : ''}`;
-        if (!speech.view || !speech.jobs.some(j => j.id === speech.view && j.status === 'done')) speechShow(job.id);
-      } catch (e) {
-        if (gen !== speech.gen) return;
-        if (!speech.jobs.includes(job)) continue;
-        job.status = 'err'; job.msg = e.message;
-      }
-      renderSpeechQueue();
-    }
-  } finally { speech.running = false; }
+    const { lo, hi } = job;
+    const items = await transcribeRange(lo, hi, m => { job.msg = m; renderSpeechQueue(); });
+    if (gen !== speech.gen || !speech.jobs.includes(job)) return; // الملف اتغيّر أو المقطع اتشال
+    if (job.lo !== lo || job.hi !== hi) { job.status = 'wait'; return; } // اتعدّل وهو بيتكتب: يتكتب تاني بالوقت الجديد
+    job.items = items;
+    job.status = 'done';
+    const q = items.filter(x => x.kind === 'quran').length, t = items.filter(x => x.kind === 'text').length, bad = items.filter(x => x.kind === 'unknown').length;
+    job.msg = `${q ? `${Q.arabicNum(q)} قرآن` : ''}${q && t ? ' و' : ''}${t ? `${Q.arabicNum(t)} كلام` : ''}${bad ? ` (+${Q.arabicNum(bad)} مش لاقيه)` : ''}`;
+    if (!speech.view || !speech.jobs.some(j => j.id === speech.view && j.status === 'done')) speechShow(job.id);
+  } catch (e) {
+    if (gen !== speech.gen || !speech.jobs.includes(job)) return;
+    job.status = 'err'; job.msg = e.message;
+  }
+  renderSpeechQueue();
 }
 
 // تفريغ مقطع واحد ← عناصر (قرآن بنص المصحف / كلام)
 async function transcribeRange(lo, hi, onMsg) {
-  const cuts = SP.chunkCuts(speech.buffer, lo, hi);
-  const segs = [];
-  for (let i = 0; i + 1 < cuts.length; i++) {
-    onMsg(cuts.length > 2 ? `بيكتب… (جزء ${Q.arabicNum(i + 1)} من ${Q.arabicNum(cuts.length - 1)})` : 'بيسمع ويكتب…');
-    const a = cuts[i], b = cuts[i + 1];
-    const out = await LLM.transcribeSpeech(await SP.wav16k(speech.buffer, a, b), b - a);
-    for (const sg of out) segs.push({ ...sg, start: sg.start + a, end: sg.end + a });
-  }
+  // أجزاء دقيقة ونص تقريبًا (مقطوعة عند سكتة)، بتتبعت ٣ مع بعض بدل واحد ورا التاني
+  const cuts = SP.chunkCuts(speech.buffer, lo, hi, 90);
+  const n = cuts.length - 1, parts = new Array(n);
+  let next = 0, done = 0;
+  onMsg(n > 1 ? `بيكتب… (٠ من ${Q.arabicNum(n)} أجزاء)` : 'بيسمع ويكتب…');
+  const lane = async () => {
+    while (next < n) {
+      const i = next++, a = cuts[i], b = cuts[i + 1];
+      const out = await LLM.transcribeSpeech(await SP.wav16k(speech.buffer, a, b), b - a);
+      parts[i] = out.map(sg => ({ ...sg, start: sg.start + a, end: sg.end + a }));
+      done++;
+      if (n > 1) onMsg(`بيكتب… (${Q.arabicNum(done)} من ${Q.arabicNum(n)} أجزاء)`);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(3, n) }, lane));
+  const segs = parts.flat();
   if (!segs.length) throw new Error(`Gemini ماكتبش أي كلام من المقطع ده. جرّب مقطع أقصر (دقيقة لـ ٣)، أو اتأكد إن مفتاح Gemini شغال.`);
   const items = SP.placeCuts(speech.buffer, SP.planItems(segs), lo, hi);
   // اللي Gemini سمعه فعلًا (عشان تقارنه بنص المصحف)
