@@ -108,12 +108,19 @@ export function overlayFrames(segments, duration) {
 export async function exportVideo(project, onProgress, onLoad, onStage) {
   const { segments, timeline, style, media } = project;
   let { W, H } = project;
-  if (project.quality === '720') { const k = 720 / Math.min(W, H); W = Math.round(W * k / 2) * 2; H = Math.round(H * k / 2) * 2; }
+  if (project.quality === '720' || project.quality === '2160') { const k = Number(project.quality) / Math.min(W, H); W = Math.round(W * k / 2) * 2; H = Math.round(H * k / 2) * 2; }
 
   // الطريقة السريعة (WebCodecs) لما الجهاز يدعمها
   if (!project.forceFfmpeg) {
     try {
-      const cfg = await fastConfig(W, H, !!project.silent, !!(project.style?.loop || project.style?.frame));
+      const calm = !!(project.style?.loop || project.style?.frame);
+      let cfg = await fastConfig(W, H, !!project.silent, calm);
+      // 4K مش مدعوم على كارت الشاشة ده: نرجع لـ 1080p بأعلى جودة بدل ffmpeg البطيء جدًا
+      if (!cfg && project.quality === '2160') {
+        project.quality = '1080';
+        project.qualityNote = '⚠️ الجهاز ده مش بيدعم تصدير 4K — اتصدّر 1080p بأعلى جودة.';
+        return exportVideo(project, onProgress, onLoad, onStage);
+      }
       if (cfg) {
         project.usedFast = true;
         return await fastExportVideo(project, cfg, onProgress, onStage);

@@ -18,11 +18,13 @@ function testCodecs() {
 }
 
 // بيرجع إعدادات الترميز المناسبة أو null لو الجهاز مش بيدعم التصدير السريع
-// calm = لوحة التلفزيون / Loop: الصورة شبه ثابتة، فمعدل أقل بكتير بيدي نفس الجودة (النسخة الطويلة ٣ ساعات ≈ ٢٫٧ جيجا بدل ٨)
+// calm = لوحة التلفزيون / Loop: أعلى جودة (الكلام والبرواز لازم يبقوا حادين على شاشة كبيرة) — الحجم مش مشكلة
+// 4K محتاج H.264 مستوى 5.1 (avc1.xx0033)، وكارت الشاشة لازم يدعمه — لو مش مدعوم بنرجع لـ VP9 أو بنقول
 export async function fastConfig(W, H, silent, calm = false) {
   if (typeof VideoEncoder === 'undefined' || (!silent && typeof AudioEncoder === 'undefined')) return null;
-  const bitrate = calm ? (Math.min(W, H) >= 1080 ? 2_000_000 : 1_200_000) : Math.min(W, H) >= 1080 ? 6_000_000 : 3_500_000;
-  const candidates = AVC_CODECS.map(codec => ({ mux: 'avc', codec }));
+  const short = Math.min(W, H), uhd = short >= 2000;
+  const bitrate = uhd ? (calm ? 40_000_000 : 30_000_000) : short >= 1080 ? (calm ? 12_000_000 : 6_000_000) : (calm ? 6_000_000 : 3_500_000);
+  const candidates = (uhd ? ['avc1.640033', 'avc1.4d0033', 'avc1.640034'] : AVC_CODECS).map(codec => ({ mux: 'avc', codec }));
   if (testCodecs()) candidates.push({ mux: 'vp9', codec: 'vp09.00.40.08' });
   let video = null;
   for (const c of candidates) {
@@ -79,7 +81,7 @@ function drawWaveAt(ctx, W, H, timeline, t, color) {
 export async function fastExportVideo(project, cfg, onProgress, onStage) {
   const { segments, timeline, style, media, silent } = project;
   let { W, H } = project;
-  if (project.quality === '720') { const k = 720 / Math.min(W, H); W = Math.round(W * k / 2) * 2; H = Math.round(H * k / 2) * 2; }
+  if (project.quality === '720' || project.quality === '2160') { const k = Number(project.quality) / Math.min(W, H); W = Math.round(W * k / 2) * 2; H = Math.round(H * k / 2) * 2; }
 
   onStage?.('تجهيز الخلفية…');
   const totalFrames = Math.ceil(timeline.duration * FPS);

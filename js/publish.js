@@ -88,6 +88,7 @@ function clip(text, max) {
 // من غير اسم القارئ ولا المصادر (إلا لو فعّلت «ذكر المصادر»)
 // series (اختياري): { index, total } لو المقطع جزء من سلسلة
 export async function generate(blocks, style, translationOf, series = null) {
+  if (style?.frame || (style?.loop && style?.kenBurns)) return tvArt(blocks, style);
   const ps = getPublishSettings();
   const quran = blocks.filter(b => b.type === 'quran');
   const hadith = blocks.filter(b => b.type === 'hadith');
@@ -222,6 +223,72 @@ export async function generate(blocks, style, translationOf, series = null) {
     }
     // اسم الصوت المقترح (تيك توك / إنستجرام)
     if (id === 'tiktok' || id === 'instagram') res.sound = quran.length ? `تلاوة خاشعة – سورة ${Q.surah(quran[0].surah).ar}${topic ? ' – ' + topic.name : ''}` : (zikr.length ? 'دعاء يريح القلب' : 'حديث شريف');
+    out[id] = res;
+  }
+  return out;
+}
+
+// ===== 🖼️ لوحة للتلفزيون (TV Art Frame) =====
+// عنوان عربي + كلمات البحث العالمية (TV Art / Frame TV / Screensaver) ومدة النسخة الطويلة،
+// وصف عربي وإنجليزي بيقول إنها لوحة للشاشة، وتاجز TV Art — زي قنوات اللوحات
+const FRAME_EN = { gold: 'Golden Frame', thin: 'Minimal Gold Frame', black: 'Black & Gold Frame', white: 'White Gallery Frame' };
+const FRAME_AR = { gold: 'برواز دهبي', thin: 'برواز دهبي رفيع', black: 'برواز أسود بحافة دهبي', white: 'برواز أبيض زي المعارض' };
+const durEn = m => (m >= 60 ? `${m / 60 === 1 ? '1 Hour' : `${+(m / 60).toFixed(1)} Hours`}` : `${m} Minutes`);
+const durAr = m => ({ 30: 'نص ساعة', 60: 'ساعة', 120: 'ساعتين', 180: '٣ ساعات' }[m] || `${N(m)} دقيقة`);
+function tvArt(blocks, style) {
+  const quran = blocks.filter(b => b.type === 'quran');
+  const zikr = blocks.filter(b => b.type !== 'quran' && b.text);
+  const mins = Number(style.tvMins) || 120, silent = !!style.tvSilent;
+  const hd = style.quality === '2160' ? '4K' : style.quality === '720' ? 'HD' : 'Full HD';
+  const fr = style.frame || 'gold';
+  let ar, verse = '', ref = '';
+  if (quran.length) {
+    const b = quran[0], s = Q.surah(b.surah);
+    const famous = FAMOUS.find(f => f.s === b.surah && f.from === b.from && f.to === b.to);
+    ar = famous ? famous.name : b.from === 1 && b.to === s.count ? `سورة ${s.ar}` : `﴿${words(hookAyah(b), 6)}﴾`;
+    const t = []; for (let a = b.from; a <= Math.min(b.to, b.from + 4); a++) t.push(`${Q.ayahText(b.surah, a)} ${N(a)}`);
+    verse = `﴿${t.join(' ')}${b.to > b.from + 4 ? ' …' : ''}﴾`;
+    ref = `سورة ${s.ar} ${b.from === b.to ? N(b.from) : `${N(b.from)}–${N(b.to)}`}`;
+  } else if (zikr.length) {
+    ar = words(zikr[0].text, 6);
+    verse = `«${zikr[0].text.trim()}»`;
+  } else ar = 'لوحة إسلامية';
+  const kind = quran.length ? 'Quran Verse' : 'Islamic Dua';
+  const tail = `${durEn(mins)} ${hd}${silent ? ' (No Sound)' : ''} ✨`;
+  let title = `${ar} | ${kind} TV Art – Islamic Calligraphy ${FRAME_EN[fr] || 'Frame'} ${tail}`;
+  if (title.length > 100) title = `${ar} | ${kind} TV Art – ${FRAME_EN[fr] || 'Frame'} ${tail}`;
+  if (title.length > 100) title = `${ar} | Islamic TV Art ${tail}`;
+  title = clip(title, 100);
+  const descAr = `${verse}${ref ? `
+— ${ref}` : ''}
+
+🖼️ لوحة ${quran.length ? 'قرآنية' : 'إسلامية'} للتلفزيون (TV Art Frame): ${quran.length ? (quran[0].to > quran[0].from ? 'آيات' : 'آية') : 'ذكر'} بخط عربي جميل في ${FRAME_AR[fr] || 'برواز'}، بحركة هادية جدًا${silent ? '، من غير صوت' : ' وتلاوة هادية'}.
+شغّلها على شاشة البيت كأنها لوحة متعلقة على الحيطة — للصالة والمجلس وأوقات الهدوء ورمضان.
+⏱️ المدة: ${durAr(mins)} • ${hd} • 16:9`;
+  const descEn = `🖼️ ${kind} TV Art for your Smart TV — elegant Arabic calligraphy in a ${(FRAME_EN[fr] || 'frame').toLowerCase()} with very slow, gentle motion${silent ? ', no sound' : ' and calm Quran recitation'}. Turn your TV into a piece of Islamic wall art: perfect as a TV screensaver or art mode for your living room, Ramadan gatherings or quiet moments.
+${durEn(mins)} • ${hd} • 16:9`;
+  const hs = ['#tvart', '#islamicart', '#tvscreensaver', '#frametv', '#islamiccalligraphy'];
+  const tags = ['tv art', 'frame tv art', 'tv screensaver', 'smart tv art', 'art mode', 'islamic tv art', 'islamic art', 'islamic wall art', 'quran calligraphy', 'arabic calligraphy', 'islamic screensaver', 'ramadan decor', 'tv wallpaper',
+    quran.length ? `surah ${Q.surah(quran[0].surah).en || ''}`.trim() : 'islamic dua', 'لوحة قرآنية', 'لوحات إسلامية', 'خلفية تلفزيون', 'آيات قرآنية', 'خط عربي',
+    ...(quran.length ? [`سورة ${Q.surah(quran[0].surah).ar}`] : ['دعاء'])].filter(Boolean);
+  const out = {};
+  for (const [id, p] of Object.entries(PLATFORMS)) {
+    const short = id !== 'youtube';
+    const caption = short
+      ? `${verse}${ref ? `
+— ${ref}` : ''}
+
+🖼️ لوحة للتلفزيون (TV Art) — النسخة الكاملة ${durAr(mins)} على يوتيوب 🤍
+
+${[...(p.extra || []), ...hs.slice(0, 4)].join(' ')}`
+      : `${descAr}
+
+${descEn}
+
+${hs.slice(0, 3).join(' ')}`;
+    const res = { caption: clip(caption, p.captionMax) };
+    if (p.title) res.title = id === 'shorts' ? clip(`${ar} | Islamic TV Art ✨ #shorts`, 100) : title;
+    if (p.tags) { let t = ''; for (const w of [...new Set(tags)]) { const n = t ? `${t}, ${w}` : w; if (n.length > p.tagsMax) break; t = n; } res.tags = t; }
     out[id] = res;
   }
   return out;

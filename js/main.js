@@ -610,6 +610,7 @@ async function doExport(kind) {
       setLastExport(blob, `${baseName()}.mp4`, 'video/mp4');
       logExperiment(`${baseName()}.mp4`, d);
       renderLong();
+      if (project.qualityNote) setTimeout(() => status(project.qualityNote, null, true), 1500);
       status(`✅ الفيديو جاهز (${fmtDur(d)})${project.usedFast ? ' — تصدير سريع ⚡' : ''}`);
     } else if (kind === 'filmora') {
       status('تجهيز حزمة Filmora…', null);
@@ -2710,6 +2711,8 @@ function setupPainting() {
     if (!state.style.frame) save('stylePrePaint', { ...state.style });
     Object.assign(state.style, PAINT_PRESET, media ? PAINT_MEDIA : {});
     $('#paint-undo').hidden = false;
+    // اللوحة على شاشة تليفزيون كبيرة: أعلى جودة (4K، ولو الجهاز مش بيدعمه بيرجع 1080p لوحده)
+    state.style.quality = '2160'; $('#quality').value = '2160';
     // اللوحة غالبًا صامتة (الكلام على الشاشة بيفضل) — والمدة من «المدة (ث)» جنبها
     if (!$('#silent').checked) { $('#silent').checked = true; $('#silent').dispatchEvent(new Event('change')); }
     applyStyleToInputs(); persist(); renderLong(); scheduleDuration(); refreshPreview();
@@ -3720,7 +3723,7 @@ function setLastExport(blob, name, type) {
 async function refreshPublish(force = false) {
   if (pub.edited && !force) return;
   try {
-    pub.data = await generate(state.blocks, state.style, Q.translation, state.activeSeries);
+    pub.data = await generate(state.blocks, { ...state.style, tvMins: Number($('#long-mins')?.value) || 120, tvSilent: !!$('#silent')?.checked, quality: $('#quality')?.value }, Q.translation, state.activeSeries);
     pub.edited = false;
     renderPublish();
   } catch (e) {
