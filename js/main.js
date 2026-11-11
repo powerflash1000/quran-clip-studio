@@ -3740,10 +3740,12 @@ function setLastExport(blob, name, type) {
 }
 
 async function refreshPublish(force = false) {
-  if (pub.edited && !force) return;
+  // تعديلاتك على الوصف بتتحفظ — إلا لو المحتوى نفسه أو نوع الوصف (عادي / لوحة) اتغيّر: ساعتها بيتكتب من جديد
+  const sig = JSON.stringify([state.blocks.map(b => [b.type, b.surah, b.from, b.to, (b.text || '').slice(0, 40)]), !!state.style.tvPublish, state.activeSeries?.index]);
+  if (pub.edited && !force && sig === pub.sig) return;
   try {
     pub.data = await generate(state.blocks, { ...state.style, tvPublish: !!state.style.tvPublish, tvMins: Number($('#long-mins')?.value) || 120, tvSilent: !!$('#silent')?.checked, quality: $('#quality')?.value }, Q.translation, state.activeSeries);
-    pub.edited = false;
+    pub.edited = false; pub.sig = sig;
     renderPublish();
   } catch (e) {
     console.error(e);
