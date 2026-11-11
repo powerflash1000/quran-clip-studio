@@ -89,7 +89,17 @@ const nWords = (s, a) => WT.words(Q.ayahText(s, a)).length;
 // u = هياكل كلمات التفريغ؛ الأجزاء فيها u1/u2 (من 1)
 // تطابق متسامح لكلمة على حرف الآية: نفس الهيكل، أو بعد شيل الحروف المكررة (لل/ل)
 const squeeze = w => String(w).replace(/(.)\1+/g, '$1');
-const same = (a, b) => a === b || (a && b && squeeze(a) === squeeze(b));
+const tail = w => squeeze(w).replace(/[يى]$/, ''); // «يويلتى» = «يويلتا» (آخر الكلمة ىٰ في المصحف وا في الإملاء)
+const same = (a, b) => a === b || (a && b && (squeeze(a) === squeeze(b) || (a.length > 2 && tail(a) === tail(b))));
+// المصحف بيكتب النداء كلمة واحدة: «يَٰوَيۡلَتَىٰٓ»، «يَٰقَوۡمِ»، «يَٰٓأَيُّهَا»، «هَٰٓأَنتُمۡ» — والتفريغ بيكتبها كلمتين
+function joinVocative(ws) {
+  const out = [];
+  for (let i = 0; i < ws.length; i++) {
+    if (/^(يا|ها)$/.test(Q.skel(ws[i]) === 'ي' ? 'يا' : Q.skel(ws[i]) === 'ه' ? 'ها' : '') && i + 1 < ws.length) { out.push(ws[i] + ws[i + 1]); i++; }
+    else out.push(ws[i]);
+  }
+  return out;
+}
 function extendFrags(frags, u) {
   const used = new Uint8Array(u.length);
   for (const f of frags) for (let k = f.u1 - 1; k < f.u2; k++) used[k] = 1;
@@ -139,7 +149,7 @@ export function planItems(segs) {
     while (j + 1 < segs.length && quranish(segs[j + 1])) j++;
     const words = [];
     for (let k = i; k <= j; k++) {
-      const sg = segs[k], ws = sg.text.split(/\s+/).filter(w => Q.skel(w));
+      const sg = segs[k], ws = joinVocative(sg.text.split(/\s+/).filter(w => Q.skel(w)));
       ws.forEach((w, n) => words.push({ w, seg: k,
         t0: sg.start + (sg.end - sg.start) * n / ws.length, t1: sg.start + (sg.end - sg.start) * (n + 1) / ws.length }));
     }
@@ -173,7 +183,8 @@ export function planItems(segs) {
   const merged = [];
   for (const f of frags) {
     const p = merged[merged.length - 1];
-    if (p && p.s === f.s && p.a === f.a && f.w1 <= p.w2 + 1 && f.seg <= p.seg + 1) {
+    // نفس الآية متقسمة (أو فاتتها كلمة أو اتنين في الإملاء زي «يا ويلتا») ← جزء واحد، والكلمات اللي في النص بتتعرض من المصحف
+    if (p && p.s === f.s && p.a === f.a && f.w1 <= p.w2 + 3 && f.seg <= p.seg + 1) {
       // تكملة (نفس القراية) ← نطوّل آخر قراية؛ إعادة (رجع لكلمة قالها) ← قراية جديدة لنفس الآية
       const last = p.reps[p.reps.length - 1];
       if (f.w1 === last.w2 + 1) { last.w2 = f.w2; last.t1 = f.t1; } else p.reps.push({ a: f.a, w1: f.w1, w2: f.w2, t0: f.t0, t1: f.t1 });
