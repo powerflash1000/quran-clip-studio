@@ -2709,6 +2709,8 @@ function setupPainting() {
     Object.assign(state.style, PAINT_PRESET, media ? PAINT_MEDIA : {});
     applyStyleToInputs(); persist(); renderLong(); scheduleDuration(); refreshPreview();
     status('✨ اتجهزت اللوحة: 16:9، برواز دهبي، حركة هادية، Loop. صدّر MP4 قصير (دقيقة مثلًا) وبعدين «⏩ نسخة طويلة» من «⬇️ التصدير».');
+    // مفيش خلفيات: نعرض نجيب منظر طبيعي (صورة أو فيديو) يتحط جوه البرواز
+    if (!state.mediaList.length && confirm('تحب تختار منظر طبيعي (صورة أو فيديو) يتحط جوه البرواز؟\n\nموافق = افتح مكتبة الصور والفيديوهات المجانية\nإلغاء = خليها خلفية عاجي')) openStock('nature landscape');
   };
   $('#long-go').onclick = async () => {
     if (state.busy) return;
@@ -2932,6 +2934,8 @@ function setMedia(file, append = false, secs = null) {
     state.mediaList = [item];
   }
   state.media = state.mediaList[0];
+  // لوحة التلفزيون كانت على خلفية عاجي (كلام غامق): أول ما يتحط منظر، الكلام يبقى فاتح ويتظبط لوحده
+  if (state.style.frame && state.style.bgType !== 'media' && state.style.textColor === PAINT_PRESET.textColor) Object.assign(state.style, PAINT_MEDIA), applyStyleToInputs();
   state.style.bgType = 'media';
   $('#bgType').value = 'media';
   updateBgVisibility();
