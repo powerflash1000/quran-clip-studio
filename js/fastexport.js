@@ -18,9 +18,10 @@ function testCodecs() {
 }
 
 // بيرجع إعدادات الترميز المناسبة أو null لو الجهاز مش بيدعم التصدير السريع
-export async function fastConfig(W, H, silent) {
+// calm = لوحة التلفزيون / Loop: الصورة شبه ثابتة، فمعدل أقل بكتير بيدي نفس الجودة (النسخة الطويلة ٣ ساعات ≈ ٢٫٧ جيجا بدل ٨)
+export async function fastConfig(W, H, silent, calm = false) {
   if (typeof VideoEncoder === 'undefined' || (!silent && typeof AudioEncoder === 'undefined')) return null;
-  const bitrate = Math.min(W, H) >= 1080 ? 6_000_000 : 3_500_000;
+  const bitrate = calm ? (Math.min(W, H) >= 1080 ? 2_000_000 : 1_200_000) : Math.min(W, H) >= 1080 ? 6_000_000 : 3_500_000;
   const candidates = AVC_CODECS.map(codec => ({ mux: 'avc', codec }));
   if (testCodecs()) candidates.push({ mux: 'vp9', codec: 'vp09.00.40.08' });
   let video = null;

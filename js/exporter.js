@@ -113,7 +113,7 @@ export async function exportVideo(project, onProgress, onLoad, onStage) {
   // الطريقة السريعة (WebCodecs) لما الجهاز يدعمها
   if (!project.forceFfmpeg) {
     try {
-      const cfg = await fastConfig(W, H, !!project.silent);
+      const cfg = await fastConfig(W, H, !!project.silent, !!(project.style?.loop || project.style?.frame));
       if (cfg) {
         project.usedFast = true;
         return await fastExportVideo(project, cfg, onProgress, onStage);

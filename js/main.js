@@ -2710,6 +2710,8 @@ function setupPainting() {
     if (!state.style.frame) save('stylePrePaint', { ...state.style });
     Object.assign(state.style, PAINT_PRESET, media ? PAINT_MEDIA : {});
     $('#paint-undo').hidden = false;
+    // اللوحة غالبًا صامتة (الكلام على الشاشة بيفضل) — والمدة من «المدة (ث)» جنبها
+    if (!$('#silent').checked) { $('#silent').checked = true; $('#silent').dispatchEvent(new Event('change')); }
     applyStyleToInputs(); persist(); renderLong(); scheduleDuration(); refreshPreview();
     status('✨ اتجهزت اللوحة: 16:9، برواز دهبي، حركة هادية، Loop. صدّر MP4 قصير (دقيقة مثلًا) وبعدين «⏩ نسخة طويلة» من «⬇️ التصدير».');
     // مفيش خلفيات: نعرض نجيب منظر طبيعي (صورة أو فيديو) يتحط جوه البرواز
