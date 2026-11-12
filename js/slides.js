@@ -253,6 +253,45 @@ function drawWords(ctx, lines, cx, y, size, lineH, shown, mode, style) {
   ctx.globalAlpha = 1;
 }
 
+// «الكلمة اللي بتتقال بس»: الشاشة فاضية إلا من الكلمة الحالية (now1) أو مجموعتها من ٢–٣ كلمات (now3).
+// الكلام اللي اتقال بيختفي، واللي لسه ماجاش مابيظهرش. بخط أكبر في نص مكان الكلام.
+export function liveChunk(all, shown, mode) {
+  const cur = Math.max(0, Math.min(all.length - 1, shown - 1));
+  if (mode === 'now1') return { a: cur, b: cur, cur };
+  const n = all.length, size = 3;
+  let a = Math.floor(cur / size) * size, b = Math.min(n - 1, a + size - 1);
+  if (n - a === 1 && a >= size) a -= 1; // آخر كلمة لوحدها ← خليها مع اللي قبلها
+  return { a, b, cur };
+}
+function drawLive(ctx, lines, cx, cy, boxW, baseSize, font, shown, mode, style, fx) {
+  const all = lines.join(' ').split(' ').filter(Boolean);
+  if (!all.length || shown <= 0) return;
+  const { a, b, cur } = liveChunk(all, shown, mode);
+  // اللي اتقال بس من المجموعة (اللي لسه ماتقالش مش بيظهر) — ومتوسّط
+  const ws = all.slice(a, cur + 1);
+  ctx.direction = 'rtl'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  // المقاس على المجموعة كلها عشان الخط مايكبرش ويصغر مع كل كلمة
+  const full = all.slice(a, b + 1);
+  let size = Math.max(baseSize, Math.round(baseSize * (mode === 'now1' ? 2.1 : 1.6)));
+  const widthOf = list => { ctx.font = font(size); const sp = ctx.measureText(' ').width; const w = list.map(x => measureRtl(ctx, x)); return { sp, w, total: w.reduce((p, q) => p + q, 0) + sp * Math.max(0, w.length - 1) }; };
+  while (widthOf(full).total > boxW * 0.95 && size > baseSize * 0.6) size = Math.floor(size * 0.92);
+  const m = widthOf(ws);
+  if (fx === 'card' || fx === 'band') {
+    const ph = size * 0.45, saved = ctx.fillStyle;
+    ctx.fillStyle = fx === 'card' ? 'rgba(0,0,0,0.45)' : hexA(style.accent, 0.82);
+    ctx.beginPath(); ctx.roundRect(cx - m.total / 2 - ph, cy - size * 0.8, m.total + ph * 2, size * 1.6, size * 0.3); ctx.fill();
+    ctx.fillStyle = fx === 'band' ? bandInk(style.accent) : saved;
+  }
+  const base = ctx.fillStyle;
+  let x = cx + m.total / 2;
+  ws.forEach((w, k) => {
+    ctx.fillStyle = mode !== 'now1' && k === ws.length - 1 && ws.length > 1 ? style.accent : base;
+    fillRtl(ctx, w, x, cy);
+    x -= m.w[k] + m.sp;
+  });
+  ctx.fillStyle = base;
+}
+
 // كل الآيات مرة واحدة: كل كلمة عارفة هي من أنهي آية، والآية اللي بتتقري بلون التمييز (والباقي أهدى) لو hi
 function drawGroup(ctx, lines, cx, y, size, lineH, grp, style) {
   ctx.direction = 'rtl';
@@ -382,6 +421,7 @@ export function drawOverlay(ctx, W, H, seg, style) {
 
   // حركة الدخول: seg.age = الثواني من أول الكارت (في الفيديو والمعاينة والبث)
   const words = !grp && seg.wordCount != null && style.wordMode && style.wordMode !== 'full';
+  const live = words && /^now/.test(style.wordMode); // «الكلمة اللي بتتقال بس» (زي ترجمة الريلز)
   // مع «الآيات كلها مرة واحدة» الحركة بتحصل مرة واحدة بس في أول آية
   const anim = !words && !(grp && grp.idx > 0) && style.textAnim && seg.age != null && seg.age < ENTER_SECS ? ease(seg.age / ENTER_SECS) : null;
   ctx.save();
@@ -394,7 +434,7 @@ export function drawOverlay(ctx, W, H, seg, style) {
   }
   // كارت أو شريط ورا النص
   const fx = style.textFx || '';
-  if (fx === 'card' || fx === 'band') {
+  if ((fx === 'card' || fx === 'band') && !live) {
     const ph = 34 * unit, bh = total + ph * 2, by = y - ph;
     const saved = [ctx.shadowColor, ctx.shadowBlur];
     ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 30 * unit;
@@ -421,6 +461,7 @@ export function drawOverlay(ctx, W, H, seg, style) {
   }
   try {
     if (grp) drawGroup(ctx, main.lines, cx, y, main.size, lineH, grp, style);
+    else if (live) drawLive(ctx, main.lines, cx, y + main.height / 2, boxW, main.size, mainFont, seg.wordCount, style.wordMode, style, fx);
     else if (words) drawWords(ctx, main.lines, cx, y, main.size, lineH, seg.wordCount, style.wordMode, style);
     else drawLines(ctx, main.lines, cx, y, main.size, lineH, 'rtl');
   } finally { PAINT = null; }

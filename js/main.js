@@ -6627,7 +6627,7 @@ function renderLog() {
   const box = $('#ref-log');
   box.innerHTML = expLog.length ? '' : '<p class="muted">لسه مفيش تجارب.</p>';
   const sorted = [...expLog].sort((a, b) => (Number(b.views) || -1) - (Number(a.views) || -1));
-  const WM = { full: 'كاملة', reveal: 'كلمة كلمة', highlight: 'تظليل' };
+  const WM = { full: 'كاملة', reveal: 'كلمة كلمة', highlight: 'تظليل', now3: 'كلمتين تلاتة', now1: 'كلمة واحدة' };
   for (const e of sorted) {
     const d = document.createElement('div');
     d.className = 'log-row';

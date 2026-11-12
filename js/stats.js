@@ -117,6 +117,6 @@ export function analyze(rows, helpers) {
     byReciter: group(r => r.reciter),
     byHook: group(r => (r.title ? (r.hookFirst ? 'hook' : 'plain') : null), k => (k === 'hook' ? 'بيبدأ بافتتاحية تشد' : 'بيبدأ باسم السورة/النص')),
     byDur: group(r => r.dur == null ? null : r.dur < 30 ? 'a' : r.dur <= 60 ? 'b' : 'c', k => ({ a: 'أقل من ٣٠ث', b: '٣٠–٦٠ث', c: 'أكتر من دقيقة' }[k])),
-    byWordMode: group(r => r.wordMode, k => ({ full: 'الآية كاملة', reveal: 'كلمة كلمة', highlight: 'تظليل' }[k] || k)),
+    byWordMode: group(r => r.wordMode, k => ({ full: 'الآية كاملة', reveal: 'كلمة كلمة', highlight: 'تظليل', now3: 'كلمتين تلاتة', now1: 'كلمة واحدة' }[k] || k)),
   };
 }
