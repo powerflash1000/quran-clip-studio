@@ -112,15 +112,54 @@ export async function retryFetch(url, init, waits = [1500, 4000]) {
 }
 const LITE = 'gemini-flash-lite-latest'; // بديل أخف لو الموديل عليه زحمة
 
+// 400 «Request contains an invalid argument»: جوجل رفض حاجة في شكل الطلب (إعداد مش مدعوم في الموديل ده).
+// بنبسّط الطلب خطوة خطوة لكل الميزات: ١) من غير قفل التفكير ٢) من غير «رد JSON» وتعليمات النظام (بتتحط جوه الطلب)
+// ٣) بالموديل الافتراضي. الخطوة اللي نفعت بتتفتكر للموديل ده.
+const simpleLevel = new Map();
+const is400 = e => e.code === 400 && !/api key/i.test(e.raw || '');
+function simplify(body, lv) {
+  if (!lv) return body;
+  const b = JSON.parse(JSON.stringify(body));
+  const g = b.generationConfig || {};
+  delete g.thinkingConfig;
+  if (lv >= 2) {
+    delete g.responseMimeType;
+    const sys = (b.systemInstruction?.parts || []).map(x => x.text || '').join('\n');
+    delete b.systemInstruction;
+    const parts = b.contents?.[0]?.parts || [];
+    const t = parts.find(x => typeof x.text === 'string');
+    const add = `${sys ? sys + '\n\n' : ''}`;
+    if (t) t.text = add + t.text + (body.generationConfig?.responseMimeType ? '\nرجّع JSON بس من غير أي كلام قبله أو بعده.' : '');
+    else if (add) parts.push({ text: add });
+  }
+  b.generationConfig = g;
+  return b;
+}
 async function geminiGenerate(c, body) {
-  const go = model => retryFetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(c.key)}`, {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+  const go = (model, bd) => retryFetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(c.key)}`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(bd),
   });
-  let model = c.model, r = await go(model);
-  if ((r.status === 503 || r.status === 429) && model !== LITE) { model = LITE; r = await go(model); }
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(geminiError(r.status, j.error?.message || r.statusText, model));
-  return j;
+  const once = async (model, bd) => {
+    let r = await go(model, bd);
+    if ((r.status === 503 || r.status === 429) && model !== LITE) { model = LITE; r = await go(model, bd); }
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { const e = new Error(geminiError(r.status, j.error?.message || r.statusText, model)); e.code = r.status; e.raw = j.error?.message || ''; throw e; }
+    return j;
+  };
+  const DEF = PROVIDERS.gemini.model;
+  const tries = [];
+  for (let lv = simpleLevel.get(c.model) || 0; lv <= 2; lv++) tries.push([c.model, lv]);
+  if (c.model !== DEF) tries.push([DEF, 2]);
+  let last;
+  for (const [model, lv] of tries) {
+    try { const j = await once(model, simplify(body, lv)); if (model === c.model) simpleLevel.set(model, lv); return j; }
+    catch (e) { last = e; if (!is400(e)) throw e; }
+  }
+  const yt = (body.contents?.[0]?.parts || []).some(x => x.fileData);
+  const what = yt ? 'رابط الفيديو' : (body.contents?.[0]?.parts || []).some(x => x.inlineData?.mimeType?.startsWith('audio')) ? 'الصوت' : (body.contents?.[0]?.parts || []).some(x => x.inlineData) ? 'الصورة' : 'الطلب';
+  throw new Error(`جوجل رفض ${what} (400 — Request contains an invalid argument) حتى بعد ما جرّبت ${tries.length} طرق، بالموديل ${c.model}${c.model !== DEF ? ` و ${DEF}` : ''}.\n`
+    + (yt ? 'جوجل بيقبل روابط يوتيوب العامة بس (مش فيسبوك/تيك توك/فيديو خاص). نزّل الفيديو وارفعه كملف.' : what === 'الصوت' ? 'غالبًا الملف الصوتي نفسه فيه مشكلة (فاضي أو صغير أوي). جرّب مقطع تاني أو حوّل الملف لـ MP3.' : 'ابعتلي اسم الزرار اللي دوست عليه وصورة الرسالة.')
+    + `\n(${last?.raw || ''})`);
 }
 async function callGemini(c, system, user) {
   const j = await geminiGenerate(c, {
@@ -470,31 +509,15 @@ function parseSegs(out, dur) {
     .sort((a, b) => a.start - b.start);
 }
 
-// التفريغ مش محتاج «تفكير» — قفله بيخلّي الرد أسرع بكتير.
-// لو جوجل رجّع 400 (Request contains an invalid argument) بنبسّط الطلب خطوة خطوة:
-// ١) من غير قفل التفكير ٢) من غير «رد JSON» وتعليمات النظام (موديلات زي Gemma) ٣) بالموديل الافتراضي (Flash)
-let speechLevel = 0;
+// التفريغ مش محتاج «تفكير» — قفله بيخلّي الرد أسرع بكتير (ولو الموديل رفض، geminiGenerate بيبسّط الطلب لوحده)
 async function speechCall(c, rules, prompt, b64wav) {
   let j;
-  const audio = { inlineData: { mimeType: 'audio/wav', data: b64wav } };
-  const body = lv => lv >= 2
-    ? { contents: [{ role: 'user', parts: [audio, { text: `${rules}\n\n${prompt}\nرجّع JSON بس من غير أي كلام قبله أو بعده.` }] }], generationConfig: { temperature: 0 } }
-    : {
-      systemInstruction: { parts: [{ text: rules }] },
-      contents: [{ role: 'user', parts: [audio, { text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json', temperature: 0, ...(lv === 0 ? { thinkingConfig: { thinkingBudget: 0 } } : {}) },
-    };
-  const bad = e => /\b400\b|invalid argument|think|json mode|instruction/i.test(e?.message || '') && !/api key|المفتاح/i.test(e?.message || '');
   try {
-    for (let lv = speechLevel; ; lv++) {
-      try { j = await geminiGenerate(lv >= 3 ? { ...c, model: PROVIDERS.gemini.model } : c, body(Math.min(lv, 2))); speechLevel = lv; break; }
-      catch (e) {
-        if (!bad(e) || lv >= 3 || (lv === 2 && c.model === PROVIDERS.gemini.model)) {
-          if (bad(e)) throw new Error(`جوجل رفض طلب التفريغ (${e.message}).\nغالبًا الموديل المختار (${c.model}) مابيسمعش صوت — من ⚙️ الإعدادات اختار موديل Flash (زي ${PROVIDERS.gemini.model})، أو جرّب مقطع أطول من ثانيتين.`);
-          throw e;
-        }
-      }
-    }
+    j = await geminiGenerate(c, {
+      systemInstruction: { parts: [{ text: rules }] },
+      contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'audio/wav', data: b64wav } }, { text: prompt }] }],
+      generationConfig: { responseMimeType: 'application/json', temperature: 0, thinkingConfig: { thinkingBudget: 0 } },
+    });
   } catch (e) {
     if (e instanceof TypeError) throw new Error('الطلب ماوصلش لجوجل (النت). جرّب تاني.');
     throw e;
