@@ -164,7 +164,7 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
       const zAudio = useAudio ? await enhanceVoice(au.buffer, b.enhance) : null;
       segs.push({
         kind: 'zikr',
-        text: b.text || (b.custom ? '(اكتب النص بتاعك)' : '(اختار الذكر أو اكتب النص)'),
+        text: b.text || (b.audioOnly ? '' : b.custom ? '(اكتب النص بتاعك)' : '(اختار الذكر أو اكتب النص)'),
         sub: '',
         label: b.custom ? (b.label || '') : (b.cat || 'ذكر'),
         footer: [b.showCount && n > 1 ? `يُقال ${Q.arabicNum(n)} ${n <= 10 ? 'مرات' : 'مرة'}` : '', b.ref].filter(Boolean).join(' • '),
@@ -2094,11 +2094,11 @@ function zikrBlockEl(b, i) {
     el('libRow').hidden = true;
     el('customRow').hidden = false;
     el('customTools').hidden = false;
-    el('badge').textContent = 'نص خاص';
-    el('textHint').textContent = '(اكتب الدعاء أو الكلام بتاعك)';
+    el('badge').textContent = b.audioOnly ? '🔊 صوت بس' : 'نص خاص';
+    el('textHint').textContent = b.audioOnly ? '(فاضي = مفيش كتابة على الشاشة — ولو كتبت هنا هيظهر)' : '(اكتب الدعاء أو الكلام بتاعك)';
     f('customLabel').value = b.label || '';
     f('customRef').value = b.ref || '';
-    f('text').placeholder = 'اكتب النص هنا…';
+    f('text').placeholder = b.audioOnly ? 'من غير كتابة — الصوت بس' : 'اكتب النص هنا…';
     f('customLabel').oninput = () => { b.label = f('customLabel').value.trim(); sync(); persist(); refreshPreview(); };
     f('customRef').oninput = () => { b.ref = f('customRef').value.trim(); persist(); refreshPreview(); };
     // الزرار بيقول «ضيف صورة تانية» لما يبقى فيه نص، عشان يبان إن الجديد بيتضاف تحت
@@ -6192,6 +6192,25 @@ function renderSpeechQueue() {
   $('#sp-add-all').hidden = done.length < 2;
 }
 
+// 🔊 المقطع كصوت بس: كارت «نص خاص» فاضي بصوت الملف — الشاشة بتفضل خلفية بس (وتقدر تكتب نص بعدين لو حبيت)
+function speechAddAudioOnly() {
+  const st = $('#sp-status');
+  if (!speech.buffer) return;
+  try {
+    const [lo, hi] = speechRange();
+    const buf = sliceBuffer(speech.buffer, lo, hi);
+    const blob = bufferToWavBlob(buf);
+    const b = newCustomBlock();
+    Object.assign(b, { text: '', label: '', ref: '', audioOnly: true, audioMode: 'upload', seconds: Math.round(buf.duration * 2) / 2, secondsManual: true });
+    setHadithAudio(b, buf, speech.file.name, blob, 'upload');
+    libSave(b, 'upload', blob, buf, `${speech.file.name} ${SP.fmtTime(lo)}`);
+    state.blocks = $('#sp-replace').checked ? [b] : [...state.blocks, b];
+    renderBlocks(); refreshPublish(true); refreshPreview();
+    st.textContent = `✅ اتضاف صوت بس (${SP.fmtTime(lo)} → ${SP.fmtTime(hi)}، ${fmtDur(buf.duration)}) — من غير كتابة. اختار مقطع تاني أو اقفل النافذة.`;
+    $('#sp-from').value = SP.fmtTime(hi);
+  } catch (e) { st.textContent = '❌ ' + e.message; }
+}
+
 async function speechAdd(list = speech.items) {
   const on = list.filter(x => x.on && x.kind !== 'unknown');
   if (!on.length) return;
@@ -6283,6 +6302,7 @@ function setupSpeech() {
     } catch (e) { $('#sp-status').textContent = '❌ ' + e.message; }
   };
   $('#sp-go').onclick = speechEnqueue;
+  $('#sp-audio-only').onclick = speechAddAudioOnly;
   $('#sp-add-all').onclick = () => speechAdd(speech.jobs.filter(j => j.status === 'done').sort((a, b) => a.lo - b.lo).flatMap(j => j.items)).catch(showError);
   $('#sp-add').onclick = () => speechAdd().catch(showError);
 }

@@ -93,7 +93,7 @@ export async function generate(blocks, style, translationOf, series = null) {
   const ps = getPublishSettings();
   const quran = blocks.filter(b => b.type === 'quran');
   const hadith = blocks.filter(b => b.type === 'hadith');
-  const zikr = blocks.filter(b => b.type === 'zikr');
+  const zikr = blocks.filter(b => b.type === 'zikr' && (b.text || '').trim()); // «صوت بس» من غير نص مالوش وصف
   const allText = [...quran.flatMap(b => { const t = []; for (let a = b.from; a <= b.to; a++) t.push(Q.ayahText(b.surah, a)); return t; }), ...zikr.map(z => z.text || ''), ...hadith.map(h => h.text || '')].join(' ');
   const topic = topicOf(allText);
   const seed = quran[0] ? quran[0].surah * 1000 + quran[0].from : (allText.length || 1);
@@ -135,7 +135,8 @@ export async function generate(blocks, style, translationOf, series = null) {
     kw.push('تلاوة خاشعة', topic?.kw || 'راحة نفسية', 'قرآن قبل النوم');
     for (const b of quran) kw.push(`سورة ${Q.surah(b.surah).ar}`);
   } else if (zikr.length) kw.push('دعاء', 'أذكار', topic?.kw || 'راحة نفسية');
-  else kw.push('حديث شريف', 'السنة النبوية');
+  else if (hadith.length) kw.push('حديث شريف', 'السنة النبوية');
+  else kw.push('تلاوة خاشعة', 'قرآن كريم', 'راحة نفسية'); // صوت بس من غير نص
   const kwLine = [...new Set(kw)].join(' | ');
 
   // ===== النص الكامل (اختياري) =====
@@ -184,7 +185,8 @@ export async function generate(blocks, style, translationOf, series = null) {
     base.push(tag('سورة ' + Q.surah(quran[0].surah).ar));
     base.push('#' + (topic?.tag || 'راحة_نفسية'));
   } else if (zikr.length) base.push('#دعاء', '#أذكار', '#' + (topic?.tag || 'راحة_نفسية'), '#ذكر_الله');
-  else base.push('#حديث_شريف', '#السنة_النبوية', '#ذكر_الله');
+  else if (hadith.length) base.push('#حديث_شريف', '#السنة_النبوية', '#ذكر_الله');
+  else base.push('#قرآن_كريم', '#تلاوة_خاشعة', '#راحة_نفسية');
   const user = ps.extraHashtags.split(/[\s,،]+/).filter(Boolean).map(h => (h.startsWith('#') ? h : '#' + h));
   const cta = pick(CTA[kind], seed);
 
