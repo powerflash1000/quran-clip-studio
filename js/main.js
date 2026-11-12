@@ -1974,6 +1974,12 @@ async function libSave(b, kind, blob, buffer, name) {
 async function restoreBlockAudio() {
   let n = 0;
   for (const b of state.blocks) {
+    if (b.srcClip && !hadithAudio.has(b.id)) {
+      try {
+        const buf = await srcClipBuffer(b.srcClip);
+        if (buf) { setHadithAudio(b, buf, b.rec?.file || 'ملف', bufferToWavBlob(buf), 'upload'); n++; continue; }
+      } catch { /* نكمل بالطريقة القديمة */ }
+    }
     if (!b.audioId || hadithAudio.has(b.id)) continue;
     const c = await AL.getClip(b.audioId);
     if (!c) continue;
@@ -5993,7 +5999,7 @@ async function speechLoadFile(file, save = true) {
   let buf = await decode(await file.arrayBuffer());
   if (buf.duration > 600 && buf.numberOfChannels > 1) buf = toMono(buf);
   if (speech.url) URL.revokeObjectURL(speech.url);
-  Object.assign(speech, { file, buffer: buf, url: URL.createObjectURL(file), items: [], jobs: [], view: null, gen: speech.gen + 1 });
+  Object.assign(speech, { file, buffer: buf, url: URL.createObjectURL(file), items: [], jobs: [], view: null, gen: speech.gen + 1, srcId: null });
   renderSpeechQueue();
   $('#sp-player').src = speech.url;
   $('#sp-name').textContent = `${file.name} (${SP.fmtTime(buf.duration)})`;
@@ -6008,9 +6014,52 @@ async function speechLoadFile(file, save = true) {
   $('#sp-actions').hidden = true;
   $('#sp-status').textContent = '';
   if (save) {
-    const id = await AL.addClip({ name: file.name, kind: 'upload', text: '', voice: '', dur: buf.duration, blob: file });
+    // الملف الأصلي بيتحفظ مرة واحدة (مثبّت): الكروت بتفتكر «من ثانية كام لكام» فيه بدل نسخة WAV كبيرة لكل كارت
+    const srcs = load('speechSources', []);
+    const same = srcs.find(x => x.name === file.name && x.size === file.size && x.mod === file.lastModified);
+    let id = same && (await AL.getClip(same.id)) ? same.id : null;
+    if (!id) {
+      id = await AL.addClip({ name: file.name, kind: 'upload', text: '', voice: '', dur: buf.duration, blob: file, pin: true });
+      const list = [...srcs.filter(x => x.id !== same?.id), { id, name: file.name, size: file.size, mod: file.lastModified }];
+      // آخر ٥ ملفات بس فاضلين مثبّتين
+      while (list.length > 5) AL.setPin(list.shift().id, false);
+      save_('speechSources', list);
+    }
+    speech.srcId = id;
     save_('speechFile', { id, name: file.name, type: file.type });
   }
+}
+
+// نتايج التفريغ (الطابور والمقاطع اللي اتكتبت) بتتحفظ عشان الريفرش مايضيّعهاش
+function speechSaveSession() {
+  if (!speech.srcId) return;
+  const jobs = speech.jobs.filter(j => j.status === 'done').map(({ id, lo, hi, status, items, msg }) => ({ id, lo, hi, status, items, msg }));
+  save_('speechSession', { id: speech.srcId, jobs, view: speech.view, from: $('#sp-from').value, to: $('#sp-to').value });
+}
+function speechRestoreSession() {
+  const ss = load('speechSession', null);
+  if (!ss || ss.id !== speech.srcId || !ss.jobs?.length) return false;
+  speech.jobs = ss.jobs.map(j => ({ ...j }));
+  if (ss.from) $('#sp-from').value = ss.from;
+  if (ss.to) $('#sp-to').value = ss.to;
+  renderSpeechQueue();
+  const v = speech.jobs.find(j => j.id === ss.view) || speech.jobs[speech.jobs.length - 1];
+  if (v) speechShow(v.id);
+  $('#sp-status').textContent = `↩️ رجّعت ${Q.arabicNum(speech.jobs.length)} مقطع اتكتبوا قبل كده للملف ده.`;
+  return true;
+}
+
+// صوت الكارت من الملف الأصلي (بعد الريفرش): بنفك الملف مرة واحدة ونقص منه
+const srcDecoded = new Map();
+async function srcClipBuffer(ref) {
+  if (!srcDecoded.has(ref.id)) srcDecoded.set(ref.id, (async () => {
+    if (speech.srcId === ref.id && speech.buffer) return speech.buffer;
+    const c = await AL.getClip(ref.id);
+    if (!c?.blob) return null;
+    return decode(await c.blob.arrayBuffer());
+  })().catch(() => null));
+  const full = await srcDecoded.get(ref.id);
+  return full ? sliceBuffer(full, ref.a, ref.b) : null;
 }
 const save_ = (k, v) => save(k, v);
 
@@ -6025,6 +6074,7 @@ function speechRange() {
 }
 
 function renderSpeechItems() {
+  speechSaveSession();
   const ol = $('#sp-items');
   ol.innerHTML = '';
   speech.items.forEach(it => {
@@ -6219,6 +6269,7 @@ function speechShow(id) {
 
 function renderSpeechQueue() {
   const ol = $('#sp-queue');
+  speechSaveSession();
   // وانت بتكتب وقت جديد مانعيدش رسم الجدول (عشان الكتابة ماتضيعش) — بيترسم أول ما تخرج من الخانة
   if (ol.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') {
     if (!ol.dataset.wait) { ol.dataset.wait = '1'; ol.addEventListener('focusout', () => { delete ol.dataset.wait; setTimeout(renderSpeechQueue, 0); }, { once: true }); }
@@ -6272,8 +6323,10 @@ function speechAddAudioOnly() {
     const b = newCustomBlock();
     Object.assign(b, { text: '', label: '', ref: '', audioOnly: true, audioMode: 'upload', seconds: Math.round(buf.duration * 2) / 2, secondsManual: true });
     setHadithAudio(b, buf, speech.file.name, blob, 'upload');
-    libSave(b, 'upload', blob, buf, `${speech.file.name} ${SP.fmtTime(lo)}`);
+    if (speech.srcId) b.srcClip = { id: speech.srcId, a: lo, b: hi };
+    else libSave(b, 'upload', blob, buf, `${speech.file.name} ${SP.fmtTime(lo)}`);
     state.blocks = $('#sp-replace').checked ? [b] : [...state.blocks, b];
+    persist();
     renderBlocks(); refreshPublish(true); refreshPreview();
     st.textContent = `✅ اتضاف صوت بس (${SP.fmtTime(lo)} → ${SP.fmtTime(hi)}، ${fmtDur(buf.duration)}) — من غير كتابة. اختار مقطع تاني أو اقفل النافذة.`;
     $('#sp-from').value = SP.fmtTime(hi);
@@ -6324,10 +6377,13 @@ async function speechAdd(list = speech.items) {
       setHadithAudio(b, buf, speech.file.name, blob, 'upload');
     }
     blocks.push(b);
-    libSave(b, 'upload', blob, buf, `${speech.file.name} ${SP.fmtTime(it.a)}`);
+    if (speech.srcId) b.srcClip = { id: speech.srcId, a: it.a, b: it.b }; // بيرجع بعد الريفرش من الملف الأصلي
+    else libSave(b, 'upload', blob, buf, `${speech.file.name} ${SP.fmtTime(it.a)}`);
   }
   stop();
   state.blocks = $('#sp-replace').checked ? blocks : [...state.blocks, ...blocks];
+  persist();
+  speechSaveSession();
   renderBlocks();
   refreshPublish(true);
   refreshPreview();
@@ -6347,7 +6403,7 @@ function setupSpeech() {
       if (m?.id) {
         const c = await AL.getClip(m.id);
         if (c?.blob) {
-          try { await speechLoadFile(new File([c.blob], m.name, { type: m.type || c.blob.type }), false); } catch { /* ملف بايظ */ }
+          try { await speechLoadFile(new File([c.blob], m.name, { type: m.type || c.blob.type }), false); speech.srcId = m.id; speechRestoreSession(); } catch { /* ملف بايظ */ }
         }
       }
     }

@@ -50,6 +50,17 @@ export async function getClip(id) {
   } catch { return null; }
 }
 
+// تثبيت/فك تثبيت ملف (عشان الحذف التلقائي مايقربلوش)
+export async function setPin(id, pin) {
+  try {
+    const db = await openDb();
+    const st = db.transaction(STORE, 'readwrite').objectStore(STORE);
+    const c = await req2p(st.get(id));
+    if (c) { c.pin = !!pin; await req2p(st.put(c)); }
+    db.close();
+  } catch { /* مش مهم */ }
+}
+
 export async function deleteClip(id) {
   const db = await openDb();
   const tx = db.transaction(STORE, 'readwrite');
@@ -68,7 +79,9 @@ async function prune() {
   const all = await listClips();
   let bytes = all.reduce((a, c) => a + (c.size || 0), 0);
   const drop = [];
+  // الملفات المثبّتة (ملفات «كلام من ملف صوت» الأصلية — الكروت بتتقص منها) مابتتمسحش
   for (let i = all.length - 1; i >= 0 && (all.length - drop.length > MAX_ITEMS || bytes > MAX_BYTES); i--) {
+    if (all[i].pin) continue;
     drop.push(all[i].id);
     bytes -= all[i].size || 0;
   }
