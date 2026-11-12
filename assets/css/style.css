@@ -481,5 +481,6 @@ audio.full { width: 100%; margin: .4rem 0; }
 .sp-job .sp-when input { width: 4.6rem; padding: .15rem .35rem; text-align: center; }
 .sp-job .sp-n { font-weight: 600; }
 .sp-warn { background: color-mix(in srgb, #e0a100 18%, transparent); border-radius: 8px; padding: .35rem .6rem; font-size: .9rem; }
+.sp-script { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin: .4rem 0; }
 .sp-fix summary { cursor: pointer; }
 .sp-heard-txt { width: 100%; }

@@ -27,6 +27,7 @@ export const DEFAULT_STYLE = {
   recFx: '',               // صدى على صوت التلاوة (غرفة / مسجد / قاعة كبيرة)
   trimSilence: true,       // قص السكوت من أول وآخر ملف كل آية
   ayahLayout: 'one',       // one (آية آية) | all (الآيات كلها مرة واحدة) | allHi (كلها + الآية الحالية منوّرة)
+  script: 'uthmani',        // uthmani (رسم المصحف) | imlaei (إملائي حديث من Tanzil)
   wordMode: 'full',        // full | reveal (الكلمات بتظهر مع التلاوة) | highlight (تظليل الكلمة الحالية)
   quality: '1080',
   intro: '',               // جملة افتتاحية في أول الفيديو (فاضية = من غير)

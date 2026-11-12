@@ -101,6 +101,7 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
   const wordSync = st.wordMode && st.wordMode !== 'full';
   const segs = [];
   const jobs = [];
+  try { await Q.setScript(st.script); } catch { await Q.setScript('uthmani'); }
 
   for (const [bi, b] of blocks.entries()) {
     // كارت فاضي (نص خاص أو ذكر أو حديث من غير نص): الجملة الإرشادية بتظهر في المعاينة بس، مش في الفيديو ولا البث
@@ -300,7 +301,37 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
       }
     }
   }
+  applyScript(segs);
   return segs;
+}
+
+// «إملائي حديث»: بنبدّل نص العرض بعد ما توقيت الكلمات اتحسب على كلمات المصحف،
+// وكل كلمة عثمانية بتاخد توقيتها للكلمة (أو الكلمتين) اللي قصادها في الإملائي — فالصوت والتلوين يفضلوا مظبوطين
+function applyScript(segs) {
+  if (Q.scriptOf() !== 'imlaei') return;
+  const full = a => `\u00A0${Q.arabicNum(a)}`;
+  for (const sg of segs) {
+    if (sg.kind === 'basmala' && sg.text === Q.BASMALA) { sg.text = Q.showBasmala(); continue; }
+    if (sg.kind !== 'ayah' || !sg.s || !sg.a) continue;
+    const P = Q.showPieces(sg.s, sg.a);
+    if (!P) continue;
+    const sl = sg.part ? P.slice(sg.part.w1 - 1, sg.part.w2) : P;
+    const text = sl.filter(Boolean).join(' ') + (sg.part ? '' : full(sg.a));
+    if (sg.wordTimes) {
+      if (sg.wordTimes.length === sl.length) {
+        const t = [];
+        sl.forEach((pc, i) => { for (let k = WT.words(pc).length; k > 0; k--) t.push(sg.wordTimes[i]); });
+        sg.wordTimes = t;
+      } else sg.wordTimes = WT.approxTimes(text, sg.audio ? sg.audio.duration : (sg.silence || 3));
+    }
+    sg.text = text;
+    if (sg.fullText) sg.fullText = Q.showText(sg.s, sg.a) + full(sg.a);
+    if (sg.group && !sg.group.im) {
+      const from = sg.a - sg.group.idx;
+      sg.group.texts = sg.group.texts.map((_, i) => Q.showText(sg.s, from + i) + full(from + i));
+      sg.group.im = true;
+    }
+  }
 }
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, Number(v) || a));
@@ -794,8 +825,8 @@ function quranBlockEl(b, i) {
     const at = li.querySelector('[data-el=ayahText]');
     if (at) {
       const p = ayahPart(b), t = [];
-      if (p) t.push(WT.words(Q.ayahText(b.surah, b.from)).slice(p.w1 - 1, p.w2).join(' '));
-      else for (let a = b.from; a <= Math.min(b.to, b.from + 40); a++) t.push(`${Q.ayahText(b.surah, a)} ﴿${Q.arabicNum(a)}﴾`);
+      if (p) t.push(Q.showSlice(b.surah, b.from, p.w1, p.w2));
+      else for (let a = b.from; a <= Math.min(b.to, b.from + 40); a++) t.push(`${Q.showText(b.surah, a)} ﴿${Q.arabicNum(a)}﴾`);
       at.textContent = t.join(' ') + (!p && b.to > b.from + 40 ? ' …' : '');
     }
     f('basmala').disabled = b.surah === 1 || b.surah === 9;
@@ -2698,7 +2729,7 @@ function renderLong() {
 const PAINT_PRESET = {
   aspect: '16:9', bgType: 'gradient', color1: '#f6f0e4', color2: '#e7dbc6', dim: 0,
   textColor: '#2b211a', subColor: '#5b4a37', accent: '#a8781e', textSize: 92, textFx: '', textAnim: '', textZone: '', textInk: '',
-  ayahLayout: 'all', wordMode: 'full', showLabel: true, showFooter: false, showTranslation: false, waveform: false,
+  ayahLayout: 'all', script: 'uthmani', wordMode: 'full', showLabel: true, showFooter: false, showTranslation: false, waveform: false,
   frame: 'gold', wall: '#0e0e0e', pattern: 'stars', kenBurns: 'slow', loop: true,
   look: '', light: '', cardTrans: '', bumper: '', subCard: '', intro: '', handleOpacity: 0.45,
 };
@@ -2775,7 +2806,7 @@ function setupPainting() {
 }
 
 // ===== الشكل =====
-const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'textZone', 'textInk', 'ayahLayout', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade', 'frame', 'wall', 'pattern', 'kenBurns', 'loop'];
+const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'textZone', 'textInk', 'ayahLayout', 'script', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade', 'frame', 'wall', 'pattern', 'kenBurns', 'loop'];
 
 function applyStyleToInputs() {
   const st = state.style;
@@ -2830,6 +2861,7 @@ function setupStyle() {
       if (k === 'loop') { renderLong(); scheduleDuration(); }
       persist();
       if (k === 'textFont') ensureFonts(state.style).then(() => refreshPreview());
+      if (k === 'script') Q.setScript(v).then(() => { renderBlocks(true); refreshPreview(); }).catch(() => status('⚠️ ملف الكتابة الإملائية ما اتحمّلش — جرّب تاني'));
       refreshPreview();
     });
   }
@@ -3476,7 +3508,7 @@ function setupTemplates() {
     const tpl = T.listTemplates()[$('#templates').value];
     if (!tpl) return;
     const keepMedia = state.mediaList.length > 0 && state.style.bgType === 'media';
-    state.style = { ...T.DEFAULT_STYLE, ...tpl, bgType: keepMedia ? 'media' : tpl.bgType === 'media' && !state.media ? 'gradient' : tpl.bgType };
+    state.style = { ...T.DEFAULT_STYLE, ...tpl, script: state.style.script || 'uthmani', bgType: keepMedia ? 'media' : tpl.bgType === 'media' && !state.media ? 'gradient' : tpl.bgType };
     applyStyleToInputs();
     persist();
     refreshPreview();
@@ -4367,7 +4399,7 @@ async function runQueue() {
   const saved = { blocks: state.blocks, style: state.style, activeSeries: state.activeSeries };
   if (tplName) {
     const tpl = T.listTemplates()[tplName];
-    state.style = { ...T.DEFAULT_STYLE, ...tpl, bgType: tpl.bgType === 'media' && !state.media ? 'gradient' : tpl.bgType };
+    state.style = { ...T.DEFAULT_STYLE, ...tpl, script: state.style.script || 'uthmani', bgType: tpl.bgType === 'media' && !state.media ? 'gradient' : tpl.bgType };
   }
   queue.running = true;
   queue.stopAfter = false;
@@ -6032,7 +6064,7 @@ function renderSpeechItems() {
         <div class="ayah-text sp-mushaf"></div>
         <div class="sp-warn" hidden></div>
         <details class="sp-fix"><summary class="muted sp-heard"></summary>
-          <p class="hint">لو فيه كلمة اتسمعت غلط: صلّحها هنا (من غير تشكيل، زي ما بتكتب عادي) ودوس «دوّر تاني» — البرنامج بيلاقي الآية الصح ويعرضها من المصحف.</p>
+          <p class="hint">⚠️ الخانة دي <b>للبحث بس ومش هتظهر في الفيديو</b>. استخدمها لو الآية اللي فوق <b>مش هي</b> اللي الشيخ قراها (أو ناقصة كلمات): صلّح الكلمة الغلط (من غير تشكيل) ودوس «دوّر تاني». لو الآية فوق صح بس شكل كتابتها مستغرب (زي جَزَٰٓؤُا۟) — دي رسم المصحف وهي صح؛ غيّر «شكل كتابة الآيات» لـ «إملائي حديث».</p>
           <textarea class="sp-heard-txt" rows="2"></textarea>
           <button class="btn ghost sp-rematch" type="button">🔁 دوّر تاني بالكلام ده</button>
         </details>`;
@@ -6043,6 +6075,8 @@ function renderSpeechItems() {
       f.value = it.part ? it.from : it.from; t.value = it.to;
       const show = () => {
         box.querySelector('.sp-mushaf').textContent = SP.quranText(it);
+        $('#sp-script-row').hidden = false;
+        if (document.activeElement !== $('#sp-script')) $('#sp-script').value = state.style.script || 'uthmani';
         box.querySelector('.sp-heard').textContent = it.heard ? `🎧 اللي اتسمع: ${it.heard}` : '';
         box.querySelector('.sp-fix').hidden = !it.heard;
         // كلمات اتسمعت ومش لاقيها في الآية ← تنبيه بالأصفر
@@ -6336,6 +6370,12 @@ function setupSpeech() {
   };
   $('#sp-go').onclick = speechEnqueue;
   $('#sp-audio-only').onclick = speechAddAudioOnly;
+  // شكل الكتابة من جوه النافذة (نفس إعداد «شكل كتابة الآيات» في الشكل)
+  $('#sp-script').onchange = () => {
+    const v = $('#sp-script').value;
+    state.style.script = v; if ($('#script')) $('#script').value = v; persist();
+    Q.setScript(v).then(() => { renderSpeechItems(); renderBlocks(true); refreshPreview(); }).catch(() => status('⚠️ ملف الكتابة الإملائية ما اتحمّلش — جرّب تاني'));
+  };
   $('#sp-add-all').onclick = () => speechAdd(speech.jobs.filter(j => j.status === 'done').sort((a, b) => a.lo - b.lo).flatMap(j => j.items)).catch(showError);
   $('#sp-add').onclick = () => speechAdd().catch(showError);
 }
@@ -6857,6 +6897,7 @@ async function restoreMedia() {
 async function init() {
   status('تحميل نص المصحف…');
   await Promise.all([Q.loadQuran(), ensureFonts(), loadAzkar()]);
+  if (state.style?.script === 'imlaei') await Q.setScript('imlaei').catch(() => {});
   ensureFonts(state.style).then(() => refreshPreview());
   status('');
   setupStyle();

@@ -245,9 +245,9 @@ export function placeCuts(buf, items, lo, hi) {
 
 // نص المصحف لعنصر قرآن (للعرض في القايمة)
 export function quranText(it) {
-  if (it.part) return WT.words(Q.ayahText(it.s, it.from)).slice(it.part.w1 - 1, it.part.w2).join(' ');
+  if (it.part) return Q.showSlice(it.s, it.from, it.part.w1, it.part.w2);
   const t = [];
-  for (let a = it.from; a <= it.to; a++) t.push(Q.ayahText(it.s, a));
+  for (let a = it.from; a <= it.to; a++) t.push(Q.showText(it.s, a));
   return t.join(' ۝ ');
 }
 

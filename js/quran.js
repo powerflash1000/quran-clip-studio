@@ -20,6 +20,30 @@ export const globalAyah = (s, a) => prefix[s - 1] + a;
 
 export const BASMALA = 'بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ';
 
+// ===== شكل الكتابة في الفيديو: «رسم المصحف» (العثماني — الافتراضي) أو «إملائي حديث»
+// الإملائي = نص Tanzil «Simple» بالتشكيل (من غير أي تعديل في الكلمات)، متقسّم على كلمات المصحف العثماني
+// (عشان «جزء من آية» وظهور الكلمات مع التلاوة يفضلوا مظبوطين). الآيات اللي ما اتطابقتش بتفضل بالرسم العثماني.
+export const BASMALA_IMLAEI = 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ';
+let imlaei = null, imlaeiP = null, script = 'uthmani';
+export function loadImlaei() {
+  if (!imlaeiP) imlaeiP = fetch('data/quran-imlaei.json').then(r => r.json()).then(j => { imlaei = j.verses; })
+    .catch(e => { imlaeiP = null; throw e; });
+  return imlaeiP;
+}
+export async function setScript(v) {
+  script = v === 'imlaei' ? 'imlaei' : 'uthmani';
+  if (script === 'imlaei') await loadImlaei();
+}
+export const scriptOf = () => script;
+// قطع العرض لكل كلمة من كلمات المصحف (null = اعرض الرسم العثماني)
+export const showPieces = (s, a) => (script === 'imlaei' && imlaei && imlaei[s - 1]?.[a - 1]) || null;
+export const showText = (s, a) => { const p = showPieces(s, a); return p ? p.filter(Boolean).join(' ') : ayahText(s, a); };
+export const showSlice = (s, a, w1, w2) => {
+  const p = showPieces(s, a) || String(ayahText(s, a)).split(/[ \t\n]+/).filter(Boolean);
+  return p.slice(w1 - 1, w2).filter(Boolean).join(' ');
+};
+export const showBasmala = () => script === 'imlaei' && imlaei ? BASMALA_IMLAEI : BASMALA;
+
 // ترجمات إضافية من نفس المصدر (QuranEnc عن طريق quran-json على jsDelivr)
 export const TRANSLATIONS = [
   { code: '', name: 'بدون ترجمة' },

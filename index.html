@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261110y">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261110z">
 </head>
 <body>
   <header class="topbar">
@@ -251,6 +251,13 @@
         </div>
         <p class="hint">آيات القرآن بتفضل دايمًا بخط المصحف (حفص)؛ الخط اللي تختاره للأدعية والأحاديث والعناوين. التأثير (ذهبي، توهّج، حدود…) بيشتغل على الكل. وحركة الدخول بتظهر في المعاينة بالصوت والفيديو والبث — مع «الكلمات مع التلاوة» الكلمات نفسها هي الحركة.</p>
         <div class="grid2">
+          <label class="span2">✍️ شكل كتابة الآيات
+            <select id="script">
+              <option value="uthmani">رسم المصحف (العثماني) — زي المصحف بالظبط</option>
+              <option value="imlaei">إملائي حديث — زي الكتابة العادية (جَزَاءُ بدل جَزَٰٓؤُا۟)</option>
+            </select>
+            <small class="muted">الاتنين نص قرآن صحيح من مصدر موثوق ومن غير تعديل: العثماني من مصحف المدينة، والإملائي من Tanzil. الرسم العثماني فيه كلمات مكتوبة بشكل قديم (زي «ٱلصَّلَوٰةَ» و«جَزَٰٓؤُا۟») وهي صح مش غلط — اختار الإملائي لو جمهورك هيستغربها.</small>
+          </label>
           <label class="span2">عرض الآيات
             <select id="ayahLayout">
               <option value="one">آية آية (العادي)</option>
@@ -539,7 +546,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261110y</div>
+    <div class="muted" id="app-version">الإصدار 20261110z</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -1006,6 +1013,13 @@
           <span class="muted" id="sp-status"></span>
         </div>
         <ol class="sp-queue" id="sp-queue" hidden></ol>
+        <label class="sp-script" id="sp-script-row" hidden>✍️ شكل كتابة الآيات:
+          <select id="sp-script">
+            <option value="uthmani">رسم المصحف (جَزَٰٓؤُا۟)</option>
+            <option value="imlaei">إملائي حديث (جَزَاءُ)</option>
+          </select>
+          <small class="muted">الاتنين صح ومن المصحف — ده بس شكل الكتابة اللي هيظهر في الفيديو.</small>
+        </label>
         <ol class="parts" id="sp-items"></ol>
         <div class="btn-row" id="sp-actions" hidden>
           <label class="check"><input type="checkbox" id="sp-replace"> امسح المحتوى الحالي الأول</label>
@@ -1606,6 +1620,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261110y"></script>
+  <script type="module" src="js/main.js?v=20261110z"></script>
 </body>
 </html>
