@@ -6030,7 +6030,12 @@ function renderSpeechItems() {
       const n = Q.surah(it.s).count;
       box.innerHTML = `<div class="sp-nums">سورة <select class="sp-s"></select> من آية <input type="number" class="sp-f" min="1"> لـ <input type="number" class="sp-t" min="1"></div>
         <div class="ayah-text sp-mushaf"></div>
-        <div class="muted sp-heard"></div>`;
+        <div class="sp-warn" hidden></div>
+        <details class="sp-fix"><summary class="muted sp-heard"></summary>
+          <p class="hint">لو فيه كلمة اتسمعت غلط: صلّحها هنا (من غير تشكيل، زي ما بتكتب عادي) ودوس «دوّر تاني» — البرنامج بيلاقي الآية الصح ويعرضها من المصحف.</p>
+          <textarea class="sp-heard-txt" rows="2"></textarea>
+          <button class="btn ghost sp-rematch" type="button">🔁 دوّر تاني بالكلام ده</button>
+        </details>`;
       const sel = box.querySelector('.sp-s');
       sel.innerHTML = Q.surahs().map((x, k) => `<option value="${k + 1}">${Q.arabicNum(k + 1)}. ${x.ar}</option>`).join('');
       sel.value = it.s;
@@ -6039,6 +6044,12 @@ function renderSpeechItems() {
       const show = () => {
         box.querySelector('.sp-mushaf').textContent = SP.quranText(it);
         box.querySelector('.sp-heard').textContent = it.heard ? `🎧 اللي اتسمع: ${it.heard}` : '';
+        box.querySelector('.sp-fix').hidden = !it.heard;
+        // كلمات اتسمعت ومش لاقيها في الآية ← تنبيه بالأصفر
+        const miss = SP.unmatchedWords(it), warn = box.querySelector('.sp-warn');
+        warn.hidden = !miss.length;
+        warn.textContent = miss.length ? `⚠️ ${Q.arabicNum(miss.length)} كلمة اتسمعت ومش لاقيها في الآية: «${miss.join('»، «')}» — اسمع المقطع، ولو الآية ناقصة أو غلط صلّح الكلام تحت ودوّر تاني.` : '';
+        if (miss.length) box.querySelector('.sp-fix').open = true;
         li.querySelector('.pname').textContent = `${when}  📖 ${Q.surah(it.s).ar} ${it.part ? `${Q.arabicNum(it.from)} (جزء)` : it.to > it.from ? `${Q.arabicNum(it.from)}–${Q.arabicNum(it.to)}` : Q.arabicNum(it.from)} — نص المصحف`;
       };
       const apply = () => {
@@ -6050,7 +6061,27 @@ function renderSpeechItems() {
         show();
       };
       sel.onchange = apply; f.onchange = apply; t.onchange = apply;
+      const ta = box.querySelector('.sp-heard-txt');
+      ta.value = it.heard || '';
+      box.querySelector('.sp-rematch').onclick = () => {
+        if (!SP.rematch(it, ta.value.trim())) { box.querySelector('.sp-warn').hidden = false; box.querySelector('.sp-warn').textContent = '⚠️ لسه مش لاقي الكلام ده في المصحف — راجع الكلمات، أو غيّر السورة والآيات بالأرقام فوق.'; return; }
+        sel.value = it.s; f.value = it.from; t.value = it.to;
+        show();
+      };
       show();
+      info.replaceWith(box);
+    } else if (it.kind === 'unknown') {
+      // شكله قرآن ومش لاقيه: صلّح الكلام اللي اتسمع ودوّر تاني
+      const box = document.createElement('div');
+      box.className = 'grow sp-quran';
+      box.innerHTML = `<div class="muted"></div><textarea class="sp-heard-txt" rows="2"></textarea><button class="btn ghost sp-rematch" type="button">🔁 دوّر تاني بالكلام ده</button><div class="sp-warn" hidden></div>`;
+      box.querySelector('.muted').textContent = '🎧 اللي اتسمع — صلّح الكلمة الغلط (من غير تشكيل) ودوّر تاني:';
+      const ta = box.querySelector('textarea');
+      ta.value = it.heard || it.text || '';
+      box.querySelector('.sp-rematch').onclick = () => {
+        if (SP.rematch(it, ta.value.trim())) { renderSpeechItems(); return; }
+        const w = box.querySelector('.sp-warn'); w.hidden = false; w.textContent = '⚠️ لسه مش لاقيه في المصحف — راجع الكلمات.';
+      };
       info.replaceWith(box);
     } else {
       info.textContent = it.heard ? `${it.text}\n🎧 اللي اتسمع: ${it.heard}` : it.text;
@@ -6134,7 +6165,7 @@ async function transcribeRange(lo, hi, onMsg) {
   const items = SP.placeCuts(speech.buffer, SP.planItems(segs), lo, hi);
   // اللي Gemini سمعه فعلًا (عشان تقارنه بنص المصحف)
   for (const it of items) if (it.kind === 'quran' || it.kind === 'unknown') {
-    it.heard = segs.filter(sg => sg.end > it.a + 0.05 && sg.start < it.b - 0.05).map(sg => sg.text).join(' ');
+    it.heard = segs.filter(sg => { const m = (sg.start + sg.end) / 2; return m >= it.a - 0.05 && m <= it.b + 0.05; }).map(sg => sg.text).join(' ') || segs.filter(sg => sg.end > it.a + 0.05 && sg.start < it.b - 0.05).map(sg => sg.text).join(' ');
   }
   return items;
 }

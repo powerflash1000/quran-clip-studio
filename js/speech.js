@@ -276,3 +276,23 @@ export function ayahStarts(buf, it) {
   }
   return out;
 }
+
+// الكلمات اللي اتسمعت ومش موجودة في آيات العنصر (عشان نعلّم عليها ونطلب تصحيحها)
+export function unmatchedWords(it) {
+  if (!it.heard || it.kind !== 'quran') return [];
+  // الآيات اللي جنبها كمان (الجملة المسموعة ساعات بتعدّي على أول الآية اللي بعدها) — مانعلّمش عليها
+  const mw = [], n = Q.surah(it.s).count;
+  for (let a = Math.max(1, it.from - 1); a <= Math.min(n, it.to + 1); a++) mw.push(...WT.words(Q.ayahText(it.s, a)).map(Q.skel));
+  const pool = new Set(mw), sq = new Set(mw.map(squeeze)), tl = new Set(mw.map(tail));
+  return joinVocative(it.heard.split(/\s+/).filter(w => Q.skel(w)))
+    .filter(w => { const k = Q.skel(w); return !(pool.has(k) || sq.has(squeeze(k)) || (k.length > 2 && tl.has(tail(k)))); });
+}
+
+// إعادة البحث بعد ما تصلّح الكلام اللي اتسمع بإيدك: النص اللي بيتعرض بيفضل من المصحف
+export function rematch(it, text) {
+  const r = planItems([{ start: 0, end: 1, type: 'quran', text }]).find(x => x.kind === 'quran');
+  if (!r) return false;
+  Object.assign(it, { kind: 'quran', s: r.s, from: r.from, to: r.to, part: r.part, heard: text, on: true });
+  delete it.starts; // التوقيت جوه المقطع بيتحسب من وقفات الصوت
+  return true;
+}
