@@ -104,7 +104,8 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
 
   for (const [bi, b] of blocks.entries()) {
     // كارت فاضي (نص خاص أو ذكر أو حديث من غير نص): الجملة الإرشادية بتظهر في المعاينة بس، مش في الفيديو ولا البث
-    if (withAudio && b.type !== 'quran' && !String(b.text || '').trim()) continue;
+    // (إلا «🔊 صوت بس»: كارت فيه صوت من غير نص — ده مقصود)
+    if (withAudio && b.type !== 'quran' && !String(b.text || '').trim() && !(b.audioOnly || (b.audioMode !== 'none' && hadithAudio.get(b.id)?.buffer))) continue;
     const n0 = segs.length;
     if (b.type === 'quran') {
       const s = Q.surah(b.surah);
@@ -164,7 +165,8 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
       const zAudio = useAudio ? await enhanceVoice(au.buffer, b.enhance) : null;
       segs.push({
         kind: 'zikr',
-        text: b.text || (b.audioOnly ? '' : b.custom ? '(اكتب النص بتاعك)' : '(اختار الذكر أو اكتب النص)'),
+        // كارت فيه صوت ومن غير نص = «صوت بس»: مفيش كتابة على الشاشة (الجملة «اكتب النص» بتظهر بس لو مفيش صوت كمان)
+        text: b.text || (b.audioOnly || (b.custom && useAudio) ? '' : b.custom ? '(اكتب النص بتاعك)' : '(اختار الذكر أو اكتب النص)'),
         sub: '',
         label: b.custom ? (b.label || '') : (b.cat || 'ذكر'),
         footer: [b.showCount && n > 1 ? `يُقال ${Q.arabicNum(n)} ${n <= 10 ? 'مرات' : 'مرة'}` : '', b.ref].filter(Boolean).join(' • '),
