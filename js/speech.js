@@ -127,6 +127,17 @@ function extendFrags(frags, u) {
       if (pa === cur.a) { cur.w1 = pw; cur.u1 = k + 1; } else { cur = { s, a: pa, w1: pw, w2: pw, u1: k + 1, u2: k + 1 }; added.push(cur); }
       a = pa; w = pw; k--;
     }
+    // طرف الآية: لو فاضل كلمة أو اتنين في أولها (أو آخرها) ومقابلهم كلمات في الكلام مش متطابقة بسبب الإملاء
+    // («إنما جزاء» ↔ «إِنَّمَا جَزَٰٓؤُاْ») ← نكمّل الآية من المصحف
+    if (f.w1 > 1 && f.w1 <= 3 && f.u1 - 1 >= f.w1 - 1 && [...Array(f.w1 - 1).keys()].every(i => !used[f.u1 - 2 - i])) {
+      for (let i = 0; i < f.w1 - 1; i++) used[f.u1 - 2 - i] = 1;
+      f.u1 -= f.w1 - 1; f.w1 = 1;
+    }
+    const n = W(f.s, f.a).length;
+    if (f.w2 < n && n - f.w2 <= 2 && f.u2 + (n - f.w2) <= u.length && [...Array(n - f.w2).keys()].every(i => !used[f.u2 + i])) {
+      for (let i = 0; i < n - f.w2; i++) used[f.u2 + i] = 1;
+      f.u2 += n - f.w2; f.w2 = n;
+    }
   }
   return [...out, ...added].sort((x, y) => x.u1 - y.u1);
 }
