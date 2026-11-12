@@ -470,20 +470,30 @@ function parseSegs(out, dur) {
     .sort((a, b) => a.start - b.start);
 }
 
-// التفريغ مش محتاج «تفكير» — قفله بيخلّي الرد أسرع بكتير (لو الموديل مابيقبلش، بنعيد من غيره مرة واحدة)
-let noThinkOk = true;
+// التفريغ مش محتاج «تفكير» — قفله بيخلّي الرد أسرع بكتير.
+// لو جوجل رجّع 400 (Request contains an invalid argument) بنبسّط الطلب خطوة خطوة:
+// ١) من غير قفل التفكير ٢) من غير «رد JSON» وتعليمات النظام (موديلات زي Gemma) ٣) بالموديل الافتراضي (Flash)
+let speechLevel = 0;
 async function speechCall(c, rules, prompt, b64wav) {
   let j;
-  const body = think => ({
-    systemInstruction: { parts: [{ text: rules }] },
-    contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'audio/wav', data: b64wav } }, { text: prompt }] }],
-    generationConfig: { responseMimeType: 'application/json', temperature: 0, ...(think ? {} : { thinkingConfig: { thinkingBudget: 0 } }) },
-  });
+  const audio = { inlineData: { mimeType: 'audio/wav', data: b64wav } };
+  const body = lv => lv >= 2
+    ? { contents: [{ role: 'user', parts: [audio, { text: `${rules}\n\n${prompt}\nرجّع JSON بس من غير أي كلام قبله أو بعده.` }] }], generationConfig: { temperature: 0 } }
+    : {
+      systemInstruction: { parts: [{ text: rules }] },
+      contents: [{ role: 'user', parts: [audio, { text: prompt }] }],
+      generationConfig: { responseMimeType: 'application/json', temperature: 0, ...(lv === 0 ? { thinkingConfig: { thinkingBudget: 0 } } : {}) },
+    };
+  const bad = e => /\b400\b|invalid argument|think|json mode|instruction/i.test(e?.message || '') && !/api key|المفتاح/i.test(e?.message || '');
   try {
-    try { j = await geminiGenerate(c, body(!noThinkOk)); }
-    catch (e) {
-      if (noThinkOk && /think/i.test(e.message || '')) { noThinkOk = false; j = await geminiGenerate(c, body(true)); }
-      else throw e;
+    for (let lv = speechLevel; ; lv++) {
+      try { j = await geminiGenerate(lv >= 3 ? { ...c, model: PROVIDERS.gemini.model } : c, body(Math.min(lv, 2))); speechLevel = lv; break; }
+      catch (e) {
+        if (!bad(e) || lv >= 3 || (lv === 2 && c.model === PROVIDERS.gemini.model)) {
+          if (bad(e)) throw new Error(`جوجل رفض طلب التفريغ (${e.message}).\nغالبًا الموديل المختار (${c.model}) مابيسمعش صوت — من ⚙️ الإعدادات اختار موديل Flash (زي ${PROVIDERS.gemini.model})، أو جرّب مقطع أطول من ثانيتين.`);
+          throw e;
+        }
+      }
     }
   } catch (e) {
     if (e instanceof TypeError) throw new Error('الطلب ماوصلش لجوجل (النت). جرّب تاني.');

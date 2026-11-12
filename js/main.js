@@ -6180,6 +6180,8 @@ async function runSpeechJob(job, gen) {
 // تفريغ مقطع واحد ← عناصر (قرآن بنص المصحف / كلام)
 async function transcribeRange(lo, hi, onMsg) {
   // أجزاء دقيقة ونص تقريبًا (مقطوعة عند سكتة)، بتتبعت ٣ مع بعض بدل واحد ورا التاني
+  hi = Math.min(hi, speech.buffer.duration);
+  if (!(hi - lo >= 1)) throw new Error('المقطع أقصر من ثانية — كبّر «من / لحد» (لازم «لحد» بعد «من» وجوه مدة الملف).');
   const cuts = SP.chunkCuts(speech.buffer, lo, hi, 90);
   const n = cuts.length - 1, parts = new Array(n);
   let next = 0, done = 0;

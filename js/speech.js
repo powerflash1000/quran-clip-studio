@@ -57,6 +57,8 @@ export function chunkCuts(buf, a, b, max = 300) {
     cuts.push(t);
     pos = t;
   }
+  // آخر جزء صغير أوي (أقل من ٨ ثواني) بيتضم للي قبله — جوجل بيرفض الصوت القصير جدًا (400)
+  if (cuts.length > 1 && b - cuts[cuts.length - 1] < 8) cuts.pop();
   cuts.push(b);
   return cuts;
 }
