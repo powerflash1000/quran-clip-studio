@@ -6573,9 +6573,37 @@ function renderGen() {
   $('#gen-tip').hidden = gen.units.length < 2 || $('#gen-actions').hidden;
 }
 
+// البرومبتات الجاهزة (لوحات التليفزيون) — بتشتغل حتى من غير آيات
+function renderReadyPrompts() {
+  const ol = $('#gen-ready-list');
+  if (ol.childElementCount) return;
+  const copy = async (t, msg) => { const ok = await navigator.clipboard.writeText(t).then(() => true, () => false); $('#gen-status').textContent = ok ? msg : '❌ المتصفح مسمحش بالنسخ — انسخه بإيدك'; };
+  LLM.TV_ART_PROMPTS.forEach((p, i) => {
+    const li = document.createElement('li');
+    li.className = 'part';
+    li.innerHTML = '<span class="pname"></span><button class="btn" type="button">📋 انسخ</button><textarea class="grow" rows="3" dir="ltr" readonly></textarea>';
+    li.querySelector('.pname').textContent = `${Q.arabicNum(i + 1)}. ${p.name}`;
+    li.querySelector('textarea').value = p.prompt;
+    li.querySelector('button').onclick = () => copy(p.prompt, `✅ اتنسخ «${p.name}» — ولّده بمقاس 16:9 وحطه بـ «📥 حط اللي ولّدته»`);
+    ol.appendChild(li);
+  });
+  $('#gen-ready-neg').onclick = () => copy(LLM.TV_ART_NEGATIVE, '✅ اتنسخ النيجاتيف برومبت — حطه في خانة Negative prompt لو الأداة فيها');
+}
+function openReadyPrompts() {
+  renderReadyPrompts();
+  gen.blocks = []; gen.units = []; gen.prompts = [];
+  renderGen();
+  $('#gen-title').textContent = '🖼️ برومبتات لوحات التليفزيون';
+  $('#gen-ready').open = true;
+  $('#gen-actions').hidden = false; // عشان «افتح الأداة» و«حط اللي ولّدته»
+  $('#dlg-gen').showModal();
+}
+
 function openGen(blocks) {
+  renderReadyPrompts();
+  $('#gen-ready').open = false;
   gen.blocks = (blocks || state.blocks).filter(b => b.type === 'quran' || (b.type === 'zikr' && String(b.text || '').trim()));
-  if (!gen.blocks.length) { status('ضيف آيات الأول'); return; }
+  if (!gen.blocks.length) { openReadyPrompts(); return; }
   const one = blocks && blocks.length === 1 && blocks[0].type === 'quran' ? blocks[0] : null;
   $('#gen-title').textContent = one ? `🎨 خلفية لـ ${Q.surah(one.surah).ar} ${Q.arabicNum(one.from)}${one.to > one.from ? '–' + Q.arabicNum(one.to) : ''}` : '🎨 خلفيات بالذكاء الاصطناعي';
   gen.units = genUnits($('#gen-per').value);
@@ -6596,6 +6624,7 @@ function setupGen() {
   $('#gen-style').onchange = remember;
   $('#gen-per').onchange = () => { gen.units = genUnits($('#gen-per').value); gen.prompts = []; renderGen(); };
   $('#open-gen').onclick = () => openGen(null);
+  $('#paint-prompts').onclick = openReadyPrompts;
   $('#gen-close').onclick = () => $('#dlg-gen').close();
   $('#gen-go').onclick = async () => {
     const opts = { tool: $('#gen-tool').value, style: $('#gen-style').value, aspect: GEN_ASPECT[state.style.aspect] || '9:16 vertical' };

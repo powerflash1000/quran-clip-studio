@@ -580,6 +580,16 @@ export const GEN_STYLES = {
   painting: { name: 'لوحة مرسومة', en: 'painterly landscape illustration, soft brush strokes, rich but calm colors' },
   pattern: { name: 'زخرفة ونور (من غير كتابة)', en: 'abstract Islamic geometric patterns and arabesque made of soft light, gold and deep blue, slow glowing motion, absolutely no letters or calligraphy' },
 };
+// 🖼️ برومبتات جاهزة للوحات التليفزيون (فاتحة + دهبي، 16:9) — من غير ناس ولا كتابة، والبرواز من البرنامج
+export const TV_ART_PROMPTS = [
+  { name: 'توليب أبيض ودهب', prompt: 'Ultra-detailed 3D relief wall art, two white porcelain tulips with soft sage-green ceramic leaves, a flowing polished gold ribbon weaving between the stems, sculpted bas-relief on a smooth warm ivory plaster background, soft diffused studio light from the upper left, gentle shadows, luxury minimal interior decor, calm and elegant, centered composition, 16:9, 8k, photorealistic' },
+  { name: 'ورد بيج وريشة لؤلؤي', prompt: 'Elegant 3D sculpted artwork, a large pearlescent feather and three cream roses carved like porcelain, delicate gold leaf edges, layered circular beige panels with fine linen texture behind them, soft warm backlight glow, light cream background, serene luxury wall decor, symmetrical balance, 16:9, 8k, ultra realistic' },
+  { name: 'لوتس عاجي على رخام', prompt: '3D bas-relief of a single ivory lotus flower with gold-veined petals floating above soft white marble with faint grey veins, subtle gold filigree swirls in the corners, gentle morning light, very calm and spacious composition, high-key bright palette (ivory, champagne gold, pale grey), luxury TV wall art, 16:9, 8k' },
+  { name: 'غصن زيتون دهبي (مساحة لآية)', prompt: 'Minimal luxury 3D wall art, a slender olive branch sculpted in brushed gold with matte cream ceramic olives, placed on the right third of the canvas, the left two thirds left as clean smooth warm-beige textured plaster (empty space), soft side light, delicate shadows, tranquil and refined, 16:9, 8k, photorealistic' },
+  { name: 'كاميليا وردي هادي', prompt: 'Sculpted 3D relief of blush-pink camellias and white blossoms made of glossy porcelain, thin polished gold stems curving gracefully, soft ivory embossed floral pattern in the background, pastel and cream palette with champagne-gold accents, soft diffused light, peaceful elegant home decor art, centered, 16:9, 8k' },
+];
+export const TV_ART_NEGATIVE = 'text, letters, watermark, logo, signature, frame, border, people, faces, hands, animals, dark background, clutter, oversaturated colors, blurry, low quality';
+
 const GEN_RULES = `You write prompts for AI image/video generators. Each prompt describes the BACKGROUND visual for one part of a Quran recitation video (the Arabic verse text is drawn on top later by another app).
 You receive the general meaning (English translation) only to choose a fitting mood and natural imagery (for example: mercy → soft rain and light, patience → calm sea, night → stars, creation → mountains and sky). Do not illustrate stories or events literally.
 Hard rules for every prompt:
