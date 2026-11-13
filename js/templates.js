@@ -31,7 +31,9 @@ export const DEFAULT_STYLE = {
   wordMode: 'full',        // full | reveal (الكلمات بتظهر مع التلاوة) | highlight (تظليل الكلمة الحالية)
   countTheme: 'gold',      // ألوان العجلة: gold | ivory | emerald | navy | rose
   countViz: '',             // '' | beads (📿 سبحة) | wheel (🎡 عجلة الأذكار) — عدّاد مرات الذكر
-  countTick: true,         // «تك» خفيف مع كل مرة (لو الكارت من غير صوت)
+  countTick: true,         // صوت مع العدّ (لو الكارت من غير صوت)
+  countSound: 'wood',      // صوت كل مرة: wood | beads | drop | soft | none
+  countNext: 'whoosh',     // لما الذكر يتغيّر: whoosh | knock | double | none
   quality: '1080',
   intro: '',               // جملة افتتاحية في أول الفيديو (فاضية = من غير)
   introSeconds: 1.6,

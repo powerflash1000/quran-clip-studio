@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261113e">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261113f">
 </head>
 <body>
   <header class="topbar">
@@ -266,7 +266,9 @@
               <option value="wheel">🎡 عجلة الأذكار + نقط المرات</option>
             </select>
             <select id="countTheme" title="ألوان العجلة"></select>
-            <small class="muted">لكروت الأذكار: مدة الكارت بتتقسم على عدد المرات. <label class="check" style="display:inline-flex"><input type="checkbox" id="countTick"> «تك» مع كل مرة</label></small>
+            <small class="muted">لكروت الأذكار: مدة الكارت بتتقسم على عدد المرات. <label class="check" style="display:inline-flex"><input type="checkbox" id="countTick"> صوت مع العدّ</label></small>
+            <span class="row wrap">صوت كل مرة: <select id="countSound"></select><button class="btn icon" id="countSound-play" type="button" title="اسمع">▶</button>
+            لما الذكر يتغيّر: <select id="countNext"></select><button class="btn icon" id="countNext-play" type="button" title="اسمع">▶</button></span>
           </label>
           <label class="span2">عرض الآيات
             <select id="ayahLayout">
@@ -558,7 +560,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261113e</div>
+    <div class="muted" id="app-version">الإصدار 20261113f</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -1017,7 +1019,8 @@
         <label class="span2">ألوان العجلة <select id="ct-theme"></select></label>
         <label>كل مرة (ثانية، فاضي = حسب طول الذكر) <input type="number" id="ct-per" min="0.3" step="0.1" placeholder="تلقائي"></label>
         <label>العدد الكبير (أكتر من ١٠): كل مرة <input type="number" id="ct-fast" min="0.2" step="0.1" value="0.6"></label>
-        <label class="check"><input type="checkbox" id="ct-tick" checked> «تك» خفيف مع كل مرة</label>
+        <label>🔊 صوت كل مرة <span class="row"><select id="ct-sound"></select><button class="btn icon" id="ct-sound-play" type="button" title="اسمع">▶</button></span></label>
+        <label>🔔 لما الذكر يتغيّر <span class="row"><select id="ct-next"></select><button class="btn icon" id="ct-next-play" type="button" title="اسمع">▶</button></span></label>
         <label class="check"><input type="checkbox" id="ct-replace" checked> بدل المحتوى الحالي</label>
       </div>
       <p class="muted" id="ct-sum"></p>
@@ -1669,6 +1672,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261113e"></script>
+  <script type="module" src="js/main.js?v=20261113f"></script>
 </body>
 </html>

@@ -36,6 +36,7 @@ import * as ST from './stats.js';
 import { youtubeChapters } from './chapters.js';
 import { ZONES, INKS } from './zone.js';
 import { FRAMES, KEN_BURNS, PATTERNS } from './frame.js';
+import * as ZS from './zsounds.js';
 import { loopReady, exportLongLoop } from './fastexport.js';
 import { PLATFORMS, generate, getPublishSettings, setPublishSettings, canShareFile, shareFile } from './publish.js';
 
@@ -181,7 +182,7 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
         const dur = zAudio ? zAudio.duration : (Number(b.seconds) || 8);
         sg.counter = { n, viz: st.countViz };
         sg.wordTimes = Array.from({ length: n }, (_, k) => k * dur / n);
-        if (!zAudio && st.countTick && withAudio) sg.audio = tickBuffer(n, dur);
+        if (!zAudio && st.countTick !== false && withAudio && (st.countSound !== 'none' || (st.countNext && st.countNext !== 'none'))) sg.audio = ZS.counterAudio(n, dur, st.countSound || 'wood', st.countNext || 'whoosh');
       }
     } else {
       const col = collection(b.col);
@@ -356,20 +357,6 @@ function shortZikr(t) {
   if (lines.length > 1 && /^(أَ?عُوذُ|بِسْمِ)/.test(lines[0])) lines = lines.slice(1);
   const w = String(lines[0] || '').replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, '').replace(/[.،,:؛]/g, ' ').split(/\s+/).filter(Boolean);
   return w.slice(0, 3).join(' ') + (w.length > 3 ? '…' : '');
-}
-// «تك» خفيف مع كل مرة (صوت خشب قصير) — من غير موسيقى
-function tickBuffer(n, dur) {
-  const sr = 44100, len = Math.max(1, Math.ceil(dur * sr));
-  const buf = new AudioBuffer({ length: len, numberOfChannels: 1, sampleRate: sr });
-  const d = buf.getChannelData(0), tl = Math.floor(0.05 * sr);
-  for (let k = 0; k < n; k++) {
-    const s0 = Math.floor(k * dur / n * sr);
-    for (let i = 0; i < tl && s0 + i < len; i++) {
-      const t = i / sr, env = Math.exp(-t * 90);
-      d[s0 + i] += env * 0.28 * (Math.sin(2 * Math.PI * 1150 * t) * 0.7 + Math.sin(2 * Math.PI * 2300 * t) * 0.3);
-    }
-  }
-  return buf;
 }
 // جزء الآية المختار (لو صالح): { w1, w2 } أرقام الكلمات من 1
 function ayahPart(b) {
@@ -2771,7 +2758,7 @@ function renderLong() {
 const PAINT_PRESET = {
   aspect: '16:9', bgType: 'gradient', color1: '#f6f0e4', color2: '#e7dbc6', dim: 0,
   textColor: '#2b211a', subColor: '#5b4a37', accent: '#a8781e', textSize: 92, textFx: '', textAnim: '', textZone: '', textInk: '',
-  ayahLayout: 'all', script: 'uthmani', countViz: '', countTheme: 'gold', countTick: true, wordMode: 'full', showLabel: true, showFooter: false, showTranslation: false, waveform: false,
+  ayahLayout: 'all', script: 'uthmani', countViz: '', countTheme: 'gold', countTick: true, countSound: 'wood', countNext: 'whoosh', wordMode: 'full', showLabel: true, showFooter: false, showTranslation: false, waveform: false,
   frame: 'mirror', wall: '#0e0e0e', pattern: 'stars', kenBurns: 'slow', loop: true,
   look: '', light: '', cardTrans: '', bumper: '', subCard: '', intro: '', handleOpacity: 0.45,
 };
@@ -2848,7 +2835,7 @@ function setupPainting() {
 }
 
 // ===== الشكل =====
-const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'textZone', 'textInk', 'ayahLayout', 'script', 'countViz', 'countTheme', 'countTick', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade', 'frame', 'wall', 'pattern', 'kenBurns', 'loop'];
+const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'textZone', 'textInk', 'ayahLayout', 'script', 'countViz', 'countTheme', 'countTick', 'countSound', 'countNext', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade', 'frame', 'wall', 'pattern', 'kenBurns', 'loop'];
 
 function applyStyleToInputs() {
   const st = state.style;
@@ -2887,6 +2874,9 @@ function setupStyle() {
   $('#textFx').innerHTML = opts(TEXT_FX);
   $('#textAnim').innerHTML = opts(TEXT_ANIM);
   $('#textZone').innerHTML = opts(ZONES); $('#textInk').innerHTML = opts(INKS);
+  $('#countSound').innerHTML = $('#ct-sound').innerHTML = Object.entries(ZS.REP_SOUNDS).map(([k, t]) => `<option value="${k}">${t}</option>`).join('');
+  $('#countNext').innerHTML = $('#ct-next').innerHTML = Object.entries(ZS.NEXT_SOUNDS).map(([k, t]) => `<option value="${k}">${t}</option>`).join('');
+  for (const [sel, btn] of [['#countSound', '#countSound-play'], ['#countNext', '#countNext-play'], ['#ct-sound', '#ct-sound-play'], ['#ct-next', '#ct-next-play']]) $(btn).onclick = () => ZS.previewSound($(sel).value);
   $('#countTheme').innerHTML = $('#ct-theme').innerHTML = Object.entries(WHEEL_THEMES).map(([k, t]) => `<option value="${k}">🎨 ${t.name}</option>`).join('');
   $('#frame').innerHTML = opts(FRAMES); $('#kenBurns').innerHTML = opts(KEN_BURNS); $('#pattern').innerHTML = opts(PATTERNS);
   for (const [id, o] of [['handlePos', BR.POSITIONS], ['logoPos', BR.POSITIONS], ['look', BR.LOOKS], ['light', BR.LIGHTS], ['cardTrans', BR.CARD_TRANS], ['bumper', BR.BUMPERS], ['subCard', BR.SUB_CARD], ['subCardPos', BR.SUB_POS]]) $('#' + id).innerHTML = opts(o);
@@ -6463,6 +6453,8 @@ function setupCountDialog() {
     }
     $('#ct-viz').value = state.style.countViz || 'beads';
     $('#ct-theme').value = state.style.countTheme || 'gold';
+    $('#ct-sound').value = state.style.countTick === false ? 'none' : (state.style.countSound || 'wood');
+    $('#ct-next').value = state.style.countNext || 'whoosh';
     ctSummary();
     dlg.showModal();
   };
@@ -6479,7 +6471,9 @@ function setupCountDialog() {
     });
     state.blocks = $('#ct-replace').checked ? blocks : [...state.blocks, ...blocks];
     state.style.countViz = $('#ct-viz').value;
-    state.style.countTick = $('#ct-tick').checked;
+    state.style.countTick = true;
+    state.style.countSound = $('#ct-sound').value; state.style.countNext = $('#ct-next').value;
+    $('#countSound').value = state.style.countSound; $('#countNext').value = state.style.countNext;
     state.style.countTheme = $('#ct-theme').value;
     $('#countTheme').value = state.style.countTheme;
     $('#countViz').value = state.style.countViz; $('#countTick').checked = state.style.countTick;
