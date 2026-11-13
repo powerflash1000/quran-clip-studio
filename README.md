@@ -445,5 +445,8 @@ tools/loop-long.sh / .bat   ⏩ نسخة طويلة من مقطع Loop بـ ffmp
 - **الخطوط**: KFGQPC Uthmanic Script HAFS (مجمع الملك فهد، مجاني للاستخدام)، و Amiri (SIL OFL)
 - **التحويل**: [ffmpeg.wasm](https://github.com/ffmpegwasm/ffmpeg.wasm)، و [Mediabunny](https://mediabunny.dev) لفك فيديوهات الخلفية (MPL-2.0، في `vendor/mediabunny`)
 - **توقيت الكلمات**: [quran-align](https://github.com/cpfair/quran-align) — Collin Fair، رخصة CC BY 4.0 (في `data/wbw`)
+- **النص الإملائي (اختيار «إملائي حديث»)**: [Tanzil Quran Text](https://tanzil.net) (Simple، بالتشكيل) — CC BY 3.0، من غير أي تعديل في الكلمات (في `data/quran-imlaei.json`)
+
+**رخصة البرنامج نفسه:** كل الحقوق محفوظة لصاحب البرنامج (شوف ملف `LICENSE`). المكوّنات اللي فوق بتفضل على رخصها الأصلية.
 
 لو قناتك عليها أرباح، راجع شروط الترخيص بتاعة الخلفيات (Pexels و Pixabay مجانية للاستخدام التجاري، وFilmstock مربوطة باشتراك Filmora).

@@ -1,21 +1,31 @@
-MIT License
+Copyright (c) 2026 powerflash1000. All rights reserved.
 
-Copyright (c) 2026 powerflash1000
+This software and its source code (the "Software") are proprietary.
+No license is granted to any person to use, copy, modify, merge, publish,
+distribute, sublicense, sell, host or create derivative works of the
+Software, in whole or in part, without prior written permission from the
+copyright holder.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Viewing the Software's source code (for example in a web browser or on a
+code-hosting site) does not grant any right to use it.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Third-party components included in this repository remain under their own
+licenses, which are listed in README.md (for example: ffmpeg.wasm (MIT),
+quran-align word timings (CC BY 4.0), the Tanzil Quran text, fonts, and
+other data files). This notice does not change those licenses.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Versions of the Software that were published earlier under the MIT License
+remain available under that license only for copies obtained before this
+change.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+
+---
+
+حقوق النشر (c) 2026 powerflash1000. كل الحقوق محفوظة.
+
+البرنامج ده وكوده ملكية خاصة. مش مسموح لأي حد يستخدمه أو ينسخه أو يعدّل
+فيه أو ينشره أو يوزّعه أو يبيعه أو يستضيفه أو يعمل منه نسخة معدّلة، كله أو
+جزء منه، من غير إذن مكتوب من صاحب الحقوق. شوف الكود في المتصفح أو على GitHub
+ما بيدّيش أي حق في استخدامه. المكوّنات الخارجية (المذكورة في README.md)
+بتفضل على رخصها الأصلية.
