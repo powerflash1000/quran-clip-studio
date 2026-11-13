@@ -2758,7 +2758,7 @@ function renderLong() {
 const PAINT_PRESET = {
   aspect: '16:9', bgType: 'gradient', color1: '#f6f0e4', color2: '#e7dbc6', dim: 0,
   textColor: '#2b211a', subColor: '#5b4a37', accent: '#a8781e', textSize: 92, textFx: '', textAnim: '', textZone: '', textInk: '',
-  ayahLayout: 'all', script: 'uthmani', countViz: '', countTheme: 'gold', countInk: '', countAlpha: 0, countTick: true, countSound: 'wood', countNext: 'whoosh', wordMode: 'full', showLabel: true, showFooter: false, showTranslation: false, waveform: false,
+  ayahLayout: 'all', script: 'uthmani', countViz: '', countTheme: 'gold', countRim: 'metal', countInk: '', countAlpha: 0, countTick: true, countSound: 'wood', countNext: 'whoosh', wordMode: 'full', showLabel: true, showFooter: false, showTranslation: false, waveform: false,
   frame: 'mirror', wall: '#0e0e0e', pattern: 'stars', kenBurns: 'slow', loop: true,
   look: '', light: '', cardTrans: '', bumper: '', subCard: '', intro: '', handleOpacity: 0.45,
 };
@@ -2836,7 +2836,7 @@ function setupPainting() {
 
 // ===== الشكل =====
 let syncInk = () => {}, ctInk = () => {};
-const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'textZone', 'textInk', 'ayahLayout', 'script', 'countViz', 'countTheme', 'countAlpha', 'countTick', 'countSound', 'countNext', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade', 'frame', 'wall', 'pattern', 'kenBurns', 'loop'];
+const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'textZone', 'textInk', 'ayahLayout', 'script', 'countViz', 'countTheme', 'countRim', 'countAlpha', 'countTick', 'countSound', 'countNext', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade', 'frame', 'wall', 'pattern', 'kenBurns', 'loop'];
 
 function applyStyleToInputs() {
   const st = state.style;
@@ -6465,6 +6465,7 @@ function setupCountDialog() {
     }
     $('#ct-viz').value = state.style.countViz || 'beads';
     $('#ct-theme').value = state.style.countTheme || 'gold';
+    $('#ct-rim').value = state.style.countRim || 'metal';
     ctInk(state.style.countInk || '');
     $('#ct-sound').value = state.style.countTick === false ? 'none' : (state.style.countSound || 'wood');
     $('#ct-next').value = state.style.countNext || 'whoosh';
@@ -6488,6 +6489,7 @@ function setupCountDialog() {
     state.style.countSound = $('#ct-sound').value; state.style.countNext = $('#ct-next').value;
     $('#countSound').value = state.style.countSound; $('#countNext').value = state.style.countNext;
     state.style.countTheme = $('#ct-theme').value;
+    state.style.countRim = $('#ct-rim').value; $('#countRim').value = state.style.countRim;
     state.style.countInk = $('#ct-ink').value === 'custom' ? $('#ct-ink-pick').value : $('#ct-ink').value;
     syncInk(state.style.countInk);
     $('#countTheme').value = state.style.countTheme;

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261113h">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261113i">
 </head>
 <body>
   <header class="topbar">
@@ -280,6 +280,7 @@
               <option value="wheel">🎡 عجلة الأذكار + نقط المرات</option>
             </select>
             <select id="countTheme" title="ألوان العجلة"></select>
+            <select id="countRim" title="حافة العجلة"><option value="metal">⭕ حافة: إطار معدني</option><option value="thin">◯ حافة: خط رفيع</option><option value="none">🫧 من غير حافة (تدوب في المنظر)</option></select>
             <small class="muted">لكروت الأذكار: مدة الكارت بتتقسم على عدد المرات. <label class="check" style="display:inline-flex"><input type="checkbox" id="countTick"> صوت مع العدّ</label></small>
             <span class="row wrap">✍️ لون كتابة العجلة: <select id="countInkSel"><option value="">تلقائي (حسب الألوان)</option><option value="#ffffff">⚪ أبيض</option><option value="#f6d47a">🟡 دهبي</option><option value="#fff4dc">🤍 كريمي</option><option value="#2b2116">🟤 بني غامق</option><option value="#000000">⚫ أسود</option><option value="custom">🎨 لون من اختيارك…</option></select><input type="color" id="countInkPick" value="#ffffff" hidden>
             🫧 شفافية العجلة: <input type="range" id="countAlpha" min="0" max="1" step="0.05" title="على الشمال = شفافة أكتر (المنظر يبان)، صفر = حسب الألوان"></span>
@@ -576,7 +577,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261113h</div>
+    <div class="muted" id="app-version">الإصدار 20261113i</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -1033,6 +1034,7 @@
           </select>
         </label>
         <label>ألوان العجلة <select id="ct-theme"></select></label>
+        <label>حافة العجلة <select id="ct-rim"><option value="metal">⭕ إطار معدني</option><option value="thin">◯ خط رفيع</option><option value="none">🫧 من غير حافة (تدوب في المنظر)</option></select></label>
         <label>لون كتابة العجلة <span class="row"><select id="ct-ink"><option value="">تلقائي (حسب الألوان)</option><option value="#ffffff">⚪ أبيض</option><option value="#f6d47a">🟡 دهبي</option><option value="#fff4dc">🤍 كريمي</option><option value="#2b2116">🟤 بني غامق</option><option value="#000000">⚫ أسود</option><option value="custom">🎨 لون من اختيارك…</option></select><input type="color" id="ct-ink-pick" value="#ffffff" hidden></span></label>
         <label>كل مرة (ثانية، فاضي = حسب طول الذكر) <input type="number" id="ct-per" min="0.3" step="0.1" placeholder="تلقائي"></label>
         <label>العدد الكبير (أكتر من ١٠): كل مرة <input type="number" id="ct-fast" min="0.2" step="0.1" value="0.6"></label>
@@ -1689,6 +1691,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261113h"></script>
+  <script type="module" src="js/main.js?v=20261113i"></script>
 </body>
 </html>

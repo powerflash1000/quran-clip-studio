@@ -429,29 +429,39 @@ function drawWheel(ctx, cx, cy, R, c, rep, style, unit, TF) {
   const glassy = alpha < 0.7;
   const { labels, idx } = c.wheel, m = labels.length, n = c.n;
   const step = Math.PI * 2 / m, a0 = -Math.PI / 2;
-  const bez = R * 0.07, Rd = R - bez;          // عرض الإطار المعدني ونص قطر القرص
+  // حافة العجلة: metal = إطار معدني، thin = خط رفيع، none = من غير حافة (العجلة بتدوب في المنظر)
+  const rim = style.countRim || 'metal';
+  const bez = R * (rim === 'metal' ? 0.07 : 0.025), Rd = R - bez; // عرض الحافة ونص قطر القرص
   const rIn = Rd * 0.42;                        // الدايرة اللي في النص
   ctx.save();
   // ضل العجلة كلها
-  ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = R * 0.12; ctx.shadowOffsetY = R * 0.03;
-  ctx.fillStyle = metal(ctx, cx - R, cy - R, cx + R, cy + R, T.rim);
-  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.arc(cx, cy, R - bez, 0, Math.PI * 2, true); ctx.fill();
-  ctx.shadowColor = 'transparent';
-  // حافة لامعة جوه الإطار
-  ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = Math.max(1, R * 0.006);
-  ctx.beginPath(); ctx.arc(cx, cy, R - bez * 0.35, 0, Math.PI * 2); ctx.stroke();
+  if (rim === 'metal') {
+    ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = R * 0.12; ctx.shadowOffsetY = R * 0.03;
+    ctx.fillStyle = metal(ctx, cx - R, cy - R, cx + R, cy + R, T.rim);
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.arc(cx, cy, R - bez, 0, Math.PI * 2, true); ctx.fill();
+    ctx.shadowColor = 'transparent';
+    // حافة لامعة جوه الإطار
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = Math.max(1, R * 0.006);
+    ctx.beginPath(); ctx.arc(cx, cy, R - bez * 0.35, 0, Math.PI * 2); ctx.stroke();
+  } else if (rim === 'thin') {
+    ctx.strokeStyle = T.dim; ctx.lineWidth = Math.max(1, R * 0.006);
+    ctx.beginPath(); ctx.arc(cx, cy, Rd, 0, Math.PI * 2); ctx.stroke();
+  }
   // تقدّم الفيديو كله على الإطار (قوس منوّر)
   if (m > 1) {
     ctx.save();
-    ctx.strokeStyle = T.acc; ctx.lineWidth = bez * 0.32; ctx.lineCap = 'round';
+    ctx.strokeStyle = T.acc; ctx.lineWidth = Math.max(bez * 0.32, R * 0.012); ctx.lineCap = 'round';
     ctx.shadowColor = T.glow; ctx.shadowBlur = R * 0.04;
     ctx.beginPath(); ctx.arc(cx, cy, R - bez * 0.55, a0, a0 + Math.PI * 2 * ((idx + rep / Math.max(1, n)) / m)); ctx.stroke();
     ctx.restore();
   }
   // القرص
   const dg = ctx.createRadialGradient(cx - Rd * 0.25, cy - Rd * 0.3, Rd * 0.05, cx, cy, Rd);
-  dg.addColorStop(0, T.disc[0]); dg.addColorStop(1, T.disc[1]);
-  ctx.save(); ctx.globalAlpha = alpha;
+  if (rim === 'none') {
+    // من غير حافة: القرص بيتلاشى بنعومة في المنظر عند الطرف
+    dg.addColorStop(0, hexA(T.disc[0], alpha)); dg.addColorStop(0.78, hexA(T.disc[1], alpha)); dg.addColorStop(1, hexA(T.disc[1], 0));
+  } else { dg.addColorStop(0, T.disc[0]); dg.addColorStop(1, T.disc[1]); }
+  ctx.save(); ctx.globalAlpha = rim === 'none' ? 1 : alpha;
   ctx.fillStyle = dg;
   ctx.beginPath(); ctx.arc(cx, cy, Rd, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
@@ -467,7 +477,7 @@ function drawWheel(ctx, cx, cy, R, c, rep, style, unit, TF) {
   // ظل داخلي خفيف تحت الإطار
   const ig = ctx.createRadialGradient(cx, cy, Rd * 0.85, cx, cy, Rd);
   ig.addColorStop(0, 'rgba(0,0,0,0)'); ig.addColorStop(1, `rgba(0,0,0,${glassy ? 0.12 : 0.28})`);
-  ctx.fillStyle = ig; ctx.beginPath(); ctx.arc(cx, cy, Rd, 0, Math.PI * 2); ctx.fill();
+  if (rim !== 'none') { ctx.fillStyle = ig; ctx.beginPath(); ctx.arc(cx, cy, Rd, 0, Math.PI * 2); ctx.fill(); }
   // زخرفة نجوم خفيفة في الخلفية
   ctx.save();
   ctx.beginPath(); ctx.arc(cx, cy, Rd, 0, Math.PI * 2); ctx.clip();
@@ -528,7 +538,7 @@ function drawWheel(ctx, cx, cy, R, c, rep, style, unit, TF) {
   ctx.globalAlpha = Math.min(1, alpha + 0.3);
   ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(cx, cy, rIn, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
-  ctx.strokeStyle = metal(ctx, cx - rIn, cy - rIn, cx + rIn, cy + rIn, T.rim); ctx.lineWidth = Math.max(2, R * 0.014);
+  ctx.strokeStyle = rim === 'metal' ? metal(ctx, cx - rIn, cy - rIn, cx + rIn, cy + rIn, T.rim) : T.dim; ctx.lineWidth = rim === 'metal' ? Math.max(2, R * 0.014) : Math.max(1, R * 0.006);
   ctx.beginPath(); ctx.arc(cx, cy, rIn, 0, Math.PI * 2); ctx.stroke();
   // حلقة المرات: قطع بعدد المرات (لحد ٣٣)، أو قوس متصل للعدد الكبير
   const rr = rIn * 0.86, lw = Math.max(3, rIn * 0.07);
@@ -564,9 +574,9 @@ function drawWheel(ctx, cx, cy, R, c, rep, style, unit, TF) {
   // رقم الذكر من كام (فوق الرقم)
   ctx.fillStyle = T.acc; ctx.font = `${Math.round(rIn * 0.13)}px ${TF}`;
   ctx.fillText(`الذكر ${AR_NUM(idx + 1)} من ${AR_NUM(m)}`, cx, cy - rIn * 0.52);
-  // جوهرة صغيرة فوق العجلة (مكان البداية)
-  ctx.fillStyle = metal(ctx, cx, cy - R - R * 0.03, cx, cy - R + R * 0.06, T.hub);
-  ctx.beginPath(); ctx.moveTo(cx, cy - R + bez * 0.9); ctx.lineTo(cx - R * 0.035, cy - R - R * 0.02); ctx.lineTo(cx + R * 0.035, cy - R - R * 0.02); ctx.closePath(); ctx.fill();
+  // جوهرة صغيرة فوق العجلة (مكان البداية) — مع الإطار المعدني بس
+  if (rim === 'metal') ctx.fillStyle = metal(ctx, cx, cy - R - R * 0.03, cx, cy - R + R * 0.06, T.hub);
+  if (rim === 'metal') { ctx.beginPath(); ctx.moveTo(cx, cy - R + bez * 0.9); ctx.lineTo(cx - R * 0.035, cy - R - R * 0.02); ctx.lineTo(cx + R * 0.035, cy - R - R * 0.02); ctx.closePath(); ctx.fill(); }
   ctx.restore();
 }
 // نص في عرض معيّن (بيصغر لو أطول)
