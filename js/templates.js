@@ -29,7 +29,9 @@ export const DEFAULT_STYLE = {
   ayahLayout: 'one',       // one (آية آية) | all (الآيات كلها مرة واحدة) | allHi (كلها + الآية الحالية منوّرة)
   script: 'uthmani',        // uthmani (رسم المصحف) | imlaei (إملائي حديث من Tanzil)
   wordMode: 'full',        // full | reveal (الكلمات بتظهر مع التلاوة) | highlight (تظليل الكلمة الحالية)
-  countTheme: 'gold',      // ألوان العجلة: gold | ivory | emerald | navy | rose
+  countTheme: 'gold',      // ألوان العجلة: gold | ivory | emerald | navy | glass | glassLight | glassWhite | rose
+  countInk: '',            // لون كتابة العجلة ('' = حسب الألوان)
+  countAlpha: 0,           // شفافية قرص العجلة (0 = حسب الألوان، الإزاز شفاف)
   countViz: '',             // '' | beads (📿 سبحة) | wheel (🎡 عجلة الأذكار) — عدّاد مرات الذكر
   countTick: true,         // صوت مع العدّ (لو الكارت من غير صوت)
   countSound: 'wood',      // صوت كل مرة: wood | beads | drop | soft | none

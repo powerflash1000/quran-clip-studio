@@ -406,6 +406,9 @@ export const WHEEL_THEMES = {
   ivory: { name: 'عاجي ودهبي (فاتح)', disc: ['#fffaf0', '#e9dfcb'], rim: ['#8a6212', '#f8e3a0', '#c99a2e', '#fff4cc', '#7a560f'], ink: '#3a2c16', dim: 'rgba(58,44,22,0.38)', acc: '#b07c12', glow: 'rgba(176,124,18,0.45)', hub: ['#fff4cc', '#c99a2e', '#5e4108'] },
   emerald: { name: 'أخضر زمردي ودهبي', disc: ['#0f4a3a', '#06231b'], rim: ['#6b4a0c', '#f8e3a0', '#c99a2e', '#fff4cc', '#8a6212'], ink: '#eaf5ef', dim: 'rgba(234,245,239,0.4)', acc: '#f2c75c', glow: 'rgba(242,199,92,0.6)', hub: ['#fff4cc', '#c99a2e', '#5e4108'] },
   navy: { name: 'كحلي ليلي وفضي', disc: ['#16264a', '#070d1e'], rim: ['#55606f', '#f2f5f9', '#9aa6b5', '#ffffff', '#4b5563'], ink: '#eef2fa', dim: 'rgba(238,242,250,0.4)', acc: '#9fd3ff', glow: 'rgba(120,190,255,0.65)', hub: ['#ffffff', '#9aa6b5', '#3b4250'] },
+  glass: { name: '🫧 إزاز شفاف غامق + دهبي (المنظر يبان)', alpha: 0.32, disc: ['#1c1c1c', '#000000'], rim: ['#6b4a0c', '#f8e3a0', '#c99a2e', '#fff4cc', '#8a6212'], ink: '#ffffff', dim: 'rgba(255,255,255,0.6)', acc: '#f6d47a', glow: 'rgba(246,212,122,0.7)', hub: ['#fff4cc', '#c99a2e', '#5e4108'] },
+  glassLight: { name: '🫧 إزاز شفاف فاتح + دهبي', alpha: 0.4, disc: ['#ffffff', '#efefef'], rim: ['#8a6212', '#f8e3a0', '#c99a2e', '#fff4cc', '#7a560f'], ink: '#2b2116', dim: 'rgba(43,33,22,0.55)', acc: '#9a6a0c', glow: 'rgba(154,106,12,0.5)', hub: ['#fff4cc', '#c99a2e', '#5e4108'] },
+  glassWhite: { name: '🫧 إزاز شفاف بإطار أبيض (مودرن)', alpha: 0.28, disc: ['#2a3540', '#0e151c'], rim: ['#c9d2db', '#ffffff', '#e6ebf0', '#ffffff', '#b8c2cc'], ink: '#ffffff', dim: 'rgba(255,255,255,0.65)', acc: '#ffffff', glow: 'rgba(255,255,255,0.8)', hub: ['#ffffff', '#e6ebf0', '#9aa6b5'] },
   rose: { name: 'روز جولد ناعم', disc: ['#fbefe9', '#efd7cc'], rim: ['#7a4a3a', '#f6d2c2', '#c98b74', '#fff0e8', '#8a5442'], ink: '#4a2a22', dim: 'rgba(74,42,34,0.38)', acc: '#b9654b', glow: 'rgba(185,101,75,0.45)', hub: ['#fff0e8', '#c98b74', '#6a3a2c'] },
 };
 const metal = (ctx, x0, y0, x1, y1, stops) => { const g = ctx.createLinearGradient(x0, y0, x1, y1); stops.forEach((c, i) => g.addColorStop(i / (stops.length - 1), c)); return g; };
@@ -419,7 +422,11 @@ function star8(ctx, x, y, r, rot = 0) {
   ctx.closePath();
 }
 function drawWheel(ctx, cx, cy, R, c, rep, style, unit, TF) {
-  const T = WHEEL_THEMES[style.countTheme] || WHEEL_THEMES.gold;
+  let T = WHEEL_THEMES[style.countTheme] || WHEEL_THEMES.gold;
+  // لون الكتابة من اختيارك (لو محدد)، وشفافية القرص (المنظر الطبيعي يبان من وراه)
+  if (style.countInk) T = { ...T, ink: style.countInk, dim: hexA(style.countInk, 0.55), acc: style.countAcc || T.acc };
+  const alpha = Math.max(0.1, Math.min(1, Number(style.countAlpha) > 0 ? Number(style.countAlpha) : (T.alpha ?? 1)));
+  const glassy = alpha < 0.7;
   const { labels, idx } = c.wheel, m = labels.length, n = c.n;
   const step = Math.PI * 2 / m, a0 = -Math.PI / 2;
   const bez = R * 0.07, Rd = R - bez;          // عرض الإطار المعدني ونص قطر القرص
@@ -428,7 +435,7 @@ function drawWheel(ctx, cx, cy, R, c, rep, style, unit, TF) {
   // ضل العجلة كلها
   ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = R * 0.12; ctx.shadowOffsetY = R * 0.03;
   ctx.fillStyle = metal(ctx, cx - R, cy - R, cx + R, cy + R, T.rim);
-  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.arc(cx, cy, R - bez, 0, Math.PI * 2, true); ctx.fill();
   ctx.shadowColor = 'transparent';
   // حافة لامعة جوه الإطار
   ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = Math.max(1, R * 0.006);
@@ -444,11 +451,22 @@ function drawWheel(ctx, cx, cy, R, c, rep, style, unit, TF) {
   // القرص
   const dg = ctx.createRadialGradient(cx - Rd * 0.25, cy - Rd * 0.3, Rd * 0.05, cx, cy, Rd);
   dg.addColorStop(0, T.disc[0]); dg.addColorStop(1, T.disc[1]);
+  ctx.save(); ctx.globalAlpha = alpha;
   ctx.fillStyle = dg;
   ctx.beginPath(); ctx.arc(cx, cy, Rd, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  // لمعة الإزاز (خط نور مايل من فوق)
+  if (glassy) {
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, Rd, 0, Math.PI * 2); ctx.clip();
+    const sh = ctx.createLinearGradient(cx - Rd, cy - Rd, cx + Rd * 0.2, cy + Rd * 0.4);
+    sh.addColorStop(0, 'rgba(255,255,255,0.22)'); sh.addColorStop(0.45, 'rgba(255,255,255,0.05)'); sh.addColorStop(0.5, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sh; ctx.fillRect(cx - Rd, cy - Rd, Rd * 2, Rd * 2);
+    ctx.restore();
+  }
   // ظل داخلي خفيف تحت الإطار
   const ig = ctx.createRadialGradient(cx, cy, Rd * 0.85, cx, cy, Rd);
-  ig.addColorStop(0, 'rgba(0,0,0,0)'); ig.addColorStop(1, 'rgba(0,0,0,0.28)');
+  ig.addColorStop(0, 'rgba(0,0,0,0)'); ig.addColorStop(1, `rgba(0,0,0,${glassy ? 0.12 : 0.28})`);
   ctx.fillStyle = ig; ctx.beginPath(); ctx.arc(cx, cy, Rd, 0, Math.PI * 2); ctx.fill();
   // زخرفة نجوم خفيفة في الخلفية
   ctx.save();
@@ -486,6 +504,7 @@ function drawWheel(ctx, cx, cy, R, c, rep, style, unit, TF) {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = 'rtl';
     ctx.font = `${cur ? 'bold ' : ''}${Math.round(fs * (cur ? 1.18 : 1))}px ${TF}`;
     if (cur) { ctx.shadowColor = T.glow; ctx.shadowBlur = fs * 0.9; }
+    else if (glassy) { ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = fs * 0.35; } // الكلام يتقري فوق المنظر
     ctx.fillStyle = cur ? T.acc : i < idx ? T.dim : T.ink;
     fitText(ctx, labels[i], 0, 0, maxL);
     ctx.restore();
@@ -506,6 +525,7 @@ function drawWheel(ctx, cx, cy, R, c, rep, style, unit, TF) {
   hg.addColorStop(0, T.disc[0]); hg.addColorStop(1, T.disc[1]);
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = R * 0.05;
+  ctx.globalAlpha = Math.min(1, alpha + 0.3);
   ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(cx, cy, rIn, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
   ctx.strokeStyle = metal(ctx, cx - rIn, cy - rIn, cx + rIn, cy + rIn, T.rim); ctx.lineWidth = Math.max(2, R * 0.014);

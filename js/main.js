@@ -2758,7 +2758,7 @@ function renderLong() {
 const PAINT_PRESET = {
   aspect: '16:9', bgType: 'gradient', color1: '#f6f0e4', color2: '#e7dbc6', dim: 0,
   textColor: '#2b211a', subColor: '#5b4a37', accent: '#a8781e', textSize: 92, textFx: '', textAnim: '', textZone: '', textInk: '',
-  ayahLayout: 'all', script: 'uthmani', countViz: '', countTheme: 'gold', countTick: true, countSound: 'wood', countNext: 'whoosh', wordMode: 'full', showLabel: true, showFooter: false, showTranslation: false, waveform: false,
+  ayahLayout: 'all', script: 'uthmani', countViz: '', countTheme: 'gold', countInk: '', countAlpha: 0, countTick: true, countSound: 'wood', countNext: 'whoosh', wordMode: 'full', showLabel: true, showFooter: false, showTranslation: false, waveform: false,
   frame: 'mirror', wall: '#0e0e0e', pattern: 'stars', kenBurns: 'slow', loop: true,
   look: '', light: '', cardTrans: '', bumper: '', subCard: '', intro: '', handleOpacity: 0.45,
 };
@@ -2835,7 +2835,8 @@ function setupPainting() {
 }
 
 // ===== الشكل =====
-const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'textZone', 'textInk', 'ayahLayout', 'script', 'countViz', 'countTheme', 'countTick', 'countSound', 'countNext', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade', 'frame', 'wall', 'pattern', 'kenBurns', 'loop'];
+let syncInk = () => {}, ctInk = () => {};
+const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'textZone', 'textInk', 'ayahLayout', 'script', 'countViz', 'countTheme', 'countAlpha', 'countTick', 'countSound', 'countNext', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade', 'frame', 'wall', 'pattern', 'kenBurns', 'loop'];
 
 function applyStyleToInputs() {
   const st = state.style;
@@ -2845,6 +2846,7 @@ function applyStyleToInputs() {
     else el.value = st[k];
   }
   $('#quality').value = st.quality || '1080';
+  syncInk(st.countInk || '');
   updateBgVisibility();
   renderReciters();
   $('#bgEvery-wrap').hidden = st.bgSwitch === 'ayah';
@@ -2877,6 +2879,16 @@ function setupStyle() {
   $('#countSound').innerHTML = $('#ct-sound').innerHTML = Object.entries(ZS.REP_SOUNDS).map(([k, t]) => `<option value="${k}">${t}</option>`).join('');
   $('#countNext').innerHTML = $('#ct-next').innerHTML = Object.entries(ZS.NEXT_SOUNDS).map(([k, t]) => `<option value="${k}">${t}</option>`).join('');
   for (const [sel, btn] of [['#countSound', '#countSound-play'], ['#countNext', '#countNext-play'], ['#ct-sound', '#ct-sound-play'], ['#ct-next', '#ct-next-play']]) $(btn).onclick = () => ZS.previewSound($(sel).value);
+  // لون كتابة العجلة: قايمة ألوان + «لون من اختيارك»
+  const inkUI = (sel, pick, onSet) => {
+    const show = v => { const known = [...$(sel).options].some(o => o.value === v); $(sel).value = !v ? '' : known ? v : 'custom'; $(pick).hidden = $(sel).value !== 'custom'; if (v && !known) $(pick).value = v; };
+    $(sel).onchange = () => { $(pick).hidden = $(sel).value !== 'custom'; onSet($(sel).value === 'custom' ? $(pick).value : $(sel).value); };
+    $(pick).oninput = () => onSet($(pick).value);
+    return show;
+  };
+  syncInk = inkUI('#countInkSel', '#countInkPick', v => { state.style.countInk = v; persist(); refreshPreview(); });
+  ctInk = inkUI('#ct-ink', '#ct-ink-pick', () => {});
+  syncInk(state.style.countInk || '');
   $('#countTheme').innerHTML = $('#ct-theme').innerHTML = Object.entries(WHEEL_THEMES).map(([k, t]) => `<option value="${k}">🎨 ${t.name}</option>`).join('');
   $('#frame').innerHTML = opts(FRAMES); $('#kenBurns').innerHTML = opts(KEN_BURNS); $('#pattern').innerHTML = opts(PATTERNS);
   for (const [id, o] of [['handlePos', BR.POSITIONS], ['logoPos', BR.POSITIONS], ['look', BR.LOOKS], ['light', BR.LIGHTS], ['cardTrans', BR.CARD_TRANS], ['bumper', BR.BUMPERS], ['subCard', BR.SUB_CARD], ['subCardPos', BR.SUB_POS]]) $('#' + id).innerHTML = opts(o);
@@ -6453,6 +6465,7 @@ function setupCountDialog() {
     }
     $('#ct-viz').value = state.style.countViz || 'beads';
     $('#ct-theme').value = state.style.countTheme || 'gold';
+    ctInk(state.style.countInk || '');
     $('#ct-sound').value = state.style.countTick === false ? 'none' : (state.style.countSound || 'wood');
     $('#ct-next').value = state.style.countNext || 'whoosh';
     ctSummary();
@@ -6475,6 +6488,8 @@ function setupCountDialog() {
     state.style.countSound = $('#ct-sound').value; state.style.countNext = $('#ct-next').value;
     $('#countSound').value = state.style.countSound; $('#countNext').value = state.style.countNext;
     state.style.countTheme = $('#ct-theme').value;
+    state.style.countInk = $('#ct-ink').value === 'custom' ? $('#ct-ink-pick').value : $('#ct-ink').value;
+    syncInk(state.style.countInk);
     $('#countTheme').value = state.style.countTheme;
     $('#countViz').value = state.style.countViz; $('#countTick').checked = state.style.countTick;
     persist(); renderBlocks(); refreshPublish(true); refreshPreview();
