@@ -325,6 +325,125 @@ function drawLines(ctx, lines, x, y, size, lineH, dir) {
   lines.forEach((l, i) => (dir === 'rtl' ? fillRtl : paint)(ctx, l, x, y + size * lineH * (i + 0.5)));
 }
 
+// ===== 📿 عدّاد الذكر =====
+// c: { n: عدد المرات, viz: 'beads'|'wheel', wheel?: { labels, idx } } — rep: المرة الحالية (من ١)
+const AR_NUM = n => String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
+function drawCounter(ctx, box, c, rep, style, unit, TF) {
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 10 * unit; ctx.shadowOffsetY = 0;
+  const y0 = box.y0 + (c.viz === 'wheel' ? 10 : 70) * unit; // مكان للشرّابة تحت العنوان
+  const cx = (box.x0 + box.x1) / 2, cy = (y0 + box.y1) / 2;
+  const R = Math.max(40 * unit, Math.min(box.x1 - box.x0, box.y1 - y0) / 2 - 8 * unit);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = 'rtl';
+  if (c.viz === 'wheel' && c.wheel) drawWheel(ctx, cx, cy, R, c, rep, style, unit, TF);
+  else drawBeads(ctx, cx, cy, R, c, rep, style, unit, TF);
+  ctx.restore();
+}
+
+// سبحة: خرز في دايرة — اللي اتقال بلون التمييز، والحالية أكبر ومنوّرة. فوق: «الإمام» والشرّابة
+function drawBeads(ctx, cx, cy, R, c, rep, style, unit, TF) {
+  const n = c.n, ring = n <= 33 ? n : 33;            // العدد الكبير (١٠٠): سبحة ٣٣ بتلف أكتر من مرة
+  const done = n <= 33 ? rep : ((rep - 1) % 33) + 1;
+  const rr = R * 0.86;
+  const bead = Math.min(R * 0.16, Math.PI * rr / ring * 0.82);
+  // الخيط
+  ctx.strokeStyle = hexA(style.textColor, 0.35); ctx.lineWidth = Math.max(1.5, 2.5 * unit);
+  ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.stroke();
+  // الإمام والشرّابة فوق
+  const ty = cy - rr;
+  ctx.fillStyle = style.accent;
+  ctx.beginPath(); ctx.ellipse(cx, ty, bead * 0.75, bead * 1.15, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = hexA(style.accent, 0.8); ctx.lineWidth = Math.max(1, 1.6 * unit);
+  for (let k = -2; k <= 2; k++) { ctx.beginPath(); ctx.moveTo(cx, ty - bead); ctx.lineTo(cx + k * bead * 0.22, ty - bead * 1.9); ctx.stroke(); }
+  // الخرز (مع عقارب الساعة من فوق، سايبين مكان الإمام)
+  const gap = (bead * 2.4) / rr, span = Math.PI * 2 - gap;
+  for (let i = 0; i < ring; i++) {
+    const ang = -Math.PI / 2 + gap / 2 + span * (i + 0.5) / ring;
+    const x = cx + Math.cos(ang) * rr, y = cy + Math.sin(ang) * rr;
+    const isCur = i === done - 1, isDone = i < done;
+    const r = isCur ? bead * 1.25 : bead;
+    if (isCur) { ctx.save(); ctx.shadowColor = style.accent; ctx.shadowBlur = 24 * unit; }
+    const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.1, x, y, r);
+    if (isDone) { g.addColorStop(0, '#fff6d6'); g.addColorStop(0.5, style.accent); g.addColorStop(1, darkenHex(style.accent, 0.45)); }
+    else { g.addColorStop(0, 'rgba(255,255,255,0.55)'); g.addColorStop(1, 'rgba(255,255,255,0.12)'); }
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    if (isCur) ctx.restore();
+  }
+  // العدّاد في النص
+  ctx.fillStyle = style.textColor;
+  ctx.font = `bold ${Math.round(R * 0.5)}px ${TF}`;
+  ctx.fillText(AR_NUM(rep), cx, cy - R * 0.06);
+  ctx.fillStyle = hexA(style.textColor, 0.75);
+  ctx.font = `${Math.round(R * 0.15)}px ${TF}`;
+  ctx.fillText(`من ${AR_NUM(n)}`, cx, cy + R * 0.32);
+}
+
+// عجلة: كل الأذكار حوالين الدايرة، والإبرة بتشاور على الذكر الحالي؛ في النص رقم الذكر وتحت نقط المرات
+function drawWheel(ctx, cx, cy, R, c, rep, style, unit, TF) {
+  const { labels, idx } = c.wheel, m = labels.length;
+  // القرص
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = hexA(style.accent, 0.7); ctx.lineWidth = Math.max(1.5, 3 * unit);
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = hexA(style.textColor, 0.25); ctx.lineWidth = Math.max(1, 1.5 * unit);
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.beginPath(); ctx.arc(cx, cy, R * 0.4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  // علامات + أسماء الأذكار (على نص القطر، من برّه لجوّه)
+  const step = Math.PI * 2 / m;
+  const fs = Math.max(9 * unit, Math.min(R * 0.075, (Math.PI * 2 * R * 0.6 / m) * 0.8));
+  for (let i = 0; i < m; i++) {
+    const ang = -Math.PI / 2 + i * step;
+    ctx.save();
+    ctx.translate(cx, cy); ctx.rotate(ang);
+    ctx.strokeStyle = hexA(style.textColor, 0.4);
+    ctx.beginPath(); ctx.moveTo(R * 0.96, 0); ctx.lineTo(R, 0); ctx.stroke();
+    const cur = i === idx;
+    // النص من برّه لجوّه، ولو في النص الشمال من الدايرة بنقلبه عشان يتقري
+    const flip = Math.cos(ang) < -0.01;
+    ctx.translate(R * 0.68, 0);
+    if (flip) ctx.rotate(Math.PI);
+    if (cur) { // خلفية منوّرة ورا الذكر الحالي
+      ctx.fillStyle = hexA(style.accent, 0.22);
+      ctx.beginPath(); ctx.roundRect(-R * 0.27, -fs * 0.75, R * 0.54, fs * 1.5, fs * 0.4); ctx.fill();
+    }
+    ctx.font = `${cur ? 'bold ' : ''}${Math.round(fs * (cur ? 1.15 : 1))}px ${TF}`;
+    ctx.fillStyle = cur ? style.accent : hexA(style.textColor, i < idx ? 0.45 : 0.8);
+    ctx.textAlign = 'center';
+    fitText(ctx, labels[i], 0, 0, R * 0.5);
+    ctx.restore();
+  }
+  // الإبرة
+  const a = -Math.PI / 2 + idx * step;
+  ctx.strokeStyle = style.accent; ctx.lineWidth = Math.max(2, 4 * unit); ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * R * 0.4, cy + Math.sin(a) * R * 0.4); ctx.lineTo(cx + Math.cos(a) * R * 0.97, cy + Math.sin(a) * R * 0.97); ctx.stroke();
+  ctx.fillStyle = style.accent;
+  ctx.beginPath(); ctx.arc(cx + Math.cos(a) * R * 0.4, cy + Math.sin(a) * R * 0.4, 6 * unit, 0, Math.PI * 2); ctx.fill();
+  // النص: رقم الذكر من كام + المرات
+  ctx.fillStyle = style.textColor;
+  ctx.font = `bold ${Math.round(R * 0.13)}px ${TF}`;
+  ctx.fillText(`${AR_NUM(idx + 1)} من ${AR_NUM(m)}`, cx, cy - R * 0.1);
+  const n = c.n;
+  if (n > 1 && n <= 12) {
+    const gapD = Math.min(R * 0.1, R * 0.6 / (n - 1)), d = Math.min(R * 0.03, gapD * 0.32), w0 = (n - 1) * gapD;
+    for (let k = 0; k < n; k++) {
+      ctx.fillStyle = k < rep ? style.accent : hexA(style.textColor, 0.3);
+      ctx.beginPath(); ctx.arc(cx + w0 / 2 - k * gapD, cy + R * 0.12, k === rep - 1 ? d * 1.35 : d, 0, Math.PI * 2); ctx.fill();
+    }
+  } else if (n > 12) {
+    ctx.fillStyle = style.accent; ctx.font = `${Math.round(R * 0.1)}px ${TF}`;
+    ctx.fillText(`${AR_NUM(rep)} من ${AR_NUM(n)}`, cx, cy + R * 0.13);
+  }
+}
+// نص في عرض معيّن (بيصغر لو أطول)
+function fitText(ctx, t, x, y, maxW) {
+  const w = measureRtl(ctx, t);
+  if (w > maxW) { ctx.save(); ctx.translate(x, y); ctx.scale(maxW / w, maxW / w); fillRtl(ctx, t, 0, 0); ctx.restore(); }
+  else fillRtl(ctx, t, x, y);
+}
+const darkenHex = (h, k) => { const [r, g, b] = hexRgb(h); return `rgb(${[r, g, b].map(v => Math.round(v * (1 - k))).join(',')})`; };
+
 // ===== طبقة النص (شفافة، بتتحط فوق الخلفية) =====
 // seg: { kind: 'ayah'|'basmala'|'hadith'|'title', text, sub, label, footer, gradeLabel }
 export function drawOverlay(ctx, W, H, seg, style) {
@@ -393,6 +512,20 @@ export function drawOverlay(ctx, W, H, seg, style) {
     drawLines(ctx, [seg.badge], cx, labelY - 62 * unit * style.labelScale, bs, 1.2, 'rtl');
   }
 
+  // 📿 عدّاد الذكر (سبحة / عجلة): الرسمة فوق والذكر تحتها (في الأفقي: الرسمة شمال والذكر يمين)
+  if (seg.counter) {
+    const rep = Math.max(1, Math.min(seg.counter.n, seg.wordCount ?? 1));
+    if (portrait || boxW < W * 0.5) {
+      const vb = top + (bottom - top) * 0.5;
+      drawCounter(ctx, { x0: padX, x1: padX + boxW, y0: top, y1: vb }, seg.counter, rep, style, unit, TF);
+      top = vb + 28 * unit;
+    } else {
+      const half = boxW / 2;
+      drawCounter(ctx, { x0: padX, x1: padX + half - 20 * unit, y0: top, y1: bottom }, seg.counter, rep, style, unit, TF);
+      padX += half + 20 * unit; boxW = half - 20 * unit; cx = padX + boxW / 2;
+    }
+  }
+
   const isQuran = seg.kind === 'ayah' || seg.kind === 'basmala';
   const mainFont = s => isQuran ? `${s}px ${QURAN_FONT}` : `${s}px ${TF}`;
   const lineH = isQuran ? 1.75 : 1.6;
@@ -420,7 +553,7 @@ export function drawOverlay(ctx, W, H, seg, style) {
   let y = top + (area - total) / 2;
 
   // حركة الدخول: seg.age = الثواني من أول الكارت (في الفيديو والمعاينة والبث)
-  const words = !grp && seg.wordCount != null && style.wordMode && style.wordMode !== 'full';
+  const words = !grp && !seg.counter && seg.wordCount != null && style.wordMode && style.wordMode !== 'full';
   const live = words && /^now/.test(style.wordMode); // «الكلمة اللي بتتقال بس» (زي ترجمة الريلز)
   // مع «الآيات كلها مرة واحدة» الحركة بتحصل مرة واحدة بس في أول آية
   const anim = !words && !(grp && grp.idx > 0) && style.textAnim && seg.age != null && seg.age < ENTER_SECS ? ease(seg.age / ENTER_SECS) : null;

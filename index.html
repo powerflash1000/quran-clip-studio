@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261112d">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261113a">
 </head>
 <body>
   <header class="topbar">
@@ -81,6 +81,7 @@
           <button class="btn" id="add-speech" type="button" title="ارفع صوت أو فيديو، حدد من الثانية كام لكام، والكلام يتكتب على الشاشة بنفس الصوت">🎧 كلام من ملف صوت</button>
           <button class="btn primary" id="btn-reel" type="button" title="اختار موضوع والبرنامج يعمل الريل كله">🪄 ريل بضغطة</button>
           <button class="btn primary" id="add-zikr" type="button">📿 مكتبة الأذكار والأدعية</button>
+          <button class="btn" id="add-count" type="button" title="أذكار الصباح/المساء أو التسبيح بعدد مراتها — بسبحة أو عجلة بتعدّ مع كل مرة">📿 فيديو أذكار بالعدد</button>
           <button class="btn" id="add-story" type="button" title="قصص الأنبياء لابن كثير من ويكي مصدر — نص حر (ملكية عامة)">📖 قصص الأنبياء</button>
         </div>
         <div class="btn-row">
@@ -257,6 +258,14 @@
               <option value="imlaei">إملائي حديث — زي الكتابة العادية (جَزَاءُ بدل جَزَٰٓؤُا۟)</option>
             </select>
             <small class="muted">الاتنين نص قرآن صحيح من مصدر موثوق ومن غير تعديل: العثماني من مصحف المدينة، والإملائي من Tanzil. الرسم العثماني فيه كلمات مكتوبة بشكل قديم (زي «ٱلصَّلَوٰةَ» و«جَزَٰٓؤُا۟») وهي صح مش غلط — اختار الإملائي لو جمهورك هيستغربها.</small>
+          </label>
+          <label class="span2">📿 عدّاد مرات الذكر
+            <select id="countViz">
+              <option value="">من غير</option>
+              <option value="beads">📿 سبحة بتعدّ مع كل مرة</option>
+              <option value="wheel">🎡 عجلة الأذكار + نقط المرات</option>
+            </select>
+            <small class="muted">لكروت الأذكار: مدة الكارت بتتقسم على عدد المرات. <label class="check" style="display:inline-flex"><input type="checkbox" id="countTick"> «تك» مع كل مرة</label></small>
           </label>
           <label class="span2">عرض الآيات
             <select id="ayahLayout">
@@ -548,7 +557,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261112d</div>
+    <div class="muted" id="app-version">الإصدار 20261113a</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -983,6 +992,34 @@
       </div>
       <pre class="src-credits" id="src-credits-out" hidden></pre>
       <div class="src-list" id="src-list"></div>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-count">
+    <div class="dlg">
+      <div class="row">
+        <h2 class="grow">📿 فيديو أذكار بالعدد</h2>
+        <button class="btn icon" id="ct-close" type="button" title="اقفل">✕</button>
+      </div>
+      <p class="hint">بيحط الأذكار من «حصن المسلم» بعدد مراتها، ومع كل مرة السبحة أو العجلة بتعدّ (والشاشة بتقول «قولها معايا»). العدد من الكتاب نفسه مش متألّف.</p>
+      <div class="grid2">
+        <label class="span2">الأذكار <select id="ct-cat"></select></label>
+        <label>من ذكر رقم <input type="number" id="ct-from" min="1" value="1"></label>
+        <label>لحد <input type="number" id="ct-to" min="1" value="1"></label>
+        <label class="check span2"><input type="checkbox" id="ct-only"> الأذكار اللي بتتقال أكتر من مرة بس</label>
+        <label class="span2">الشكل
+          <select id="ct-viz">
+            <option value="beads">📿 سبحة — خرزة مع كل مرة والعدد في النص</option>
+            <option value="wheel">🎡 عجلة — كل الأذكار حوالين الدايرة والإبرة على الذكر الحالي</option>
+          </select>
+        </label>
+        <label>كل مرة (ثانية، فاضي = حسب طول الذكر) <input type="number" id="ct-per" min="0.3" step="0.1" placeholder="تلقائي"></label>
+        <label>العدد الكبير (أكتر من ١٠): كل مرة <input type="number" id="ct-fast" min="0.2" step="0.1" value="0.6"></label>
+        <label class="check"><input type="checkbox" id="ct-tick" checked> «تك» خفيف مع كل مرة</label>
+        <label class="check"><input type="checkbox" id="ct-replace" checked> بدل المحتوى الحالي</label>
+      </div>
+      <p class="muted" id="ct-sum"></p>
+      <div class="btn-row"><button class="btn primary" id="ct-go" type="button">➕ اعمل الكروت</button></div>
     </div>
   </dialog>
 
@@ -1624,6 +1661,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261112d"></script>
+  <script type="module" src="js/main.js?v=20261113a"></script>
 </body>
 </html>

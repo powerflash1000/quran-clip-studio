@@ -175,6 +175,14 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
         silence: Number(b.seconds) || 8,
         noGap: !!(b.noGap && zAudio),
       });
+      // 📿 عدّاد الذكر: المدة بتتقسم على عدد المرات (المرة الحالية بتمشي زي «الكلمات مع التلاوة»)
+      if (st.countViz && !b.audioOnly && String(b.text || '').trim()) {
+        const sg = segs[segs.length - 1];
+        const dur = zAudio ? zAudio.duration : (Number(b.seconds) || 8);
+        sg.counter = { n, viz: st.countViz };
+        sg.wordTimes = Array.from({ length: n }, (_, k) => k * dur / n);
+        if (!zAudio && st.countTick && withAudio) sg.audio = tickBuffer(n, dur);
+      }
     } else {
       const col = collection(b.col);
       const g = assessGrade(b.col, b.grades);
@@ -193,6 +201,13 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
       });
     }
     for (let j = n0; j < segs.length; j++) segs[j].bi = bi;
+  }
+
+  // 📿 العجلة: كل أذكار الفيديو حوالين الدايرة
+  if (st.countViz === 'wheel') {
+    const zs = segs.filter(x => x.counter);
+    const labels = zs.map(x => shortZikr(x.text));
+    zs.forEach((x, i) => { x.counter.wheel = { labels, idx: i }; });
   }
 
   // الافتتاحية (Hook): جملة تشد في أول ثانية ونص
@@ -335,6 +350,27 @@ function applyScript(segs) {
 }
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, Number(v) || a));
+// اسم قصير للذكر على العجلة: أول ٣ كلمات من غير تشكيل (من غير «أعوذ بالله…» و«بسم الله…» اللي في أول بعض الأذكار)
+function shortZikr(t) {
+  let lines = String(t || '').split('\n').map(x => x.trim()).filter(Boolean);
+  if (lines.length > 1 && /^(أَ?عُوذُ|بِسْمِ)/.test(lines[0])) lines = lines.slice(1);
+  const w = String(lines[0] || '').replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, '').replace(/[.،,:؛]/g, ' ').split(/\s+/).filter(Boolean);
+  return w.slice(0, 3).join(' ') + (w.length > 3 ? '…' : '');
+}
+// «تك» خفيف مع كل مرة (صوت خشب قصير) — من غير موسيقى
+function tickBuffer(n, dur) {
+  const sr = 44100, len = Math.max(1, Math.ceil(dur * sr));
+  const buf = new AudioBuffer({ length: len, numberOfChannels: 1, sampleRate: sr });
+  const d = buf.getChannelData(0), tl = Math.floor(0.05 * sr);
+  for (let k = 0; k < n; k++) {
+    const s0 = Math.floor(k * dur / n * sr);
+    for (let i = 0; i < tl && s0 + i < len; i++) {
+      const t = i / sr, env = Math.exp(-t * 90);
+      d[s0 + i] += env * 0.28 * (Math.sin(2 * Math.PI * 1150 * t) * 0.7 + Math.sin(2 * Math.PI * 2300 * t) * 0.3);
+    }
+  }
+  return buf;
+}
 // جزء الآية المختار (لو صالح): { w1, w2 } أرقام الكلمات من 1
 function ayahPart(b) {
   const p = b.part;
@@ -2735,7 +2771,7 @@ function renderLong() {
 const PAINT_PRESET = {
   aspect: '16:9', bgType: 'gradient', color1: '#f6f0e4', color2: '#e7dbc6', dim: 0,
   textColor: '#2b211a', subColor: '#5b4a37', accent: '#a8781e', textSize: 92, textFx: '', textAnim: '', textZone: '', textInk: '',
-  ayahLayout: 'all', script: 'uthmani', wordMode: 'full', showLabel: true, showFooter: false, showTranslation: false, waveform: false,
+  ayahLayout: 'all', script: 'uthmani', countViz: '', countTick: true, wordMode: 'full', showLabel: true, showFooter: false, showTranslation: false, waveform: false,
   frame: 'gold', wall: '#0e0e0e', pattern: 'stars', kenBurns: 'slow', loop: true,
   look: '', light: '', cardTrans: '', bumper: '', subCard: '', intro: '', handleOpacity: 0.45,
 };
@@ -2812,7 +2848,7 @@ function setupPainting() {
 }
 
 // ===== الشكل =====
-const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'textZone', 'textInk', 'ayahLayout', 'script', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade', 'frame', 'wall', 'pattern', 'kenBurns', 'loop'];
+const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'textZone', 'textInk', 'ayahLayout', 'script', 'countViz', 'countTick', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade', 'frame', 'wall', 'pattern', 'kenBurns', 'loop'];
 
 function applyStyleToInputs() {
   const st = state.style;
@@ -6393,6 +6429,62 @@ async function speechAdd(list = speech.items) {
   status(`✅ اتضاف ${Q.arabicNum(blocks.length)} كارت بصوت الملف. اسمع المعاينة قبل النشر.${hasHadith ? ' ⚠️ فيه حديث كنص خاص — اتأكد من درجته.' : ''}`, null, hasHadith);
 }
 
+// ===== 📿 فيديو أذكار بالعدد =====
+const ctWords = t => String(t || '').split(/\s+/).filter(Boolean).length;
+function ctPer(it) {
+  const fixed = Number($('#ct-per').value), fast = Number($('#ct-fast').value) || 0.6;
+  if (it.n > 10) return fast;
+  if (fixed > 0) return fixed;
+  return Math.round(Math.min(40, Math.max(1.6, ctWords(it.t) * 0.42 + 0.8)) * 10) / 10;
+}
+function ctPicked() {
+  const c = AZKAR?.categories.find(x => x.name === $('#ct-cat').value);
+  if (!c) return [];
+  const a = clamp($('#ct-from').value, 1, c.items.length), b = clamp($('#ct-to').value, a, c.items.length);
+  return c.items.map((it, i) => ({ it, i })).slice(a - 1, b).filter(({ it }) => !$('#ct-only').checked || it.n > 1);
+}
+function ctSummary() {
+  const list = ctPicked();
+  const secs = list.reduce((t, { it }) => t + ctPer(it) * (it.n || 1) + 0.6, 0);
+  $('#ct-sum').textContent = list.length ? `${Q.arabicNum(list.length)} ذكر — المدة تقريبًا ${fmtDur(secs)}${secs > 90 ? ' (أطول من الريلز: ينفع يوتيوب، أو اختار جزء أصغر)' : ''}` : 'مفيش أذكار في الاختيار ده';
+}
+function setupCountDialog() {
+  const dlg = $('#dlg-count');
+  $('#add-count').onclick = () => {
+    const sel = $('#ct-cat');
+    if (!sel.options.length) {
+      const cats = AZKAR?.categories || [];
+      // اللي فيها أذكار بعدد الأول
+      const counted = cats.filter(c => c.items.some(it => it.n > 1)), rest = cats.filter(c => !counted.includes(c));
+      sel.innerHTML = [...counted, ...rest].map(c => `<option>${c.name}</option>`).join('');
+      sel.onchange = () => { const c = cats.find(x => x.name === sel.value); $('#ct-from').value = 1; $('#ct-to').value = c?.items.length || 1; ctSummary(); };
+      sel.onchange();
+    }
+    $('#ct-viz').value = state.style.countViz || 'beads';
+    ctSummary();
+    dlg.showModal();
+  };
+  $('#ct-close').onclick = () => dlg.close();
+  for (const id of ['ct-from', 'ct-to', 'ct-only', 'ct-per', 'ct-fast']) $('#' + id).addEventListener('input', ctSummary);
+  $('#ct-go').onclick = () => {
+    const list = ctPicked();
+    if (!list.length) return;
+    const blocks = list.map(({ it, i }) => {
+      const b = newZikrBlock($('#ct-cat').value, i);
+      b.seconds = Math.round(ctPer(it) * (it.n || 1) * 10) / 10;
+      b.secondsManual = true;
+      return b;
+    });
+    state.blocks = $('#ct-replace').checked ? blocks : [...state.blocks, ...blocks];
+    state.style.countViz = $('#ct-viz').value;
+    state.style.countTick = $('#ct-tick').checked;
+    $('#countViz').value = state.style.countViz; $('#countTick').checked = state.style.countTick;
+    persist(); renderBlocks(); refreshPublish(true); refreshPreview();
+    dlg.close(); showTab('content');
+    status(`✅ اتعمل ${Q.arabicNum(blocks.length)} كارت ذكر بالعدد. اسمع المعاينة — وتقدر تغيّر مدة أي كارت من خانة «المدة».`);
+  };
+}
+
 function setupSpeech() {
   const dlg = $('#dlg-speech');
   $('#add-speech').onclick = async () => {
@@ -6971,6 +7063,7 @@ async function init() {
   $('#add-quran').onclick = () => { state.blocks.push(newQuranBlock(1, 1, 1)); renderBlocks(); focusLastBlock(); };
   $('#add-hadith').onclick = () => { state.blocks.push(newHadithBlock()); renderBlocks(); focusLastBlock(); };
   $('#add-zikr').onclick = openAzkarLibrary;
+  setupCountDialog();
   $('#add-custom').onclick = () => { state.blocks.push(newCustomBlock()); renderBlocks(); focusLastBlock(); blocksEl.lastElementChild?.querySelector('[data-f=text]')?.focus(); };
   setupLLM();
   setupAzkarLibrary();
