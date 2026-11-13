@@ -29,6 +29,7 @@ export const DEFAULT_STYLE = {
   ayahLayout: 'one',       // one (آية آية) | all (الآيات كلها مرة واحدة) | allHi (كلها + الآية الحالية منوّرة)
   script: 'uthmani',        // uthmani (رسم المصحف) | imlaei (إملائي حديث من Tanzil)
   wordMode: 'full',        // full | reveal (الكلمات بتظهر مع التلاوة) | highlight (تظليل الكلمة الحالية)
+  countTheme: 'gold',      // ألوان العجلة: gold | ivory | emerald | navy | rose
   countViz: '',             // '' | beads (📿 سبحة) | wheel (🎡 عجلة الأذكار) — عدّاد مرات الذكر
   countTick: true,         // «تك» خفيف مع كل مرة (لو الكارت من غير صوت)
   quality: '1080',

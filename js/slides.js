@@ -399,62 +399,155 @@ function drawBeads(ctx, cx, cy, R, c, rep, style, unit, TF) {
   ctx.fillText(`من ${AR_NUM(n)}`, cx, cy + R * 0.32);
 }
 
-// عجلة: كل الأذكار حوالين الدايرة، والإبرة بتشاور على الذكر الحالي؛ في النص رقم الذكر وتحت نقط المرات
+// ===== 🎡 عجلة الأذكار (تصميم ساعة فاخرة) =====
+// ثيمات الألوان: القرص، الإطار المعدني، الكلام، اللون المميّز
+export const WHEEL_THEMES = {
+  gold: { name: 'دهبي على أسود فخم', disc: ['#2a2418', '#0d0b07'], rim: ['#6b4a0c', '#f8e3a0', '#c99a2e', '#fff4cc', '#8a6212'], ink: '#f4ead2', dim: 'rgba(244,234,210,0.42)', acc: '#f2c75c', glow: 'rgba(242,199,92,0.65)', hub: ['#fff4cc', '#c99a2e', '#5e4108'] },
+  ivory: { name: 'عاجي ودهبي (فاتح)', disc: ['#fffaf0', '#e9dfcb'], rim: ['#8a6212', '#f8e3a0', '#c99a2e', '#fff4cc', '#7a560f'], ink: '#3a2c16', dim: 'rgba(58,44,22,0.38)', acc: '#b07c12', glow: 'rgba(176,124,18,0.45)', hub: ['#fff4cc', '#c99a2e', '#5e4108'] },
+  emerald: { name: 'أخضر زمردي ودهبي', disc: ['#0f4a3a', '#06231b'], rim: ['#6b4a0c', '#f8e3a0', '#c99a2e', '#fff4cc', '#8a6212'], ink: '#eaf5ef', dim: 'rgba(234,245,239,0.4)', acc: '#f2c75c', glow: 'rgba(242,199,92,0.6)', hub: ['#fff4cc', '#c99a2e', '#5e4108'] },
+  navy: { name: 'كحلي ليلي وفضي', disc: ['#16264a', '#070d1e'], rim: ['#55606f', '#f2f5f9', '#9aa6b5', '#ffffff', '#4b5563'], ink: '#eef2fa', dim: 'rgba(238,242,250,0.4)', acc: '#9fd3ff', glow: 'rgba(120,190,255,0.65)', hub: ['#ffffff', '#9aa6b5', '#3b4250'] },
+  rose: { name: 'روز جولد ناعم', disc: ['#fbefe9', '#efd7cc'], rim: ['#7a4a3a', '#f6d2c2', '#c98b74', '#fff0e8', '#8a5442'], ink: '#4a2a22', dim: 'rgba(74,42,34,0.38)', acc: '#b9654b', glow: 'rgba(185,101,75,0.45)', hub: ['#fff0e8', '#c98b74', '#6a3a2c'] },
+};
+const metal = (ctx, x0, y0, x1, y1, stops) => { const g = ctx.createLinearGradient(x0, y0, x1, y1); stops.forEach((c, i) => g.addColorStop(i / (stops.length - 1), c)); return g; };
+function star8(ctx, x, y, r, rot = 0) {
+  ctx.beginPath();
+  for (let k = 0; k < 16; k++) {
+    const a = rot + k * Math.PI / 8, rr = k % 2 ? r * 0.72 : r;
+    const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr;
+    k ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+  }
+  ctx.closePath();
+}
 function drawWheel(ctx, cx, cy, R, c, rep, style, unit, TF) {
-  const { labels, idx } = c.wheel, m = labels.length;
-  // القرص
-  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  const T = WHEEL_THEMES[style.countTheme] || WHEEL_THEMES.gold;
+  const { labels, idx } = c.wheel, m = labels.length, n = c.n;
+  const step = Math.PI * 2 / m, a0 = -Math.PI / 2;
+  const bez = R * 0.07, Rd = R - bez;          // عرض الإطار المعدني ونص قطر القرص
+  const rIn = Rd * 0.42;                        // الدايرة اللي في النص
+  ctx.save();
+  // ضل العجلة كلها
+  ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = R * 0.12; ctx.shadowOffsetY = R * 0.03;
+  ctx.fillStyle = metal(ctx, cx - R, cy - R, cx + R, cy + R, T.rim);
   ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = hexA(style.accent, 0.7); ctx.lineWidth = Math.max(1.5, 3 * unit);
-  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
-  ctx.strokeStyle = hexA(style.textColor, 0.25); ctx.lineWidth = Math.max(1, 1.5 * unit);
-  ctx.fillStyle = 'rgba(0,0,0,0.25)';
-  ctx.beginPath(); ctx.arc(cx, cy, R * 0.4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  // علامات + أسماء الأذكار (على نص القطر، من برّه لجوّه)
-  const step = Math.PI * 2 / m;
-  const fs = Math.max(9 * unit, Math.min(R * 0.075, (Math.PI * 2 * R * 0.6 / m) * 0.8));
-  for (let i = 0; i < m; i++) {
-    const ang = -Math.PI / 2 + i * step;
+  ctx.shadowColor = 'transparent';
+  // حافة لامعة جوه الإطار
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = Math.max(1, R * 0.006);
+  ctx.beginPath(); ctx.arc(cx, cy, R - bez * 0.35, 0, Math.PI * 2); ctx.stroke();
+  // تقدّم الفيديو كله على الإطار (قوس منوّر)
+  if (m > 1) {
     ctx.save();
-    ctx.translate(cx, cy); ctx.rotate(ang);
-    ctx.strokeStyle = hexA(style.textColor, 0.4);
-    ctx.beginPath(); ctx.moveTo(R * 0.96, 0); ctx.lineTo(R, 0); ctx.stroke();
-    const cur = i === idx;
-    // النص من برّه لجوّه، ولو في النص الشمال من الدايرة بنقلبه عشان يتقري
-    const flip = Math.cos(ang) < -0.01;
-    ctx.translate(R * 0.68, 0);
-    if (flip) ctx.rotate(Math.PI);
-    if (cur) { // خلفية منوّرة ورا الذكر الحالي
-      ctx.fillStyle = hexA(style.accent, 0.22);
-      ctx.beginPath(); ctx.roundRect(-R * 0.27, -fs * 0.75, R * 0.54, fs * 1.5, fs * 0.4); ctx.fill();
-    }
-    ctx.font = `${cur ? 'bold ' : ''}${Math.round(fs * (cur ? 1.15 : 1))}px ${TF}`;
-    ctx.fillStyle = cur ? style.accent : hexA(style.textColor, i < idx ? 0.45 : 0.8);
-    ctx.textAlign = 'center';
-    fitText(ctx, labels[i], 0, 0, R * 0.5);
+    ctx.strokeStyle = T.acc; ctx.lineWidth = bez * 0.32; ctx.lineCap = 'round';
+    ctx.shadowColor = T.glow; ctx.shadowBlur = R * 0.04;
+    ctx.beginPath(); ctx.arc(cx, cy, R - bez * 0.55, a0, a0 + Math.PI * 2 * ((idx + rep / Math.max(1, n)) / m)); ctx.stroke();
     ctx.restore();
   }
-  // الإبرة
-  const a = -Math.PI / 2 + idx * step;
-  ctx.strokeStyle = style.accent; ctx.lineWidth = Math.max(2, 4 * unit); ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * R * 0.4, cy + Math.sin(a) * R * 0.4); ctx.lineTo(cx + Math.cos(a) * R * 0.97, cy + Math.sin(a) * R * 0.97); ctx.stroke();
-  ctx.fillStyle = style.accent;
-  ctx.beginPath(); ctx.arc(cx + Math.cos(a) * R * 0.4, cy + Math.sin(a) * R * 0.4, 6 * unit, 0, Math.PI * 2); ctx.fill();
-  // النص: رقم الذكر من كام + المرات
-  ctx.fillStyle = style.textColor;
-  ctx.font = `bold ${Math.round(R * 0.13)}px ${TF}`;
-  ctx.fillText(`${AR_NUM(idx + 1)} من ${AR_NUM(m)}`, cx, cy - R * 0.1);
-  const n = c.n;
-  if (n > 1 && n <= 12) {
-    const gapD = Math.min(R * 0.1, R * 0.6 / (n - 1)), d = Math.min(R * 0.03, gapD * 0.32), w0 = (n - 1) * gapD;
-    for (let k = 0; k < n; k++) {
-      ctx.fillStyle = k < rep ? style.accent : hexA(style.textColor, 0.3);
-      ctx.beginPath(); ctx.arc(cx + w0 / 2 - k * gapD, cy + R * 0.12, k === rep - 1 ? d * 1.35 : d, 0, Math.PI * 2); ctx.fill();
-    }
-  } else if (n > 12) {
-    ctx.fillStyle = style.accent; ctx.font = `${Math.round(R * 0.1)}px ${TF}`;
-    ctx.fillText(`${AR_NUM(rep)} من ${AR_NUM(n)}`, cx, cy + R * 0.13);
+  // القرص
+  const dg = ctx.createRadialGradient(cx - Rd * 0.25, cy - Rd * 0.3, Rd * 0.05, cx, cy, Rd);
+  dg.addColorStop(0, T.disc[0]); dg.addColorStop(1, T.disc[1]);
+  ctx.fillStyle = dg;
+  ctx.beginPath(); ctx.arc(cx, cy, Rd, 0, Math.PI * 2); ctx.fill();
+  // ظل داخلي خفيف تحت الإطار
+  const ig = ctx.createRadialGradient(cx, cy, Rd * 0.85, cx, cy, Rd);
+  ig.addColorStop(0, 'rgba(0,0,0,0)'); ig.addColorStop(1, 'rgba(0,0,0,0.28)');
+  ctx.fillStyle = ig; ctx.beginPath(); ctx.arc(cx, cy, Rd, 0, Math.PI * 2); ctx.fill();
+  // زخرفة نجوم خفيفة في الخلفية
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, Rd, 0, Math.PI * 2); ctx.clip();
+  ctx.strokeStyle = T.dim; ctx.globalAlpha = 0.18; ctx.lineWidth = Math.max(1, R * 0.003);
+  for (let k = 0; k < 12; k++) { const a = k * Math.PI / 6; star8(ctx, cx + Math.cos(a) * Rd * 0.97, cy + Math.sin(a) * Rd * 0.97, Rd * 0.09, a); ctx.stroke(); }
+  ctx.restore();
+  // علامات الدقايق (رفيعة) وفواصل الأذكار (أوضح)
+  ctx.strokeStyle = T.dim; ctx.lineCap = 'round';
+  for (let k = 0; k < 120; k++) {
+    const a = k * Math.PI / 60, l = k % 10 ? Rd * 0.025 : Rd * 0.045;
+    ctx.lineWidth = Math.max(1, R * (k % 10 ? 0.003 : 0.006));
+    ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * (Rd - Rd * 0.015), cy + Math.sin(a) * (Rd - Rd * 0.015)); ctx.lineTo(cx + Math.cos(a) * (Rd - l), cy + Math.sin(a) * (Rd - l)); ctx.stroke();
   }
+  // القطاع الحالي منوّر
+  ctx.save();
+  const sg = ctx.createRadialGradient(cx, cy, rIn, cx, cy, Rd);
+  sg.addColorStop(0, 'rgba(0,0,0,0)'); sg.addColorStop(1, T.glow);
+  ctx.fillStyle = sg; ctx.globalAlpha = 0.55;
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, Rd * 0.94, a0 + (idx - 0.5) * step, a0 + (idx + 0.5) * step); ctx.closePath(); ctx.fill();
+  ctx.restore();
+  // أسماء الأذكار
+  const fs = Math.max(9 * unit, Math.min(Rd * 0.07, (Math.PI * 2 * Rd * 0.66 / m) * 0.62));
+  const rLab = (rIn + Rd * 0.9) / 2, maxL = Rd * 0.9 - rIn - Rd * 0.06;
+  for (let i = 0; i < m; i++) {
+    const ang = a0 + i * step, cur = i === idx;
+    ctx.save();
+    ctx.translate(cx, cy); ctx.rotate(ang);
+    // فاصل رفيع بين القطاعات
+    ctx.strokeStyle = T.dim; ctx.globalAlpha = 0.35; ctx.lineWidth = Math.max(1, R * 0.002);
+    ctx.rotate(step / 2); ctx.beginPath(); ctx.moveTo(rIn + Rd * 0.03, 0); ctx.lineTo(Rd * 0.93, 0); ctx.stroke(); ctx.rotate(-step / 2);
+    ctx.globalAlpha = 1;
+    ctx.translate(rLab, 0);
+    if (Math.cos(ang) < -0.01) ctx.rotate(Math.PI);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = 'rtl';
+    ctx.font = `${cur ? 'bold ' : ''}${Math.round(fs * (cur ? 1.18 : 1))}px ${TF}`;
+    if (cur) { ctx.shadowColor = T.glow; ctx.shadowBlur = fs * 0.9; }
+    ctx.fillStyle = cur ? T.acc : i < idx ? T.dim : T.ink;
+    fitText(ctx, labels[i], 0, 0, maxL);
+    ctx.restore();
+  }
+  // الإبرة: مدبّبة ومنوّرة
+  const a = a0 + idx * step;
+  ctx.save();
+  ctx.translate(cx, cy); ctx.rotate(a);
+  ctx.shadowColor = T.glow; ctx.shadowBlur = R * 0.05;
+  ctx.fillStyle = metal(ctx, 0, -R * 0.02, 0, R * 0.02, T.hub);
+  // سهم قصير من حافة الميناء بيشاور على الذكر (مايغطيش الكلام)
+  ctx.beginPath(); ctx.moveTo(rIn * 0.95, -R * 0.03); ctx.lineTo(rIn + Rd * 0.07, 0); ctx.lineTo(rIn * 0.95, R * 0.03); ctx.closePath(); ctx.fill();
+  // ونقطة منوّرة على الإطار عند الذكر الحالي
+  ctx.beginPath(); ctx.arc(Rd * 0.965, 0, R * 0.018, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  // الدايرة اللي في النص (زي ميناء الساعة) + حلقة مرات الذكر
+  const hg = ctx.createRadialGradient(cx - rIn * 0.3, cy - rIn * 0.35, rIn * 0.1, cx, cy, rIn);
+  hg.addColorStop(0, T.disc[0]); hg.addColorStop(1, T.disc[1]);
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = R * 0.05;
+  ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(cx, cy, rIn, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = metal(ctx, cx - rIn, cy - rIn, cx + rIn, cy + rIn, T.rim); ctx.lineWidth = Math.max(2, R * 0.014);
+  ctx.beginPath(); ctx.arc(cx, cy, rIn, 0, Math.PI * 2); ctx.stroke();
+  // حلقة المرات: قطع بعدد المرات (لحد ٣٣)، أو قوس متصل للعدد الكبير
+  const rr = rIn * 0.86, lw = Math.max(3, rIn * 0.07);
+  ctx.lineCap = 'round';
+  if (n > 1 && n <= 33) {
+    const gap = Math.min(0.12, Math.PI / n * 0.35), seg = Math.PI * 2 / n;
+    for (let k = 0; k < n; k++) {
+      ctx.save();
+      ctx.strokeStyle = k < rep ? T.acc : T.dim; ctx.lineWidth = lw * (k === rep - 1 ? 1.25 : 1);
+      if (k === rep - 1) { ctx.shadowColor = T.glow; ctx.shadowBlur = lw * 2; }
+      ctx.globalAlpha = k < rep ? 1 : 0.35;
+      ctx.beginPath(); ctx.arc(cx, cy, rr, a0 + k * seg + gap / 2, a0 + (k + 1) * seg - gap / 2); ctx.stroke();
+      ctx.restore();
+    }
+  } else if (n > 33) {
+    ctx.strokeStyle = T.dim; ctx.globalAlpha = 0.35; ctx.lineWidth = lw;
+    ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.save(); ctx.strokeStyle = T.acc; ctx.shadowColor = T.glow; ctx.shadowBlur = lw * 2;
+    ctx.beginPath(); ctx.arc(cx, cy, rr, a0, a0 + Math.PI * 2 * rep / n); ctx.stroke(); ctx.restore();
+  }
+  // الأرقام في النص
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = 'rtl';
+  ctx.fillStyle = T.ink;
+  ctx.font = `bold ${Math.round(rIn * (n > 1 ? 0.5 : 0.42))}px ${TF}`;
+  if (n > 1) {
+    ctx.save(); ctx.shadowColor = T.glow; ctx.shadowBlur = rIn * 0.15;
+    ctx.fillText(AR_NUM(rep), cx, cy - rIn * 0.08); ctx.restore();
+    ctx.fillStyle = T.dim; ctx.font = `${Math.round(rIn * 0.15)}px ${TF}`;
+    ctx.fillText(`من ${AR_NUM(n)}`, cx, cy + rIn * 0.33);
+  } else {
+    ctx.fillText('✓', cx, cy - rIn * 0.06);
+  }
+  // رقم الذكر من كام (فوق الرقم)
+  ctx.fillStyle = T.acc; ctx.font = `${Math.round(rIn * 0.13)}px ${TF}`;
+  ctx.fillText(`الذكر ${AR_NUM(idx + 1)} من ${AR_NUM(m)}`, cx, cy - rIn * 0.52);
+  // جوهرة صغيرة فوق العجلة (مكان البداية)
+  ctx.fillStyle = metal(ctx, cx, cy - R - R * 0.03, cx, cy - R + R * 0.06, T.hub);
+  ctx.beginPath(); ctx.moveTo(cx, cy - R + bez * 0.9); ctx.lineTo(cx - R * 0.035, cy - R - R * 0.02); ctx.lineTo(cx + R * 0.035, cy - R - R * 0.02); ctx.closePath(); ctx.fill();
+  ctx.restore();
 }
 // نص في عرض معيّن (بيصغر لو أطول)
 function fitText(ctx, t, x, y, maxW) {

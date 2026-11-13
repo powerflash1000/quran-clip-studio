@@ -4,7 +4,7 @@ import { COLLECTIONS, collection, getHadith, searchHadith, extractMatn, assessGr
 import { openMic, micMeter, micError, SILENT_PEAK, silentMsg } from './audio.js';
 import { loadAudio, decode, buildTimeline, startRecording, trimSilence, bufferToWavBlob, sliceBuffer, enhanceVoice, ENHANCE_PRESETS, REC_FX } from './audio.js';
 import { autoMarks } from './automark.js';
-import { ASPECTS, TEXT_FONT, TEXT_FONTS, TEXT_FX, TEXT_ANIM, ensureFonts, drawBackground, drawOverlay, drawWave, textFont } from './slides.js';
+import { ASPECTS, TEXT_FONT, TEXT_FONTS, TEXT_FX, TEXT_ANIM, ensureFonts, drawBackground, drawOverlay, drawWave, textFont, WHEEL_THEMES } from './slides.js';
 import { exportAudio, exportVideo, exportFilmoraPackage, renderStill, makeSrt, download } from './exporter.js';
 import { PROVIDERS, downloadStock } from './stock.js';
 import * as T from './templates.js';
@@ -2771,7 +2771,7 @@ function renderLong() {
 const PAINT_PRESET = {
   aspect: '16:9', bgType: 'gradient', color1: '#f6f0e4', color2: '#e7dbc6', dim: 0,
   textColor: '#2b211a', subColor: '#5b4a37', accent: '#a8781e', textSize: 92, textFx: '', textAnim: '', textZone: '', textInk: '',
-  ayahLayout: 'all', script: 'uthmani', countViz: '', countTick: true, wordMode: 'full', showLabel: true, showFooter: false, showTranslation: false, waveform: false,
+  ayahLayout: 'all', script: 'uthmani', countViz: '', countTheme: 'gold', countTick: true, wordMode: 'full', showLabel: true, showFooter: false, showTranslation: false, waveform: false,
   frame: 'mirror', wall: '#0e0e0e', pattern: 'stars', kenBurns: 'slow', loop: true,
   look: '', light: '', cardTrans: '', bumper: '', subCard: '', intro: '', handleOpacity: 0.45,
 };
@@ -2848,7 +2848,7 @@ function setupPainting() {
 }
 
 // ===== الشكل =====
-const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'textZone', 'textInk', 'ayahLayout', 'script', 'countViz', 'countTick', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade', 'frame', 'wall', 'pattern', 'kenBurns', 'loop'];
+const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'textZone', 'textInk', 'ayahLayout', 'script', 'countViz', 'countTheme', 'countTick', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade', 'frame', 'wall', 'pattern', 'kenBurns', 'loop'];
 
 function applyStyleToInputs() {
   const st = state.style;
@@ -2887,6 +2887,7 @@ function setupStyle() {
   $('#textFx').innerHTML = opts(TEXT_FX);
   $('#textAnim').innerHTML = opts(TEXT_ANIM);
   $('#textZone').innerHTML = opts(ZONES); $('#textInk').innerHTML = opts(INKS);
+  $('#countTheme').innerHTML = $('#ct-theme').innerHTML = Object.entries(WHEEL_THEMES).map(([k, t]) => `<option value="${k}">🎨 ${t.name}</option>`).join('');
   $('#frame').innerHTML = opts(FRAMES); $('#kenBurns').innerHTML = opts(KEN_BURNS); $('#pattern').innerHTML = opts(PATTERNS);
   for (const [id, o] of [['handlePos', BR.POSITIONS], ['logoPos', BR.POSITIONS], ['look', BR.LOOKS], ['light', BR.LIGHTS], ['cardTrans', BR.CARD_TRANS], ['bumper', BR.BUMPERS], ['subCard', BR.SUB_CARD], ['subCardPos', BR.SUB_POS]]) $('#' + id).innerHTML = opts(o);
   $('#recFx').innerHTML = Object.entries(REC_FX).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
@@ -6461,6 +6462,7 @@ function setupCountDialog() {
       sel.onchange();
     }
     $('#ct-viz').value = state.style.countViz || 'beads';
+    $('#ct-theme').value = state.style.countTheme || 'gold';
     ctSummary();
     dlg.showModal();
   };
@@ -6478,6 +6480,8 @@ function setupCountDialog() {
     state.blocks = $('#ct-replace').checked ? blocks : [...state.blocks, ...blocks];
     state.style.countViz = $('#ct-viz').value;
     state.style.countTick = $('#ct-tick').checked;
+    state.style.countTheme = $('#ct-theme').value;
+    $('#countTheme').value = state.style.countTheme;
     $('#countViz').value = state.style.countViz; $('#countTick').checked = state.style.countTick;
     persist(); renderBlocks(); refreshPublish(true); refreshPreview();
     dlg.close(); showTab('content');
