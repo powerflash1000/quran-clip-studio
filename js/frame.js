@@ -4,7 +4,11 @@
 
 export const FRAMES = {
   '': 'من غير برواز',
-  gold: 'برواز دهبي كلاسيك 🖼️',
+  mirror: 'دهبي لامع مالي الشاشة ✨ (زي لوحات التليفزيون)',
+  double: 'دهبي دبل + شريط كريمي',
+  baroque: 'فينتاج باروك — مراية وزخارف في الأركان 👑',
+  walnut: 'خشب جوز + دهبي',
+  gold: 'برواز دهبي كلاسيك 🖼️ (على حيطة)',
   thin: 'خط دهبي رفيع (مودرن)',
   black: 'أسود بحافة دهبي',
   white: 'أبيض (زي المعارض)',
@@ -20,7 +24,10 @@ export const PATTERNS = {
   lattice: 'شبكة معيّنات خفيفة',
 };
 
-const FRAME_W = { gold: 0.03, thin: 0.007, black: 0.024, white: 0.028 };
+const FRAME_W = { gold: 0.03, thin: 0.007, black: 0.024, white: 0.028, mirror: 0.05, double: 0.06, baroque: 0.1, walnut: 0.075 };
+// البراويز اللي بتملا الشاشة (من غير حيطة حواليها) — زي لوحات التليفزيون
+const FULL = new Set(['mirror', 'double', 'baroque', 'walnut']);
+export const isFullFrame = k => FULL.has(k);
 const KB_AMT = { slow: 0.04, soft: 0.08 };
 const KB_PERIOD = 45; // ثانية تقريبًا لكل «نَفَس» (بيتظبط عشان يقسم مدة الفيديو بالظبط)
 
@@ -29,7 +36,7 @@ export function frameGeom(W, H, style) {
   const kind = style?.frame;
   if (!kind || !FRAME_W[kind]) return null;
   const u = Math.min(W, H);
-  const m = Math.round(u * 0.045);               // هامش أمان من حافة الشاشة (التلفزيونات بتقص الأطراف أحيانًا)
+  const m = FULL.has(kind) ? 0 : Math.round(u * 0.045); // هامش أمان من حافة الشاشة (التلفزيونات بتقص الأطراف أحيانًا)
   const fw = Math.max(2, Math.round(u * FRAME_W[kind]));
   const ox = m, oy = m, ow = W - 2 * m, oh = H - 2 * m;
   return { kind, u, fw, ox, oy, ow, oh, ix: ox + fw, iy: oy + fw, iw: ow - 2 * fw, ih: oh - 2 * fw };
@@ -86,7 +93,120 @@ function side(ctx, pts, from, to, stops, darken) {
   if (darken) { ctx.fillStyle = `rgba(0,0,0,${darken})`; ctx.fill(); }
 }
 
+// ===== البراويز المليانة الشاشة (طبقات من برّه لجوّه) =====
+// دهبي مراية: حزمات نور وضل على عرض الضلع + انعكاسات على طوله
+const MIRROR = [[0, '#6e4805'], [0.12, '#c9930f'], [0.3, '#ffe27a'], [0.42, '#fff6c8'], [0.55, '#f0bf2e'], [0.74, '#b07c08'], [0.88, '#f5cf55'], [1, '#5e3d03']];
+const CREAM = [[0, '#d9c49a'], [0.35, '#fbf3df'], [0.7, '#f4e8cc'], [1, '#c9b07e']];
+const MIRROR_STRIP = [[0, '#6d6a63'], [0.3, '#e9eef2'], [0.5, '#9aa3ab'], [0.75, '#f5f7f9'], [1, '#5f5d58']];
+const WALNUT = [[0, '#1c0f07'], [0.3, '#4a2a16'], [0.55, '#5c3720'], [0.8, '#3a2112'], [1, '#160b05']];
+const LAYERS = {
+  mirror: [[1, MIRROR, 'gold']],
+  double: [[0.55, MIRROR, 'gold'], [0.25, CREAM, ''], [0.2, MIRROR, 'gold']],
+  baroque: [[0.32, MIRROR, 'gold'], [0.18, MIRROR_STRIP, 'mirror'], [0.5, MIRROR, 'ornate']],
+  walnut: [[0.68, WALNUT, 'wood'], [0.32, MIRROR, 'gold']],
+};
+// حلقة واحدة (٤ أضلاع بزوايا مايلة) من x,y,w,h للداخل بعرض t
+function ring(ctx, x, y, w, h, t, stops, fx, u) {
+  const R = x + w, B = y + h;
+  const sides = [
+    [[[x, y], [R, y], [R - t, y + t], [x + t, y + t]], [0, y], [0, y + t], 0, [x, 0], [R, 0]],
+    [[[x, y], [x + t, y + t], [x + t, B - t], [x, B]], [x, 0], [x + t, 0], 0.06, [0, y], [0, B]],
+    [[[R, y], [R, B], [R - t, B - t], [R - t, y + t]], [R, 0], [R - t, 0], 0.18, [0, y], [0, B]],
+    [[[x, B], [R, B], [R - t, B - t], [x + t, B - t]], [0, B], [0, B - t], 0.24, [x, 0], [R, 0]],
+  ];
+  sides.forEach(([pts, a, b, dark, l0, l1], si) => {
+    side(ctx, pts, a, b, stops, dark);
+    if (fx === 'gold' || fx === 'ornate' || fx === 'mirror') {
+      // انعكاسات على طول الضلع (زي دهب مصقول بيعكس الأوضة)
+      const gr = ctx.createLinearGradient(l0[0], l0[1], l1[0], l1[1]);
+      const ph = [0.12, 0.37, 0.61, 0.83][si];
+      gr.addColorStop(0, 'rgba(255,255,255,0)');
+      gr.addColorStop(Math.max(0, ph - 0.08), 'rgba(255,255,255,0)');
+      gr.addColorStop(ph, 'rgba(255,250,225,0.38)');
+      gr.addColorStop(Math.min(1, ph + 0.1), 'rgba(0,0,0,0.12)');
+      gr.addColorStop(Math.min(1, ph + 0.22), 'rgba(255,255,255,0)');
+      gr.addColorStop(1, 'rgba(255,255,255,0.08)');
+      ctx.beginPath(); pts.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py))); ctx.closePath();
+      ctx.fillStyle = gr; ctx.fill();
+    }
+    if (fx === 'wood') {
+      // عروق الخشب على طول الضلع
+      ctx.save();
+      ctx.beginPath(); pts.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py))); ctx.closePath(); ctx.clip();
+      ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = Math.max(1, u * 0.0012);
+      const horiz = si === 0 || si === 3;
+      for (let k = 1; k < 9; k++) {
+        const f = k / 9 + (((k * 37) % 7) - 3) * 0.006;
+        ctx.beginPath();
+        if (horiz) { const yy = a[1] + (b[1] - a[1]) * f; ctx.moveTo(x, yy); for (let xx = x; xx <= R; xx += u * 0.04) ctx.lineTo(xx, yy + Math.sin(xx / (u * 0.09) + k) * u * 0.0015); }
+        else { const xx = a[0] + (b[0] - a[0]) * f; ctx.moveTo(xx, y); for (let yy = y; yy <= B; yy += u * 0.04) ctx.lineTo(xx + Math.sin(yy / (u * 0.09) + k) * u * 0.0015, yy); }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  });
+  // خط رفيع بين الطبقات
+  ctx.lineWidth = Math.max(1, u * 0.0012);
+  ctx.strokeStyle = fx === '' ? 'rgba(90,70,30,0.35)' : 'rgba(40,25,0,0.5)';
+  ctx.strokeRect(x + t + 0.5, y + t + 0.5, w - 2 * t - 1, h - 2 * t - 1);
+  ctx.beginPath();
+  for (const [p, q] of [[[x, y], [x + t, y + t]], [[R, y], [R - t, y + t]], [[x, B], [x + t, B - t]], [[R, B], [R - t, B - t]]]) { ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); }
+  ctx.stroke();
+}
+// زخرفة ركن (لفّتين C وورقة) بالدهبي — للباروك
+function cornerOrnament(ctx, cx, cy, sx, sy, s) {
+  ctx.save();
+  ctx.translate(cx, cy); ctx.scale(sx, sy);
+  const gr = ctx.createLinearGradient(0, 0, s, s);
+  gr.addColorStop(0, '#fff6cf'); gr.addColorStop(0.45, '#d9a940'); gr.addColorStop(1, '#6e4a0c');
+  ctx.strokeStyle = gr; ctx.fillStyle = gr; ctx.lineCap = 'round';
+  ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = s * 0.08; ctx.shadowOffsetX = s * 0.03; ctx.shadowOffsetY = s * 0.03;
+  ctx.lineWidth = s * 0.07;
+  ctx.beginPath(); ctx.moveTo(s * 0.05, s * 0.95); ctx.bezierCurveTo(s * 0.05, s * 0.35, s * 0.35, s * 0.05, s * 0.95, s * 0.05); ctx.stroke();
+  ctx.lineWidth = s * 0.05;
+  ctx.beginPath(); ctx.moveTo(s * 0.95, s * 0.05); ctx.bezierCurveTo(s * 1.15, s * 0.05, s * 1.15, s * 0.3, s * 0.95, s * 0.28); ctx.bezierCurveTo(s * 0.82, s * 0.27, s * 0.85, s * 0.14, s * 0.93, s * 0.16); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(s * 0.05, s * 0.95); ctx.bezierCurveTo(s * 0.05, s * 1.15, s * 0.3, s * 1.15, s * 0.28, s * 0.95); ctx.bezierCurveTo(s * 0.27, s * 0.82, s * 0.14, s * 0.85, s * 0.16, s * 0.93); ctx.stroke();
+  // ورقة أكانثس في النص
+  ctx.beginPath(); ctx.moveTo(s * 0.18, s * 0.18);
+  ctx.bezierCurveTo(s * 0.62, s * 0.24, s * 0.62, s * 0.38, s * 0.42, s * 0.42);
+  ctx.bezierCurveTo(s * 0.38, s * 0.62, s * 0.24, s * 0.62, s * 0.18, s * 0.18); ctx.fill();
+  ctx.beginPath(); ctx.arc(s * 0.16, s * 0.16, s * 0.07, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+function drawFullFrame(ctx, W, H, g) {
+  const { u, fw, ix, iy, iw, ih } = g;
+  ctx.save();
+  // ضل جوه اللوحة (عمق) + خط غامق رفيع عند الدهب
+  const sh = u * 0.022;
+  const edge = (x0, y0, x1, y1, rx, ry, rw, rh, a) => { const gr = ctx.createLinearGradient(x0, y0, x1, y1); gr.addColorStop(0, `rgba(0,0,0,${a})`); gr.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = gr; ctx.fillRect(rx, ry, rw, rh); };
+  edge(0, iy, 0, iy + sh, ix, iy, iw, sh, 0.4);
+  edge(ix, 0, ix + sh, 0, ix, iy, sh, ih, 0.32);
+  edge(ix + iw, 0, ix + iw - sh * 0.6, 0, ix + iw - sh * 0.6, iy, sh * 0.6, ih, 0.22);
+  edge(0, iy + ih, 0, iy + ih - sh * 0.6, ix, iy + ih - sh * 0.6, iw, sh * 0.6, 0.22);
+  let x = 0, y = 0, w = W, h = H;
+  for (const [frac, stops, fx] of LAYERS[g.kind]) {
+    const t = fw * frac;
+    ring(ctx, x, y, w, h, t, stops, fx, u);
+    if (fx === 'ornate') {
+      const s = Math.min(t * 3.6, u * 0.16);
+      cornerOrnament(ctx, x + t * 0.15, y + t * 0.15, 1, 1, s);
+      cornerOrnament(ctx, x + w - t * 0.15, y + t * 0.15, -1, 1, s);
+      cornerOrnament(ctx, x + t * 0.15, y + h - t * 0.15, 1, -1, s);
+      cornerOrnament(ctx, x + w - t * 0.15, y + h - t * 0.15, -1, -1, s);
+    }
+    x += t; y += t; w -= 2 * t; h -= 2 * t;
+  }
+  ctx.lineWidth = Math.max(1.5, u * 0.002); ctx.strokeStyle = 'rgba(30,18,0,0.75)';
+  ctx.strokeRect(ix + 0.5, iy + 0.5, iw - 1, ih - 1);
+  // لمعة إزاز خفيفة مايلة على اللوحة
+  const gl = ctx.createLinearGradient(ix, iy, ix + iw * 0.6, iy + ih);
+  gl.addColorStop(0, 'rgba(255,255,255,0)'); gl.addColorStop(0.42, 'rgba(255,255,255,0)'); gl.addColorStop(0.5, 'rgba(255,255,255,0.05)'); gl.addColorStop(0.58, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gl; ctx.fillRect(ix, iy, iw, ih);
+  ctx.restore();
+}
+
 export function drawFrameBorder(ctx, W, H, style, g) {
+  if (FULL.has(g.kind)) return drawFullFrame(ctx, W, H, g);
   const { ox, oy, ow, oh, fw, ix, iy, iw, ih, u } = g;
   const stops = { gold: GOLD, black: BLACK, white: WHITE, thin: THIN }[g.kind];
   ctx.save();

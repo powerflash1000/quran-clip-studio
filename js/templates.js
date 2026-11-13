@@ -59,7 +59,7 @@ const BUILTIN = {
   'لوحة للتلفزيون 16:9 🖼️': {
     ...DEFAULT_STYLE, aspect: '16:9', bgType: 'gradient', color1: '#f6f0e4', color2: '#e7dbc6', dim: 0,
     textColor: '#2b211a', subColor: '#5b4a37', accent: '#a8781e', textSize: 92, ayahLayout: 'all',
-    showFooter: false, showTranslation: false, frame: 'gold', pattern: 'stars', kenBurns: 'slow', loop: true, handleOpacity: 0.45,
+    showFooter: false, showTranslation: false, frame: 'mirror', pattern: 'stars', kenBurns: 'slow', loop: true, handleOpacity: 0.45,
   },
   'منشور مربع': { ...DEFAULT_STYLE, aspect: '1:1', bgType: 'color', color1: '#14332c', accent: '#d4af37' },
 };

@@ -2772,7 +2772,7 @@ const PAINT_PRESET = {
   aspect: '16:9', bgType: 'gradient', color1: '#f6f0e4', color2: '#e7dbc6', dim: 0,
   textColor: '#2b211a', subColor: '#5b4a37', accent: '#a8781e', textSize: 92, textFx: '', textAnim: '', textZone: '', textInk: '',
   ayahLayout: 'all', script: 'uthmani', countViz: '', countTick: true, wordMode: 'full', showLabel: true, showFooter: false, showTranslation: false, waveform: false,
-  frame: 'gold', wall: '#0e0e0e', pattern: 'stars', kenBurns: 'slow', loop: true,
+  frame: 'mirror', wall: '#0e0e0e', pattern: 'stars', kenBurns: 'slow', loop: true,
   look: '', light: '', cardTrans: '', bumper: '', subCard: '', intro: '', handleOpacity: 0.45,
 };
 // نفس اللوحة بس الصور اللي رفعتها جوه البرواز
