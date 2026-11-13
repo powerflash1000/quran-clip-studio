@@ -177,7 +177,8 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
         noGap: !!(b.noGap && zAudio),
       });
       // 📿 عدّاد الذكر: المدة بتتقسم على عدد المرات (المرة الحالية بتمشي زي «الكلمات مع التلاوة»)
-      if (st.countViz && !b.audioOnly && String(b.text || '').trim()) {
+      // بيشتغل على الكروت اللي متعلّم عليها «📿 عدّاد» بس (كروت «فيديو أذكار بالعدد» بتتعلّم لوحدها) — مش على كل نص
+      if (st.countViz && b.counter && !b.audioOnly && String(b.text || '').trim()) {
         const sg = segs[segs.length - 1];
         const dur = zAudio ? zAudio.duration : (Number(b.seconds) || 8);
         sg.counter = { n, viz: st.countViz };
@@ -2251,6 +2252,7 @@ function zikrBlockEl(b, i) {
   fillItems();
   f('text').value = b.text;
   f('showCount').checked = b.showCount;
+  f('counter').checked = !!b.counter;
   f('seconds').value = b.seconds;
   li.querySelectorAll('[data-f=audioMode]').forEach(r => { r.name = 'am-' + b.id; r.checked = r.value === b.audioMode; });
   f('cat').onchange = () => { b.cat = f('cat').value; b.index = 0; fillZikr(b); fillItems(); f('text').value = b.text; f('seconds').value = b.seconds; sync(); persist(); refreshPreview(); };
@@ -2305,6 +2307,12 @@ function zikrBlockEl(b, i) {
   };
   if (b.custom) checkFragment();
   f('showCount').onchange = () => { b.showCount = f('showCount').checked; persist(); refreshPreview(); };
+  f('counter').onchange = () => {
+    b.counter = f('counter').checked;
+    // لو أول مرة: نختار شكل افتراضي (سبحة) عشان العدّاد يبان
+    if (b.counter && !state.style.countViz) { state.style.countViz = 'beads'; $('#countViz').value = 'beads'; }
+    persist(); refreshPreview();
+  };
   f('seconds').oninput = () => { b.seconds = clamp(f('seconds').value, 2, 120); b.secondsManual = true; persist(); };
   wireAudioControls(li, b, sync);
   sync();
@@ -6487,6 +6495,7 @@ function setupCountDialog() {
     if (!list.length) return;
     const blocks = list.map(({ it, i }) => {
       const b = newZikrBlock($('#ct-cat').value, i);
+      b.counter = true;
       b.seconds = Math.round(ctPer(it) * (it.n || 1) * 10) / 10;
       b.secondsManual = true;
       return b;
@@ -7152,6 +7161,11 @@ async function init() {
   if (state.style?.script === 'imlaei') await Q.setScript('imlaei').catch(() => {});
   // حافة العجلة: الأساسي بقى «من غير حافة» (اتطلب كده) — بنحوّل الإعداد القديم مرة واحدة
   if (!load('rimNoneV1', false)) { state.style.countRim = 'none'; save('rimNoneV1', true); T.rememberStyle(state.style); }
+  // العدّاد بقى لكل كارت: كروت أذكار «حصن المسلم» اللي كانت عليها العجلة بتفضل عليها (النصوص الخاصة والكلام من ملف صوت لأ)
+  if (!load('counterFlagV1', false)) {
+    if (state.style.countViz) for (const b of state.blocks) if (b.type === 'zikr' && !b.custom) b.counter = true;
+    save('counterFlagV1', true); persist();
+  }
   ensureFonts(state.style).then(() => refreshPreview());
   status('');
   setupStyle();

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261113j">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261113k">
 </head>
 <body>
   <header class="topbar">
@@ -276,13 +276,13 @@
           </label>
           <label class="span2">📿 عدّاد مرات الذكر
             <select id="countViz">
-              <option value="">من غير</option>
+              <option value="">مقفول في كل الكروت</option>
               <option value="beads">📿 سبحة بتعدّ مع كل مرة</option>
               <option value="wheel">🎡 عجلة الأذكار + نقط المرات</option>
             </select>
             <select id="countTheme" title="ألوان العجلة"></select>
             <select id="countRim" title="حافة العجلة"><option value="metal">⭕ حافة: إطار معدني</option><option value="thin">◯ حافة: خط رفيع</option><option value="none">🫧 من غير حافة (تدوب في المنظر)</option></select>
-            <small class="muted">لكروت الأذكار: مدة الكارت بتتقسم على عدد المرات. <label class="check" style="display:inline-flex"><input type="checkbox" id="countTick"> صوت مع العدّ</label></small>
+            <small class="muted">ده <b>شكل</b> العدّاد بس — بيظهر على كروت الأذكار اللي متعلّم فيها «📿 عدّاد بيعدّ مع كل مرة» (كروت «فيديو أذكار بالعدد» بتتعلّم لوحدها). مدة الكارت بتتقسم على عدد المرات. <label class="check" style="display:inline-flex"><input type="checkbox" id="countTick"> صوت مع العدّ</label></small>
             <span class="row wrap">✍️ لون كتابة العجلة: <select id="countInkSel"><option value="">تلقائي (حسب الألوان)</option><option value="#ffffff">⚪ أبيض</option><option value="#f6d47a">🟡 دهبي</option><option value="#fff4dc">🤍 كريمي</option><option value="#2b2116">🟤 بني غامق</option><option value="#000000">⚫ أسود</option><option value="custom">🎨 لون من اختيارك…</option></select><input type="color" id="countInkPick" value="#ffffff" hidden>
             🫧 شفافية العجلة: <input type="range" id="countAlpha" min="0" max="1" step="0.05" title="على الشمال = شفافة أكتر (المنظر يبان)، صفر = حسب الألوان"></span>
             <span class="row wrap">صوت كل مرة: <select id="countSound"></select><button class="btn icon" id="countSound-play" type="button" title="اسمع">▶</button>
@@ -578,7 +578,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261113j</div>
+    <div class="muted" id="app-version">الإصدار 20261113k</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -1644,6 +1644,7 @@
       </div>
       <div class="muted" data-el="meta"></div>
       <label class="check"><input type="checkbox" data-f="showCount"> اكتب عدد المرات على الشاشة (مثلًا: ٣ مرات)</label>
+      <label class="check"><input type="checkbox" data-f="counter"> 📿 عدّاد بيعدّ مع كل مرة (سبحة أو عجلة — شكله من «الشكل» ← عدّاد مرات الذكر)</label>
       <fieldset>
         <legend>صوت الذكر</legend>
         <label class="check"><input type="radio" value="none" data-f="audioMode"> من غير صوت (النص يظهر لمدة)</label>
@@ -1692,6 +1693,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261113j"></script>
+  <script type="module" src="js/main.js?v=20261113k"></script>
 </body>
 </html>
