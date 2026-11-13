@@ -80,6 +80,24 @@ function paint(ctx, t, x, y) {
 const bgCache = new Map();
 const elIds = new WeakMap();
 let elSeq = 0;
+// 🖼️ البرواز والحيطة ثابتين: بيترسموا مرة واحدة في طبقة شفافة من النص، وكل فريم بيتلزقوا جاهزين
+// (كانوا بيترسموا من الأول في كل فريم = تصدير أبطأ ١٠ مرات، خصوصًا مع 4K والحركة الهادية)
+const frameLayers = new Map();
+function frameLayer(W, H, style, fg, A) {
+  const key = `${W}x${H}|${fg.kind}|${style.wall || ''}`;
+  if (frameLayers.has(key)) return frameLayers.get(key);
+  let c = null;
+  try { c = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(W, H) : (typeof document !== 'undefined' ? Object.assign(document.createElement('canvas'), { width: W, height: H }) : null); } catch { c = null; }
+  if (!c) return null;
+  const g = c.getContext('2d');
+  drawWall(g, W, H, style, fg);
+  g.clearRect(A.x, A.y, A.w, A.h);
+  drawFrameBorder(g, W, H, style, fg);
+  if (frameLayers.size > 6) frameLayers.clear();
+  frameLayers.set(key, c);
+  return c;
+}
+
 export function drawBackground(ctx, W, H, style, media, clock = null) {
   ZONE_SRC.el = media?.el || null; // 📐 مكان الكلام التلقائي بيحلل الخلفية دي
   const still = !media || media.kind === 'image';
@@ -89,7 +107,8 @@ export function drawBackground(ctx, W, H, style, media, clock = null) {
   if (fg || amt) {
     const A = artRect(W, H, style);
     const kb = kbAt(style, clock);
-    if (fg) drawWall(ctx, W, H, style, fg);
+    const layer = fg ? frameLayer(W, H, style, fg, A) : null;
+    if (fg && !layer) drawWall(ctx, W, H, style, fg);
     ctx.save();
     ctx.beginPath(); ctx.rect(A.x, A.y, A.w, A.h); ctx.clip();
     const c = still && typeof document !== 'undefined' ? stillCache(Math.round(A.w * (1 + amt)), Math.round(A.h * (1 + amt)), style, media) : null;
@@ -106,7 +125,8 @@ export function drawBackground(ctx, W, H, style, media, clock = null) {
       paintBackground(ctx, Math.round(A.w), Math.round(A.h), style, media);
     }
     ctx.restore();
-    if (fg) drawFrameBorder(ctx, W, H, style, fg);
+    if (layer) ctx.drawImage(layer, 0, 0);
+    else if (fg) drawFrameBorder(ctx, W, H, style, fg);
     return;
   }
   if (still && (style?.look || style?.pattern) && typeof document !== 'undefined') {
