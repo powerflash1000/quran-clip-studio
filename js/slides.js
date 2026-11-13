@@ -430,7 +430,7 @@ function drawWheel(ctx, cx, cy, R, c, rep, style, unit, TF) {
   const { labels, idx } = c.wheel, m = labels.length, n = c.n;
   const step = Math.PI * 2 / m, a0 = -Math.PI / 2;
   // حافة العجلة: metal = إطار معدني، thin = خط رفيع، none = من غير حافة (العجلة بتدوب في المنظر)
-  const rim = style.countRim || 'metal';
+  const rim = style.countRim || 'none';
   const bez = R * (rim === 'metal' ? 0.07 : 0.025), Rd = R - bez; // عرض الحافة ونص قطر القرص
   const rIn = Rd * 0.42;                        // الدايرة اللي في النص
   ctx.save();

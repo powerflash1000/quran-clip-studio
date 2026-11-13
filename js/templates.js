@@ -30,7 +30,7 @@ export const DEFAULT_STYLE = {
   script: 'uthmani',        // uthmani (رسم المصحف) | imlaei (إملائي حديث من Tanzil)
   wordMode: 'full',        // full | reveal (الكلمات بتظهر مع التلاوة) | highlight (تظليل الكلمة الحالية)
   countTheme: 'gold',      // ألوان العجلة: gold | ivory | emerald | navy | glass | glassLight | glassWhite | rose
-  countRim: 'metal',       // حافة العجلة: metal | thin | none
+  countRim: 'none',        // حافة العجلة: none (الأساسي) | thin | metal
   countInk: '',            // لون كتابة العجلة ('' = حسب الألوان)
   countAlpha: 0,           // شفافية قرص العجلة (0 = حسب الألوان، الإزاز شفاف)
   countViz: '',             // '' | beads (📿 سبحة) | wheel (🎡 عجلة الأذكار) — عدّاد مرات الذكر

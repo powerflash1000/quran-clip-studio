@@ -506,12 +506,20 @@ function refreshPreview() {
 
 // الفيديو كخلفية بيتحرك في المعاينة — 24 إطار في الثانية بس، وبيقف لو التاب مش ظاهر،
 // وبيشغّل الفيديو اللي على الشاشة بس (الباقي واقف عشان مايستهلكش الجهاز)، وطبقة الكلام محفوظة مش بتترسم كل إطار
-let idleLast = 0;
+// + بتقف لوحدها بعد ٢٠ ثانية من غير ما تلمس حاجة (وترجع مع أول حركة)، أو من زرار «🎞️ حركة الخلفية»
+let idleLast = 0, lastActive = performance.now(), idlePaused = false;
+for (const ev of ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart']) addEventListener(ev, () => { lastActive = performance.now(); }, { passive: true });
 function idleLoop(now) {
   requestAnimationFrame(idleLoop);
-  if (player || document.hidden || now - idleLast < 1000 / 24) return;
+  if (player || document.hidden || now - idleLast < 1000 / 15) return;
   const vids = state.style.bgType === 'media' ? state.mediaList.filter(m => m.kind === 'video') : [];
   if (!vids.length) return;
+  const rest = load('pvMotionOff', false) || now - lastActive > 20000;
+  if (rest) {
+    if (!idlePaused) { idlePaused = true; for (const m of vids) if (!m.el.paused) m.el.pause(); }
+    return;
+  }
+  idlePaused = false;
   idleLast = now;
   const pb = previewBg(null), on = new Set([pb.cur, pb.prev].filter(Boolean));
   for (const m of vids) {
@@ -2758,7 +2766,7 @@ function renderLong() {
 const PAINT_PRESET = {
   aspect: '16:9', bgType: 'gradient', color1: '#f6f0e4', color2: '#e7dbc6', dim: 0,
   textColor: '#2b211a', subColor: '#5b4a37', accent: '#a8781e', textSize: 92, textFx: '', textAnim: '', textZone: '', textInk: '',
-  ayahLayout: 'all', script: 'uthmani', countViz: '', countTheme: 'gold', countRim: 'metal', countInk: '', countAlpha: 0, countTick: true, countSound: 'wood', countNext: 'whoosh', wordMode: 'full', showLabel: true, showFooter: false, showTranslation: false, waveform: false,
+  ayahLayout: 'all', script: 'uthmani', countViz: '', countTheme: 'gold', countRim: 'none', countInk: '', countAlpha: 0, countTick: true, countSound: 'wood', countNext: 'whoosh', wordMode: 'full', showLabel: true, showFooter: false, showTranslation: false, waveform: false,
   frame: 'mirror', wall: '#0e0e0e', pattern: 'stars', kenBurns: 'slow', loop: true,
   look: '', light: '', cardTrans: '', bumper: '', subCard: '', intro: '', handleOpacity: 0.45,
 };
@@ -6465,7 +6473,7 @@ function setupCountDialog() {
     }
     $('#ct-viz').value = state.style.countViz || 'beads';
     $('#ct-theme').value = state.style.countTheme || 'gold';
-    $('#ct-rim').value = state.style.countRim || 'metal';
+    $('#ct-rim').value = state.style.countRim || 'none';
     ctInk(state.style.countInk || '');
     $('#ct-sound').value = state.style.countTick === false ? 'none' : (state.style.countSound || 'wood');
     $('#ct-next').value = state.style.countNext || 'whoosh';
@@ -6510,6 +6518,9 @@ function setupPreviewTools() {
   };
   toggle('#pv-safe-btn', $('#pv-safe'), 'pvSafe');
   toggle('#pv-grid-btn', $('#pv-grid'), 'pvGrid');
+  const setMotion = on => { save('pvMotionOff', !on); $('#pv-motion').classList.toggle('on', on); $('#pv-motion').textContent = on ? '🎞️ حركة الخلفية' : '⏸ الخلفية واقفة'; };
+  $('#pv-motion').onclick = () => setMotion(!!load('pvMotionOff', false));
+  setMotion(!load('pvMotionOff', false));
   const setBig = on => { wrap.classList.toggle('big', on); $('#pv-big').classList.toggle('on', on); $('#pv-big').textContent = on ? '🔍 صغّر' : '🔍 كبّر'; save('pvBig', on); };
   $('#pv-big').onclick = () => setBig(!wrap.classList.contains('big'));
   setBig(!!load('pvBig', false));
@@ -7139,6 +7150,8 @@ async function init() {
   status('تحميل نص المصحف…');
   await Promise.all([Q.loadQuran(), ensureFonts(), loadAzkar()]);
   if (state.style?.script === 'imlaei') await Q.setScript('imlaei').catch(() => {});
+  // حافة العجلة: الأساسي بقى «من غير حافة» (اتطلب كده) — بنحوّل الإعداد القديم مرة واحدة
+  if (!load('rimNoneV1', false)) { state.style.countRim = 'none'; save('rimNoneV1', true); T.rememberStyle(state.style); }
   ensureFonts(state.style).then(() => refreshPreview());
   status('');
   setupStyle();
