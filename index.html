@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261113g">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261113h">
 </head>
 <body>
   <header class="topbar">
@@ -38,7 +38,21 @@
     <section class="preview-col">
       <div class="card preview-card">
         <div class="preview-wrap" id="preview-wrap">
-          <canvas id="preview"></canvas>
+          <div class="pv-stage" id="pv-stage">
+            <canvas id="preview"></canvas>
+            <div class="pv-safe" id="pv-safe" hidden><div class="pv-safe-top">📱 شريط التطبيق فوق</div><div class="pv-safe-side">❤️<br>💬<br>↗️<br>🔖</div><div class="pv-safe-bottom">@اسم_الحساب · الوصف · 🎵 الصوت</div></div>
+            <div class="pv-grid" id="pv-grid" hidden></div>
+          </div>
+          <button class="pv-exit" id="pv-exit" type="button" title="اخرج من الشاشة الكاملة (Esc)">✕</button>
+        </div>
+        <div class="pv-tools" role="toolbar" aria-label="أدوات المعاينة">
+          <button class="btn icon" id="pv-prev" type="button" title="المقطع اللي قبله (←)">⏮</button>
+          <button class="btn icon" id="pv-next" type="button" title="المقطع اللي بعده (→)">⏭</button>
+          <button class="btn" id="pv-full" type="button" title="شاشة كاملة (F)">⛶ شاشة كاملة</button>
+          <button class="btn" id="pv-big" type="button" title="معاينة أكبر جوه الصفحة">🔍 كبّر</button>
+          <button class="btn" id="pv-safe-btn" type="button" title="يوريك الأماكن اللي أزرار تيك توك/ريلز/شورتس بتغطيها — مش بتظهر في الفيديو">📱 أماكن الأزرار</button>
+          <button class="btn" id="pv-grid-btn" type="button" title="خطوط التلت عشان توزن الكلام والصورة — مش بتظهر في الفيديو">▦ خطوط</button>
+          <button class="btn" id="pv-shot" type="button" title="احفظ الإطار اللي قدامك صورة PNG (للصورة المصغّرة أو البوست)">📸 لقطة</button>
         </div>
         <div class="preview-controls">
           <button class="btn primary" id="btn-play" type="button">▶ معاينة بالصوت</button>
@@ -562,7 +576,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261113g</div>
+    <div class="muted" id="app-version">الإصدار 20261113h</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -1675,6 +1689,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261113g"></script>
+  <script type="module" src="js/main.js?v=20261113h"></script>
 </body>
 </html>

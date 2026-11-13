@@ -484,3 +484,23 @@ audio.full { width: 100%; margin: .4rem 0; }
 .sp-script { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin: .4rem 0; }
 .sp-fix summary { cursor: pointer; }
 .sp-heard-txt { width: 100%; }
+
+/* ===== أدوات المعاينة ===== */
+.pv-stage { position: relative; display: inline-block; line-height: 0; max-width: 100%; }
+.pv-tools { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .5rem; justify-content: center; }
+.pv-tools .btn { padding: .3rem .6rem; font-size: .88rem; }
+.pv-tools .btn.on { background: var(--accent, #1f6f5c); color: #fff; }
+.preview-wrap.big #preview { max-height: 86vh; }
+.pv-exit { display: none; }
+.preview-wrap:fullscreen { background: #000; padding: 0; border-radius: 0; }
+.preview-wrap:fullscreen #preview { max-height: 100vh; max-width: 100vw; border-radius: 0; }
+.preview-wrap:fullscreen .pv-exit { display: block; position: fixed; top: 14px; left: 14px; z-index: 5; background: rgba(0,0,0,.55); color: #fff; border: 0; border-radius: 50%; width: 40px; height: 40px; font-size: 18px; cursor: pointer; opacity: .6; }
+.preview-wrap:fullscreen .pv-exit:hover { opacity: 1; }
+.pv-safe { position: absolute; inset: 0; pointer-events: none; font: 600 11px/1.3 system-ui, sans-serif; color: #fff; }
+.pv-safe > div { position: absolute; background: rgba(255, 64, 64, .28); border: 1px dashed rgba(255,255,255,.7); display: flex; align-items: center; justify-content: center; text-align: center; text-shadow: 0 1px 2px #000; }
+.pv-safe-top { top: 0; left: 0; right: 0; height: 9%; }
+.pv-safe-side { right: 0; bottom: 20%; width: 14%; height: 42%; line-height: 1.9; }
+.pv-safe-bottom { left: 0; right: 0; bottom: 0; height: 20%; }
+.pv-grid { position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(to right, transparent calc(33.33% - .5px), rgba(255,255,255,.55) 0 calc(33.33% + .5px), transparent 0 calc(66.66% - .5px), rgba(255,255,255,.55) 0 calc(66.66% + .5px), transparent 0),
+              linear-gradient(to bottom, transparent calc(33.33% - .5px), rgba(255,255,255,.55) 0 calc(33.33% + .5px), transparent 0 calc(66.66% - .5px), rgba(255,255,255,.55) 0 calc(66.66% + .5px), transparent 0); }

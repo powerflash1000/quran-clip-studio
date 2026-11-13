@@ -6498,6 +6498,53 @@ function setupCountDialog() {
   };
 }
 
+// ===== أدوات المعاينة: شاشة كاملة، تكبير، أماكن أزرار التطبيقات، خطوط التلت، لقطة، مقطع قبل/بعد =====
+function setupPreviewTools() {
+  const wrap = $('#preview-wrap');
+  const toggle = (btn, el, key) => {
+    const set = on => { el.hidden = !on; $(btn).classList.toggle('on', on); save(key, on); };
+    $(btn).onclick = () => set(el.hidden);
+    set(!!load(key, false));
+  };
+  toggle('#pv-safe-btn', $('#pv-safe'), 'pvSafe');
+  toggle('#pv-grid-btn', $('#pv-grid'), 'pvGrid');
+  const setBig = on => { wrap.classList.toggle('big', on); $('#pv-big').classList.toggle('on', on); $('#pv-big').textContent = on ? '🔍 صغّر' : '🔍 كبّر'; save('pvBig', on); };
+  $('#pv-big').onclick = () => setBig(!wrap.classList.contains('big'));
+  setBig(!!load('pvBig', false));
+  const full = () => {
+    if (document.fullscreenElement) return document.exitFullscreen().catch(() => {});
+    (wrap.requestFullscreen || wrap.webkitRequestFullscreen)?.call(wrap)?.catch?.(() => status('⚠️ المتصفح منع الشاشة الكاملة'));
+  };
+  $('#pv-full').onclick = full;
+  $('#pv-exit').onclick = full;
+  const go = d => {
+    if (player || !previewSegs.length) return;
+    const i = Math.max(0, Math.min(previewSegs.length - 1, (state.segIndex || 0) + d));
+    $('#seg-slider').value = i; $('#seg-slider').oninput();
+  };
+  $('#pv-prev').onclick = () => go(-1);
+  $('#pv-next').onclick = () => go(1);
+  $('#pv-shot').onclick = () => canvas.toBlob(b => {
+    if (!b) return;
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(b), download: `frame-${Date.now()}.png` });
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    status('📸 اتحفظت لقطة من المعاينة (PNG)');
+  }, 'image/png');
+  // أماكن الأزرار بتظهر في الطولي بس
+  const fit = () => { const portrait = canvas.height > canvas.width; $('#pv-safe-btn').disabled = !portrait; if (!portrait) $('#pv-safe').hidden = true; };
+  new ResizeObserver(fit).observe(canvas); fit();
+  // اختصارات: F شاشة كاملة، ← → مقطع قبل/بعد، مسافة تشغيل/إيقاف (لو مش بتكتب)
+  document.addEventListener('keydown', e => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const t = e.target, typing = t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName);
+    if (typing || document.querySelector('dialog[open]')) return;
+    if (e.key === 'f' || e.key === 'F' || e.key === 'ب') { e.preventDefault(); full(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); go(1); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); go(-1); }
+    else if (e.key === ' ' && t === document.body) { e.preventDefault(); (player ? stop : play)(); }
+  });
+}
+
 function setupSpeech() {
   const dlg = $('#dlg-speech');
   $('#add-speech').onclick = async () => {
@@ -7118,6 +7165,7 @@ async function init() {
   document.querySelectorAll('[data-preset]').forEach(btn => { btn.onclick = () => applyPreset(btn.dataset.preset); });
   $('#btn-play').onclick = play;
   $('#btn-stop').onclick = stop;
+  setupPreviewTools();
   $('#seg-slider').oninput = () => {
     if (player) return;
     state.segIndex = Number($('#seg-slider').value);
