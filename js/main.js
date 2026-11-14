@@ -2774,7 +2774,7 @@ function renderLong() {
 const PAINT_PRESET = {
   aspect: '16:9', bgType: 'gradient', color1: '#f6f0e4', color2: '#e7dbc6', dim: 0,
   textColor: '#2b211a', subColor: '#5b4a37', accent: '#a8781e', textSize: 92, textFx: '', textAnim: '', textZone: '', textInk: '',
-  ayahLayout: 'all', script: 'uthmani', countViz: '', countTheme: 'gold', countRim: 'none', countInk: '', countAlpha: 0, countTick: true, countSound: 'wood', countNext: 'whoosh', wordMode: 'full', showLabel: true, showFooter: false, showTranslation: false, waveform: false,
+  ayahLayout: 'all', script: 'uthmani', countViz: '', safeUI: true, countTheme: 'gold', countRim: 'none', countInk: '', countAlpha: 0, countTick: true, countSound: 'wood', countNext: 'whoosh', wordMode: 'full', showLabel: true, showFooter: false, showTranslation: false, waveform: false,
   frame: 'mirror', wall: '#0e0e0e', pattern: 'stars', kenBurns: 'slow', loop: true,
   look: '', light: '', cardTrans: '', bumper: '', subCard: '', intro: '', handleOpacity: 0.45,
 };
@@ -2852,7 +2852,7 @@ function setupPainting() {
 
 // ===== الشكل =====
 let syncInk = () => {}, ctInk = () => {};
-const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'textZone', 'textInk', 'ayahLayout', 'script', 'countViz', 'countTheme', 'countRim', 'countAlpha', 'countTick', 'countSound', 'countNext', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade', 'frame', 'wall', 'pattern', 'kenBurns', 'loop'];
+const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'textZone', 'textInk', 'safeUI', 'ayahLayout', 'script', 'countViz', 'countTheme', 'countRim', 'countAlpha', 'countTick', 'countSound', 'countNext', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade', 'frame', 'wall', 'pattern', 'kenBurns', 'loop'];
 
 function applyStyleToInputs() {
   const st = state.style;

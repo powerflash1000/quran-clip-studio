@@ -1,5 +1,5 @@
 import { lookLayers, lookVignette, drawBrand, drawBumper, drawCardTrans } from './brand.js';
-import { currentZone, ZONE_SRC } from './zone.js';
+import { currentZone, ZONE_SRC, SAFE_UI, safeUIOn } from './zone.js';
 import { frameGeom, artRect, kbAt, kbAmount, drawWall, drawFrameBorder, drawPattern } from './frame.js';
 
 // رسم الشرائح (النص فوق الخلفية) على Canvas.
@@ -611,6 +611,12 @@ export function drawOverlay(ctx, W, H, seg, style) {
   let bottom = R.y + R.h * (portrait ? 0.78 : framed ? 0.87 : 0.86);   // بنسيب مكان تحت لأزرار التطبيقات
   let boxW = R.w - (padX - R.x) * 2;
   let cx = R.x + R.w / 2, labelY = top - 40 * unit, footerY = bottom + 30 * unit;
+  // 📱 الطولي (ريلز/تيك توك/شورتس): الكلام بيبعد عن عمود الأزرار اللي على اليمين وعن الوصف اللي تحت،
+  // ومتوسّط في المساحة اللي فاضلة — بنفس حجم الخط تقريبًا (العرض بيقل ~٨٪ بس)
+  if (safeUIOn(style, W, H) && !framed) {
+    padX = R.x + R.w * SAFE_UI.x0; boxW = R.w * (SAFE_UI.x1 - SAFE_UI.x0); cx = padX + boxW / 2;
+    bottom = Math.min(bottom, R.y + R.h * (SAFE_UI.y1 - 0.03)); footerY = bottom + 30 * unit;
+  }
   // 📐 مكان الكلام: مساحة معيّنة (تلقائي = أهدى مساحة في الخلفية)
   const zone = currentZone(style, Math.round(R.w), Math.round(R.h));
   let ink = null;

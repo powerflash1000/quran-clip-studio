@@ -101,9 +101,16 @@ export function analyzeZone(el, W, H) {
 export const ZONE_SRC = { el: null };
 
 // المساحة اللي هيترسم فيها الكلام دلوقتي (كنِسَب)، أو null = العادي
+// 📱 في الطولي: الكلام مايدخلش تحت عمود أزرار التطبيق (يمين) ولا تحت الوصف (تحت)
+export const SAFE_UI = { x0: 0.05, x1: 0.84, y1: 0.75 };
+export const safeUIOn = (style, W, H) => H > W && style?.safeUI !== false;
 export function currentZone(style, W, H) {
   const z = style?.textZone;
   if (!z) return null;
-  if (z === 'auto') return analyzeZone(ZONE_SRC.el, W, H);
-  return FIXED[z] || null;
+  const r = z === 'auto' ? analyzeZone(ZONE_SRC.el, W, H) : FIXED[z] || null;
+  if (!r || !safeUIOn(style, W, H)) return r;
+  const c = { ...r, x0: Math.max(r.x0, SAFE_UI.x0), x1: Math.min(r.x1, SAFE_UI.x1), y1: Math.min(r.y1, SAFE_UI.y1) };
+  if (c.x1 - c.x0 < 0.3) { c.x0 = Math.max(SAFE_UI.x0, c.x1 - 0.3); }
+  if (c.y1 - c.y0 < 0.15) c.y0 = Math.max(0.05, c.y1 - 0.15);
+  return c;
 }
