@@ -7195,6 +7195,21 @@ async function init() {
   $('#btn-play').onclick = play;
   $('#btn-stop').onclick = stop;
   setupPreviewTools();
+  // 🔎 الباحث: نافذة منفصلة (research.html) — «＋ أضف للفيديو» منها بيضيف كارت آيات هنا
+  $('#btn-research').onclick = () => {
+    const w = window.open('research.html', 'qcs-research', 'width=1150,height=880');
+    if (!w) location.href = 'research.html'; // لو المتصفح منع النوافذ
+    else w.focus();
+  };
+  if (typeof BroadcastChannel !== 'undefined') {
+    new BroadcastChannel('qcs-research').onmessage = e => {
+      const m = e.data || {};
+      if (m.type !== 'addAyah' || !(m.s >= 1 && m.s <= 114)) return;
+      state.blocks.push(newQuranBlock(m.s, m.a, m.a));
+      persist(); renderBlocks(); refreshPublish(true); refreshPreview(); showTab('content');
+      status(`✅ اتضافت ${Q.surah(m.s).ar} ${Q.arabicNum(m.a)} من «الباحث»`);
+    };
+  }
   $('#seg-slider').oninput = () => {
     if (player) return;
     state.segIndex = Number($('#seg-slider').value);

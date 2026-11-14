@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>الباحث — استوديو مقاطع القرآن</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔎</text></svg>">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261114b">
+  <style>
+    body { margin: 0; }
+    .rs-wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+    .rs-head { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: 12px; }
+    .rs-head h1 { margin: 0; font-size: 1.3rem; flex: 1; }
+    .rs-search { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .rs-search input { flex: 1; min-width: 220px; font-size: 1.1rem; padding: .55rem .8rem; }
+    .rs-cols { display: grid; grid-template-columns: 320px 1fr; gap: 14px; margin-top: 12px; }
+    @media (max-width: 860px) { .rs-cols { grid-template-columns: 1fr; } }
+    .rs-results { max-height: 74vh; overflow: auto; }
+    .rs-res { padding: .5rem .6rem; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
+    .rs-res:hover, .rs-res.on { background: var(--field); border-color: var(--line); }
+    .rs-res small { color: var(--muted); display: block; }
+    .rs-res .t { font-family: 'UthmanicHafs', serif; font-size: 1.15rem; line-height: 1.9; }
+    .rs-ayah { font-family: 'UthmanicHafs', serif; font-size: 1.7rem; line-height: 2.2; text-align: center; padding: .6rem; }
+    .rs-ref { text-align: center; color: var(--muted); margin-bottom: .4rem; }
+    .rs-nav { display: flex; gap: .4rem; justify-content: center; flex-wrap: wrap; margin-bottom: .6rem; }
+    .rs-tabs { display: flex; gap: .3rem; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin: .6rem 0; }
+    .rs-tabs button { border: 0; background: none; padding: .5rem .8rem; cursor: pointer; color: var(--text); border-bottom: 3px solid transparent; font: inherit; }
+    .rs-tabs button.on { border-bottom-color: var(--accent, #1f6f5c); font-weight: 700; }
+    .rs-book { border: 1px solid var(--line); border-radius: 10px; padding: .7rem .9rem; margin-bottom: .7rem; }
+    .rs-book h3 { margin: 0 0 .4rem; font-size: 1rem; display: flex; gap: .5rem; align-items: center; }
+    .rs-book h3 .grow { flex: 1; }
+    .rs-book p { margin: 0; line-height: 1.95; white-space: pre-wrap; }
+    .rs-ext { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: .5rem; }
+    .rs-ext a { display: block; padding: .6rem .7rem; border: 1px solid var(--line); border-radius: 10px; text-decoration: none; color: var(--text); background: var(--card); }
+    .rs-ext a:hover { border-color: var(--accent, #1f6f5c); }
+    .rs-ext a small { display: block; color: var(--muted); }
+    .rs-sec { margin: .9rem 0 .4rem; font-weight: 700; }
+    .rs-pick { display: flex; flex-wrap: wrap; gap: .3rem .9rem; margin-bottom: .6rem; }
+  </style>
+</head>
+<body>
+  <div class="rs-wrap">
+    <div class="rs-head">
+      <h1>🔎 الباحث — بحث في القرآن والتفسير</h1>
+      <span class="muted" id="rs-status"></span>
+    </div>
+    <div class="card">
+      <div class="rs-search">
+        <input id="rs-q" type="search" placeholder="اكتب كلمة أو جزء من آية (رحمة، الصبر…)، أو مكان آية: البقرة 255 / 2:255" autocomplete="off">
+        <button class="btn primary" id="rs-go" type="button">بحث</button>
+      </div>
+      <p class="hint" style="margin:.5rem 0 0">البحث في نص المصحف من غير تشكيل. التفاسير من مصادر مفتوحة (Quran.com / tafsir_api). والأقسام اللي مش عندنا (القراءات، الإعراب، أسباب النزول، الغريب، الأحكام، المعاجم) بتفتح على نفس الآية في <b>الباحث القرآني</b> (tafsir.app) في تاب جديد.</p>
+    </div>
+    <div class="rs-cols">
+      <div class="card rs-results" id="rs-results"><p class="muted">النتايج هتظهر هنا.</p></div>
+      <div class="card" id="rs-view"><p class="muted">اختار آية من النتايج.</p></div>
+    </div>
+  </div>
+  <script type="module" src="js/research.js?v=20261114b"></script>
+</body>
+</html>
