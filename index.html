@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261114c">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261114d">
 </head>
 <body>
   <header class="topbar">
@@ -271,6 +271,7 @@
           <label>🎬 حركة دخول النص <select id="textAnim"></select></label>
           <label>📐 مكان الكلام <select id="textZone"></select></label>
           <label>🎨 لون الكلام <select id="textInk"></select></label>
+          <label class="check span2"><input type="checkbox" id="hideText"> 🙈 من غير كتابة خالص في الفيديو كله (الخلفية والصوت بس — العلامة واللوجو بيفضلوا)</label>
           <label class="check span2"><input type="checkbox" id="safeUI"> 📱 الكلام يبعد عن أزرار تيك توك/الريلز/الشورتس (في الطولي) — بيسيب عمود اللايك على اليمين والوصف تحت، والكلام يفضل كبير ومتوسّط</label>
         </div>
         <p class="hint">آيات القرآن بتفضل دايمًا بخط المصحف (حفص)؛ الخط اللي تختاره للأدعية والأحاديث والعناوين. التأثير (ذهبي، توهّج، حدود…) بيشتغل على الكل. وحركة الدخول بتظهر في المعاينة بالصوت والفيديو والبث — مع «الكلمات مع التلاوة» الكلمات نفسها هي الحركة.</p>
@@ -586,7 +587,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261114c</div>
+    <div class="muted" id="app-version">الإصدار 20261114d</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -775,6 +776,7 @@
         <label>تكرار كل آية <input type="number" data-f="repeatAyah" min="1" max="20"></label>
         <label>تكرار المقطع كله <input type="number" data-f="repeatRange" min="1" max="20"></label>
         <label class="check span2"><input type="checkbox" data-f="basmala"> البسملة في الأول</label>
+        <label class="check span2"><input type="checkbox" data-f="noText"> 🙈 من غير كتابة على الشاشة — الصورة/الفيديو والتلاوة بس</label>
         <label class="check span3" data-el="partRow" hidden><input type="checkbox" data-f="partOn"> ✂️ جزء من الآية بس (كلمات معيّنة بصوت القارئ)</label>
         <div class="span3 part-words" data-el="partBox" hidden></div>
         <p class="muted span3" data-el="partInfo"></p>
@@ -1701,6 +1703,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261114c"></script>
+  <script type="module" src="js/main.js?v=20261114d"></script>
 </body>
 </html>

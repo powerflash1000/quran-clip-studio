@@ -603,6 +603,12 @@ export function drawOverlay(ctx, W, H, seg, style) {
   if (seg.kind === 'bumper') { drawBumper(ctx, W, H, seg, style, TF); ctx.restore(); return; }
   // انتقال بين الكروت (ومضة نور / غمقان / شعاع) في أول لحظة من كل كارت
   if (seg.age != null) drawCardTrans(ctx, W, H, style, seg.age);
+  // 🙈 من غير كتابة: للكارت ده، أو للفيديو كله (الافتتاحية بتفضل) — العلامة واللوجو بس
+  if (seg.noText || (style.hideText && seg.kind !== 'title')) {
+    if (framed) { ctx.translate(R.x, R.y); drawBrand(ctx, R.w, R.h, style, textFont(style)); } else drawBrand(ctx, W, H, style, textFont(style));
+    ctx.restore();
+    return;
+  }
 
   const portrait = H > W;
   const unit = Math.min(W, H) / 1080;          // مقياس عام

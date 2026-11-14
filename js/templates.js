@@ -29,6 +29,7 @@ export const DEFAULT_STYLE = {
   ayahLayout: 'one',       // one (آية آية) | all (الآيات كلها مرة واحدة) | allHi (كلها + الآية الحالية منوّرة)
   script: 'uthmani',        // uthmani (رسم المصحف) | imlaei (إملائي حديث من Tanzil)
   wordMode: 'full',        // full | reveal (الكلمات بتظهر مع التلاوة) | highlight (تظليل الكلمة الحالية)
+  hideText: false,         // 🙈 من غير كتابة في الفيديو كله
   safeUI: true,            // 📱 الطولي: الكلام بيبعد عن أزرار التطبيقات (يمين وتحت)
   countTheme: 'gold',      // ألوان العجلة: gold | ivory | emerald | navy | glass | glassLight | glassWhite | rose
   countRim: 'none',        // حافة العجلة: none (الأساسي) | thin | metal
