@@ -25,7 +25,7 @@ import { THEMES, pick as pickOne } from './themes.js';
 import * as LLM from './llm.js';
 import * as SND from './sounds.js';
 import * as WT from './words.js';
-import { fetchFirst } from './net.js';
+import { fetchFirst, imageViaProxy } from './net.js';
 import * as SP from './speech.js';
 import { bgSchedule, pickBg } from './bglist.js';
 import { saveMediaList, loadMediaList, saveLiveVideo, loadLiveVideo, deleteLiveVideo } from './mediastore.js';
@@ -3318,8 +3318,14 @@ function updateStockBar() {
 async function fileFromLink(url) {
   const blocked = () => new Error('الموقع ده مش سامح للبرنامج يحمّل منه مباشرة (CORS).\nنزّله وارفعه من «اختار ملف»، أو اعمل «رابط الوسيط» المجاني على Cloudflare (⚙️ الإعدادات ← 🌐 رابط الوسيط) وبعدها اللينك هيشتغل على طول. لو عامل الوسيط قبل كده، حدّث الكود بتاعه من tools/cors-proxy-worker.js عشان يدعم Pinterest.');
   const name = () => (url.split(/[?#]/)[0].split('/').filter(Boolean).pop() || 'stock').replace(/[^\w.-]+/g, '_');
+  // آخر محاولة: الوسيط في وضع «الصور بس» (بيقبل أي موقع وبيطلّع صورة الصفحة الرئيسية)
+  const viaImg = async () => {
+    const b = await imageViaProxy(url);
+    if (!b) throw blocked();
+    return new File([b], (name().replace(/\.[a-z0-9]+$/i, '') || 'image') + '.' + ((b.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg').replace(/\+.*/, '')), { type: b.type || 'image/jpeg' });
+  };
   let blob;
-  try { blob = await fetchFirst([url], { as: 'blob' }); } catch { throw blocked(); }
+  try { blob = await fetchFirst([url], { as: 'blob' }); } catch { return viaImg(); }
   if (/^(video|image)\//.test(blob.type) || /\.(mp4|webm|mov|jpe?g|png|webp)(\?|$)/i.test(url)) {
     const video = blob.type.startsWith('video/') || /\.(mp4|webm|mov)(\?|$)/i.test(url);
     return new File([blob], name(), { type: blob.type && blob.type !== 'application/octet-stream' ? blob.type : video ? 'video/mp4' : 'image/jpeg' });
@@ -3338,8 +3344,9 @@ async function fileFromLink(url) {
         const v = await fetchFirst([img.replace(/&amp;/g, '&').replace(/\/(236x|474x|564x)\//, '/originals/')], { as: 'blob' })
           .catch(() => fetchFirst([img.replace(/&amp;/g, '&')], { as: 'blob' }));
         if (v.size > 5000) return new File([v], img.split('?')[0].split('/').pop() || 'image.jpg', { type: v.type.startsWith('image/') ? v.type : 'image/jpeg' });
-      } catch { throw blocked(); }
+      } catch { return viaImg(); }
     }
+    if (!/\.m3u8/i.test(html) && getSettings().proxyUrl) return viaImg();
     throw new Error(/\.m3u8/i.test(html) ? 'الفيديو ده متقسّم (بث HLS) ومفيش منه ملف mp4 جاهز — نزّله بأي موقع تحميل وارفعه من «اختار ملف».' : 'مالقيتش فيديو ولا صورة في الصفحة دي. افتح الفيديو نفسه وانسخ لينكه (كليك يمين على الفيديو ← Copy video address)، أو نزّله وارفعه.');
   }
   const rank = u => (/2160|4k/i.test(u) ? 1 : /1080/.test(u) ? 4 : /720|large/i.test(u) ? 3 : /360|small|preview/i.test(u) ? 1 : 2);
@@ -3351,6 +3358,64 @@ async function fileFromLink(url) {
     } catch { /* نجرّب اللي بعده */ }
   }
   throw blocked();
+}
+
+// ===== 🔗 خلفية من رابط / 📋 لصق صورة / سحب وإفلات على المعاينة =====
+async function addMediaFromLink(raw) {
+  if (!/^https?:\/\//i.test(raw)) { status('الصق لينك يبدأ بـ https://', null, true); return false; }
+  status('⏳ بيجيب الصورة من الرابط…');
+  try {
+    const file = await fileFromLink(raw);
+    setMedia(file, state.mediaList.length > 0);
+    status(`✅ اتضافت الخلفية من الرابط — عندك ${Q.arabicNum(state.mediaList.length)} خلفيات`);
+    return true;
+  } catch (e) { showError(e); return false; }
+}
+function addPastedImage(blob) {
+  const ext = (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg').replace(/\+.*/, '');
+  setMedia(new File([blob], `pasted-${Date.now()}.${ext}`, { type: blob.type || 'image/png' }), state.mediaList.length > 0);
+  status(`✅ اتلزقت الصورة كخلفية — عندك ${Q.arabicNum(state.mediaList.length)} خلفيات`);
+}
+function setupMediaLink() {
+  const go = async () => {
+    const btn = $('#bg-link-go'); btn.disabled = true;
+    if (await addMediaFromLink($('#bg-link').value.trim())) $('#bg-link').value = '';
+    btn.disabled = false;
+  };
+  $('#bg-link-go').onclick = go;
+  $('#bg-link').onkeydown = e => { if (e.key === 'Enter') go(); };
+  $('#bg-paste').onclick = async () => {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const it of items) {
+        const t = it.types.find(x => x.startsWith('image/'));
+        if (t) { addPastedImage(await it.getType(t)); return; }
+      }
+      const txt = (await navigator.clipboard.readText().catch(() => '')).trim();
+      if (/^https?:\/\//i.test(txt)) { addMediaFromLink(txt); return; }
+      status('📋 مفيش صورة منسوخة. من الموقع: كليك يمين على الصورة ← «نسخ الصورة» (Copy image)، وارجع دوس 📋.', null, true);
+    } catch { status('📋 المتصفح مش سامح يقرا الحافظة من الزرار — دوس Ctrl+V في أي حتة في البرنامج بدل كده.', null, true); }
+  };
+  // Ctrl+V في أي حتة (مش وانت بتكتب): صورة منسوخة ← خلفية، ولينك ← خلفية من الرابط
+  document.addEventListener('paste', e => {
+    const t = e.target, typing = t.isContentEditable || /^(INPUT|TEXTAREA)$/.test(t.tagName);
+    const img = [...(e.clipboardData?.items || [])].find(i => i.kind === 'file' && i.type.startsWith('image/'));
+    if (img && !(typing && t.type !== 'url')) { e.preventDefault(); addPastedImage(img.getAsFile()); return; }
+    if (typing || document.querySelector('dialog[open]')) return;
+    const txt = (e.clipboardData?.getData('text') || '').trim();
+    if (/^https?:\/\/\S+$/i.test(txt)) { e.preventDefault(); addMediaFromLink(txt); }
+  });
+  // اسحب صورة من موقع تاني (أو ملف) وارميها على المعاينة
+  const wrap = $('#preview-wrap');
+  wrap.addEventListener('dragover', e => { e.preventDefault(); wrap.classList.add('drop'); });
+  wrap.addEventListener('dragleave', () => wrap.classList.remove('drop'));
+  wrap.addEventListener('drop', e => {
+    e.preventDefault(); wrap.classList.remove('drop');
+    const files = [...(e.dataTransfer?.files || [])].filter(f => /^(image|video)\//.test(f.type));
+    if (files.length) { files.forEach((f, i) => setMedia(f, i > 0 || state.mediaList.length > 0)); status(`✅ اتضاف ${Q.arabicNum(files.length)} خلفية`); return; }
+    const url = (e.dataTransfer?.getData('text/uri-list') || e.dataTransfer?.getData('text/plain') || '').split('\n').find(l => /^https?:/i.test(l.trim()));
+    if (url) addMediaFromLink(url.trim());
+  });
 }
 
 function setupStock() {
@@ -7195,6 +7260,7 @@ async function init() {
   $('#btn-play').onclick = play;
   $('#btn-stop').onclick = stop;
   setupPreviewTools();
+  setupMediaLink();
   // 🔎 الباحث: نافذة منفصلة (research.html) — «＋ أضف للفيديو» منها بيضيف كارت آيات هنا
   $('#btn-research').onclick = () => {
     const w = window.open('research.html', 'qcs-research', 'width=1150,height=880');
