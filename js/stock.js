@@ -16,6 +16,18 @@ function pickPexelsFile(files) {
 // opts: { page, order: 'relevance'|'popular'|'latest', editors }
 // كل مصدر بيرجع { items, total, pages, hasMore } — items: [{ id, kind, thumb, url, width, height, duration, likes, views, credit, license, page }]
 const PER = 30;
+// طلب بحث لموقع: مباشرة، ولو الاتصال نفسه اتقطع («Failed to fetch»: إضافة بتمنع إعلانات، شبكة بتحجب الموقع،
+// أو الموقع واقع) بنجرّب مرة تانية عن طريق «رابط الوسيط» لو متضبط
+async function apiFetch(url, name, init) {
+  try { return await fetch(url, init); }
+  catch {
+    const { proxyUrl } = getSettings();
+    if (proxyUrl) {
+      try { const r = await fetch(`${proxyUrl.replace(/\/+$/, '')}/?url=${encodeURIComponent(url)}`, init); if (r.ok) return r; } catch { /* نكمل للرسالة */ }
+    }
+    throw new Error(`المتصفح ماقدرش يوصل لـ ${name} خالص. غالبًا إضافة حظر إعلانات (AdBlock/uBlock) أو الشبكة بتحجبه — جرّب تقفل الإضافة للموقع ده، أو نت تاني، أو اضبط «رابط الوسيط» من ⚙️ الإعدادات. والمصادر التانية (Pexels / Openverse…) شغالة عادي.`);
+  }
+}
 const pagesOf = (total, per = PER) => (total ? Math.max(1, Math.ceil(total / per)) : null);
 
 export async function searchPexels(query, kind, aspect, opts = {}) {
@@ -45,7 +57,7 @@ export async function searchPixabay(query, kind, aspect, opts = {}) {
   const extra = `&safesearch=true&per_page=${PER}&page=${page}&order=${order}${opts.editors ? '&editors_choice=true' : ''}`;
   let j;
   if (kind === 'video') {
-    const res = await fetch(`https://pixabay.com/api/videos/?key=${pixabayKey}&q=${q}${extra}`);
+    const res = await apiFetch(`https://pixabay.com/api/videos/?key=${pixabayKey}&q=${q}${extra}`, 'Pixabay');
     if (!res.ok) throw new Error(res.status === 400 && page > 1 ? 'مفيش صفحات أكتر' : 'Pixabay: ' + res.status);
     j = await res.json();
     const items = (j.hits || []).map(h => {
@@ -57,7 +69,7 @@ export async function searchPixabay(query, kind, aspect, opts = {}) {
     return { items, total: j.total ?? null, pages: pagesOf(total), hasMore: page * PER < total };
   }
   const o = aspect === '9:16' ? 'vertical' : aspect === '16:9' ? 'horizontal' : 'all';
-  const res = await fetch(`https://pixabay.com/api/?key=${pixabayKey}&q=${q}&image_type=photo&orientation=${o}${extra}`);
+  const res = await apiFetch(`https://pixabay.com/api/?key=${pixabayKey}&q=${q}&image_type=photo&orientation=${o}${extra}`, 'Pixabay');
   if (!res.ok) throw new Error(res.status === 400 && page > 1 ? 'مفيش صفحات أكتر' : 'Pixabay: ' + res.status);
   j = await res.json();
   const total = Math.min(j.totalHits || 0, 500);
@@ -114,7 +126,7 @@ export async function searchOpenverse(query, kind, aspect, opts = {}) {
   if (kind === 'video') throw new Error('Openverse فيه صور بس — اختار «صورة» أو مصدر تاني للفيديو');
   const ar = aspect === '9:16' ? '&aspect_ratio=tall' : aspect === '16:9' ? '&aspect_ratio=wide' : '';
   const page = opts.page || 1;
-  const res = await fetch(`https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&license_type=commercial,modification&page_size=20&page=${page}&mature=false${ar}`);
+  const res = await apiFetch(`https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&license_type=commercial,modification&page_size=20&page=${page}&mature=false${ar}`, 'Openverse');
   if (!res.ok) throw new Error(res.status === 400 || res.status === 401 ? 'مفيش صفحات أكتر من غير حساب في Openverse' : 'Openverse: ' + res.status);
   const j = await res.json();
   const items = (j.results || []).map(r => ({
