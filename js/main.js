@@ -39,6 +39,7 @@ import { ZONES, INKS } from './zone.js';
 import { FRAMES, KEN_BURNS, PATTERNS } from './frame.js';
 import * as ZS from './zsounds.js';
 import * as MQ from './mp3quran.js';
+import { setupTimeline, rangeAyat, fmtT } from './timeline.js';
 import { loopReady, exportLongLoop } from './fastexport.js';
 import { PLATFORMS, generate, getPublishSettings, setPublishSettings, canShareFile, shareFile } from './publish.js';
 
@@ -898,7 +899,8 @@ function quranBlockEl(b, i) {
   num('repeatRange');
   f('basmala').onchange = () => { b.basmala = f('basmala').checked; persist(); refreshPreview(); recSync(); };
   const recSync = wireRecitation(li, b);
-  li.addEventListener('input', e => { if (['from', 'to'].includes(e.target.dataset.f)) recSync(); });
+  cardUi.set(b.id, () => { f('from').value = b.from; f('to').value = b.to; f('basmala').checked = b.basmala; partUi(); sync(); recSync.ui(); });
+  li.addEventListener('input', e => { if (['from', 'to'].includes(e.target.dataset.f)) { recSync(); setTimeout(() => TL?.refresh(), 400); } });
   li.addEventListener('change', e => { if (e.target.dataset.f === 'recFile') setTimeout(partUi, 500); });
   li.querySelector('[data-act=follow]').onclick = () => openFollow(b);
   li.querySelector('[data-act=tafsir]').onclick = () => openTafsir(b).catch(showError);
@@ -906,6 +908,89 @@ function quranBlockEl(b, i) {
   partUi();
   sync();
   return li;
+}
+
+// تقسيم ملف السورة الكاملة لآيات: من توقيت mp3quran لو موجود، وإلا بالتحليل (autoMarks).
+// بيتحفظ في b.rec.align عشان يفضل بعد الريفرش (والتايم لاين بيستخدمه).
+function surahAlign(b, buffer) {
+  const n = Q.surah(b.surah).count, lead = b.surah !== 1 && b.surah !== 9;
+  const sv = b.rec?.align;
+  if (sv && sv.surah === b.surah && sv.starts?.length === n && Math.abs((sv.dur || 0) - buffer.duration) < 0.5) return { starts: sv.starts, ends: sv.ends, n, lead };
+  const key = `${b.surah}|${b.rec.file}|${buffer.duration.toFixed(2)}`;
+  let al = alignCache.get(key);
+  if (!al) {
+    const w = [lead ? stripMarks(Q.BASMALA).length + 30 : 1];
+    for (let a = 1; a <= n; a++) w.push(stripMarks(Q.ayahText(b.surah, a)).length + 6);
+    const r = autoMarks(buffer, 0, buffer.duration, w, { leadFree: true });
+    if (!r.marks) throw new Error(`لقيت ${Q.arabicNum(r.pauses)} وقفة بس والسورة ${Q.arabicNum(n)} آية — يمكن الملف مش السورة كاملة؟ حدد البداية والنهاية بإيدك على الآيات اللي عايزها.`);
+    // r.marks[k-1] = بداية الآية k (k من 1)، وr.ends[k-1] = آخر صوت قبلها
+    al = { starts: r.marks, ends: r.ends, n, lead };
+    alignCache.set(key, al);
+  }
+  const r2 = t => +t.toFixed(2);
+  b.rec.align = { surah: b.surah, dur: +buffer.duration.toFixed(2), starts: al.starts.map(r2), ends: al.ends.map(r2) };
+  return al;
+}
+
+// ===== 🎚️ تايم لاين التلاوة: من دقيقة كذا لدقيقة كذا + تريم =====
+const cardUi = new Map(); // blockId -> تحديث خانات الكارت بعد ما التايم لاين يغيّر فيه
+let TL = null;
+function recCards() {
+  return state.blocks.map((b, i) => ({ b, i })).filter(({ b }) => b.type === 'quran' && b.rec && hadithAudio.get(b.id))
+    .map(({ b, i }) => ({ b, label: `${Q.arabicNum(i + 1)}. ${Q.surah(b.surah).ar} ${Q.arabicNum(b.from)}${b.to > b.from ? '–' + Q.arabicNum(b.to) : ''} — ${b.rec.name || 'ملف'}` }));
+}
+function tlAlign(b) {
+  const au = hadithAudio.get(b.id);
+  if (!au || !(b.rec.whole && b.rec.wholeSurah === b.surah || wholeSurahFile(b, au.buffer))) return null;
+  return surahAlign(b, au.buffer);
+}
+// الحتة [A,B] من الملف ← الكارت: بنعرف فيها أنهي آيات، والبداية والنهاية، وحدود الآيات
+function applyTimeRange(b, A, B, marks) {
+  const au = hadithAudio.get(b.id);
+  if (!au || !b.rec) return;
+  if (marks) b.rec.marks = marks;
+  else {
+    let al = null;
+    try { al = tlAlign(b); } catch { al = null; }
+    if (al) {
+      const r = rangeAyat(al, au.buffer.duration, A, B);
+      b.from = r.from; b.to = r.to; b.basmala = r.basmala; delete b.part;
+      const m = [];
+      if (r.basmala) m.push(al.starts[0]);
+      for (let a = r.from + 1; a <= r.to; a++) m.push(al.starts[a - 1]);
+      b.rec.marks = m.filter(t => t > A && t < B);
+      b.rec.whole = true; b.rec.wholeSurah = b.surah;
+    } else b.rec.marks = (b.rec.marks || []).filter(t => t > A && t < B);
+    b.rec.start = +A.toFixed(2); b.rec.end = +B.toFixed(2);
+    delete b.rec.bas;
+  }
+  persist(); cardUi.get(b.id)?.(); refreshPublish(true); refreshPreview();
+  status(`✅ الكارت بقى من ${fmtT(A)} لـ ${fmtT(B)} — ${Q.surah(b.surah).ar} ${Q.arabicNum(b.from)}${b.to > b.from ? '–' + Q.arabicNum(b.to) : ''}`);
+}
+async function addTimeCard(b, A, B) {
+  const au = hadithAudio.get(b.id);
+  if (!au) return null;
+  const nb = structuredClone(b);
+  nb.id = uid();
+  const blob = await (await fetch(au.url)).blob();
+  setHadithAudio(nb, au.buffer, au.name, blob, au.kind);
+  state.blocks.splice(state.blocks.indexOf(b) + 1, 0, nb);
+  applyTimeRange(nb, A, B);
+  renderBlocks();
+  return nb;
+}
+function setupRecTimeline() {
+  TL = setupTimeline({
+    cards: recCards,
+    audio: b => hadithAudio.get(b.id) || null,
+    align: tlAlign,
+    apply: applyTimeRange,
+    add: addTimeCard,
+    current: () => state.blocks[previewSegs[state.segIndex]?.bi]?.id,
+    arabicNum: Q.arabicNum,
+    surahName: b => Q.surah(b.surah).ar,
+  });
+  $('#pv-tl').onclick = () => TL.toggle();
 }
 
 // ===== 📥 قرّاء أكتر من mp3quran.net =====
@@ -1131,19 +1216,7 @@ function wireRecitation(li, b) {
   };
   // الملف سورة كاملة: بنلاقي كل آيات السورة، ونطلّع منها الآيات اللي انت مختارها (البداية والنهاية والتوقيتات)
   const autoWholeSurah = (b, buffer) => {
-    const key = `${b.surah}|${b.rec.file}|${buffer.duration.toFixed(2)}`;
-    let al = alignCache.get(key);
-    if (!al) {
-      const n = Q.surah(b.surah).count;
-      const lead = b.surah !== 1 && b.surah !== 9;
-      const w = [lead ? stripMarks(Q.BASMALA).length + 30 : 1];
-      for (let a = 1; a <= n; a++) w.push(stripMarks(Q.ayahText(b.surah, a)).length + 6);
-      const r = autoMarks(buffer, 0, buffer.duration, w, { leadFree: true });
-      if (!r.marks) throw new Error(`لقيت ${Q.arabicNum(r.pauses)} وقفة بس والسورة ${Q.arabicNum(n)} آية — يمكن الملف مش السورة كاملة؟ حدد البداية والنهاية بإيدك على الآيات اللي عايزها.`);
-      // r.marks[k-1] = بداية الآية k (k من 1)، وr.ends[k-1] = آخر صوت قبلها
-      al = { starts: r.marks, ends: r.ends, n, lead };
-      alignCache.set(key, al);
-    }
+    const al = surahAlign(b, buffer);
     const { starts, ends, n } = al;
     const from = Math.max(1, b.from), to = Math.min(n, b.to || b.from);
     // البسملة مع أول السورة: من أول الملف (فيه البسملة وساعات الاستعاذة)
@@ -1168,13 +1241,15 @@ function wireRecitation(li, b) {
     if (timing) {
       const starts = timing.map(t => t.start);
       const ends = timing.map((t, i) => (i ? timing[i - 1].end : t.start));
-      alignCache.set(`${b.surah}|${fileName}|${buffer.duration.toFixed(2)}`, { starts, ends, n: timing.length, lead: b.surah !== 1 && b.surah !== 9 });
+      b.rec.align = { surah: b.surah, dur: +buffer.duration.toFixed(2), starts, ends };
     }
     libSave(b, 'upload', blob, buffer, fileName);
     li.querySelector('.custom-rec').hidden = false;
     changed();
     try { autoWholeSurah(b, buffer); } catch (e) { showError(e); }
+    TL?.open(b.id); // التايم لاين تحت المعاينة: تختار من دقيقة كذا لدقيقة كذا
   });
+  act('recTl').onclick = () => TL?.open(b.id);
   act('recMarksClear').onclick = () => { if (!b.rec) return; b.rec.marks = []; delete b.rec.bas; changed(); };
   act('recClear').onclick = () => {
     player.pause();
@@ -1187,13 +1262,15 @@ function wireRecitation(li, b) {
   sync();
   // لما تغيّر رقم الآية: لو الملف سورة كاملة اتحللت، بنجيب الآيات الجديدة على طول (التحليل محفوظ)
   let t = null;
-  return () => {
+  const ret = () => {
     sync();
     const au = hadithAudio.get(b.id);
     if (!b.rec?.whole || !au || b.rec.wholeSurah !== b.surah) return;
     clearTimeout(t);
     t = setTimeout(() => { try { autoWholeSurah(b, au.buffer); } catch (e) { showError(e); } }, 250);
   };
+  ret.ui = sync;
+  return ret;
 }
 
 // ===== 🎧 اقرا ورا الشيخ: صوت القارئ للتعلّم بس، والفيديو بيطلع بصوتك أنت =====
@@ -7351,6 +7428,7 @@ async function init() {
   $('#btn-play').onclick = play;
   $('#btn-stop').onclick = stop;
   setupPreviewTools();
+  setupRecTimeline();
   setupMediaLink();
   // 🔎 الباحث: نافذة منفصلة (research.html) — «＋ أضف للفيديو» منها بيضيف كارت آيات هنا
   $('#btn-research').onclick = () => {
@@ -7372,6 +7450,7 @@ async function init() {
     state.segIndex = Number($('#seg-slider').value);
     $('#seg-info').textContent = segInfo(state.segIndex, previewSegs.length);
     drawFrame(previewSegs[state.segIndex]);
+    TL?.follow(state.blocks[previewSegs[state.segIndex]?.bi]?.id);
   };
   document.querySelectorAll('[data-export]').forEach(b => { b.onclick = () => doExport(b.dataset.export); });
   setupPublish();

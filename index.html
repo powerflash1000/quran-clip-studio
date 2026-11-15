@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261115d">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261115e">
 </head>
 <body>
   <header class="topbar">
@@ -55,6 +55,7 @@
           <button class="btn" id="pv-grid-btn" type="button" title="خطوط التلت عشان توزن الكلام والصورة — مش بتظهر في الفيديو">▦ خطوط</button>
           <button class="btn" id="pv-motion" type="button" title="خلفية الفيديو بتتحرك في المعاينة وانت بتعدّل — اقفلها لو الجهاز تقيل (الفيديو المصدّر مش بيتأثر)">🎞️ حركة الخلفية</button>
           <button class="btn" id="pv-shot" type="button" title="احفظ الإطار اللي قدامك صورة PNG (للصورة المصغّرة أو البوست)">📸 لقطة</button>
+          <button class="btn" id="pv-tl" type="button" title="تايم لاين صوت التلاوة: تختار من دقيقة كذا لدقيقة كذا، وتعمل تريم وتظبط حدود الآيات">🎚️ تايم لاين</button>
         </div>
         <div class="preview-controls">
           <button class="btn primary" id="btn-play" type="button">▶ معاينة بالصوت</button>
@@ -67,6 +68,34 @@
         <div class="status" id="status" hidden>
           <div class="status-text" id="status-text"></div>
           <div class="bar"><div class="bar-fill" id="bar-fill"></div></div>
+        </div>
+      </div>
+
+      <div class="card tl-panel" id="tl-panel" hidden>
+        <div class="row">
+          <h3 class="grow" style="margin:0">🎚️ تايم لاين التلاوة</h3>
+          <select id="tl-card" title="الكارت"></select>
+          <button class="btn icon" id="tl-close" type="button" title="اقفل">✕</button>
+        </div>
+        <p class="muted" id="tl-empty">مفيش كارت صوته من ملف لسه. هات سورة كاملة من «📥 قرّاء أكتر (mp3quran)» في كارت الآية، أو من «🎧 كلام من ملف صوت».</p>
+        <div id="tl-body" hidden>
+          <div class="tl-lab">الملف كله — اسحب عليه عشان تختار «من هنا لهنا»</div>
+          <canvas id="tl-over" class="tl-over" height="56"></canvas>
+          <div class="tl-lab">الحتة المختارة مكبّرة — اسحب «من» و«إلى» للتريم، والخطوط البرتقاني حدود الآيات، ودوس على الموجة تسمع من المكان ده</div>
+          <canvas id="tl-detail" class="tl-detail" height="120"></canvas>
+          <div class="tl-ctl">
+            <button class="btn primary" id="tl-play" type="button">▶ اسمع الحتة</button>
+            <span class="tl-t">من <button class="btn icon" data-nudge="A,-0.5" type="button" title="نص ثانية لورا">−</button><input id="tl-a" inputmode="decimal" title="دقيقة:ثانية — مثلًا 12:34.5"><button class="btn icon" data-nudge="A,0.5" type="button" title="نص ثانية لقدام">+</button></span>
+            <span class="tl-t">إلى <button class="btn icon" data-nudge="B,-0.5" type="button">−</button><input id="tl-b" inputmode="decimal" title="دقيقة:ثانية — مثلًا 13:10"><button class="btn icon" data-nudge="B,0.5" type="button">+</button></span>
+            <label class="check"><input type="checkbox" id="tl-snap" checked> 🧲 يلزق على حدود الآيات</label>
+          </div>
+          <p class="tl-info" id="tl-info"></p>
+          <div class="btn-row">
+            <button class="btn primary" id="tl-apply" type="button">✅ طبّق على الكارت ده</button>
+            <button class="btn" id="tl-add" type="button">➕ أضيف الحتة دي كارت جديد</button>
+            <button class="btn ghost" id="tl-reset" type="button">↩ رجّع زي الكارت</button>
+          </div>
+          <p class="hint">اكتب الوقت دقيقة:ثانية (مثلًا <b>3:25.5</b>) أو اسحب على الموجة. البرنامج بيعرف لوحده الحتة دي فيها أنهي آيات، وبيكتبها على الشاشة من المصحف. تقدر تاخد من نفس السورة كذا حتة: اختار ← «➕ أضيف كارت جديد» ← اختار اللي بعدها.</p>
         </div>
       </div>
 
@@ -587,7 +616,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261115d</div>
+    <div class="muted" id="app-version">الإصدار 20261115e</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -806,6 +835,7 @@
           <div class="btn-row">
             <button class="btn primary" data-act="recPlayRange2" type="button">▶ اسمع الآيات دي</button>
             <button class="btn" data-act="recAuto" type="button" title="بيدوّر على الآيات في الملف">🪄 دوّر على الآيات تاني</button>
+            <button class="btn" data-act="recTl" type="button" title="تايم لاين تحت المعاينة: من دقيقة كذا لدقيقة كذا، وتريم">🎚️ اختار بالوقت / تريم</button>
           </div>
           <details class="adv">
           <summary>⚙️ ضبط يدوي بالثواني (لو الآية مش مظبوطة)</summary>
@@ -1728,6 +1758,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261115d"></script>
+  <script type="module" src="js/main.js?v=20261115e"></script>
 </body>
 </html>
