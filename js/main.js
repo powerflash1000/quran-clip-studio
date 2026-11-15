@@ -3535,6 +3535,7 @@ function setupStock() {
       hidden ? `اتخبى ${Q.arabicNum(hidden)} بسبب الفلاتر` : '',
     ].filter(Boolean).join(' • ');
     if (!shown.length) box.textContent = last.items.length ? 'كل نتايج الصفحة دي اتخبت بسبب الفلاتر — جرّب الصفحة اللي بعدها أو خفّف الفلاتر.' : 'مفيش نتايج';
+    if (last.errs?.some(e => /^Pixabay/.test(e))) addPixabayTest(box);
     for (const it of shown) {
       const d = document.createElement('div');
       d.className = 'stock-item';
@@ -3612,7 +3613,16 @@ function setupStock() {
     } catch (e) {
       box.textContent = e.message;
       $('#stock-info').textContent = '';
+      if (/Pixabay/.test(e.message)) addPixabayTest(box);
     }
+  };
+  // 🧪 يفتح طلب Pixabay في تاب: الرد الحقيقي بيبان (مفتاح غلط، «too many requests»، أو صفحة حماية)
+  const addPixabayTest = box => {
+    const d = document.createElement('div');
+    d.className = 'hint'; d.style.marginTop = '.6rem';
+    d.innerHTML = '<a class="btn" target="_blank" rel="noopener">🧪 اختبر Pixabay في تاب جديد</a> — لو ظهر كلام زي <b>[ERROR 400] Invalid key</b> يبقى المفتاح غلط (اعمل واحد جديد من pixabay.com/api/docs)، ولو <b>Too many requests</b> استنى دقيقة، ولو صفحة «Verify you are human» افتحها وكمّل التحقق وارجع ابحث. ولو ظهر كلام كتير بين أقواس { } يبقى Pixabay شغال والمشكلة من إضافة في المتصفح.';
+    d.querySelector('a').href = STOCK.pixabayTestUrl($('#stock-q').value.trim());
+    box.appendChild(d);
   };
   const saveSf = () => save('stockFilters', sf);
   $('#sf-order').onchange = () => { sf.order = $('#sf-order').value; saveSf(); go(1); };

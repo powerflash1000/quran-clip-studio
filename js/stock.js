@@ -25,7 +25,7 @@ async function apiFetch(url, name, init) {
     if (proxyUrl) {
       try { const r = await fetch(`${proxyUrl.replace(/\/+$/, '')}/?url=${encodeURIComponent(url)}`, init); if (r.ok) return r; } catch { /* نكمل للرسالة */ }
     }
-    throw new Error(`المتصفح ماقدرش يوصل لـ ${name} خالص. غالبًا إضافة حظر إعلانات (AdBlock/uBlock) أو الشبكة بتحجبه — جرّب تقفل الإضافة للموقع ده، أو نت تاني، أو اضبط «رابط الوسيط» من ⚙️ الإعدادات. والمصادر التانية (Pexels / Openverse…) شغالة عادي.`);
+    throw new Error(`${name} مارضيش يرد على جهازك (ممكن مفتاحك اتوقف مؤقتًا من طلبات كتير، أو حماية الموقع، أو إضافة حظر إعلانات). دوس «🧪 اختبر» تحت عشان تشوف السبب، أو اضبط «رابط الوسيط»، أو جرّب Pexels (مفتاح مجاني).`);
   }
 }
 const pagesOf = (total, per = PER) => (total ? Math.max(1, Math.ceil(total / per)) : null);
@@ -48,6 +48,20 @@ export async function searchPexels(query, kind, aspect, opts = {}) {
   return { items, total: j.total_results ?? null, pages: pagesOf(j.total_results), hasMore: !!j.next_page };
 }
 
+// Pixabay بيطلب إن النتايج تتحفظ ٢٤ ساعة (وحد ١٠٠ طلب في الدقيقة) — بنحفظها في الجلسة عشان مانكررش نفس الطلب
+const pbCache = new Map();
+async function pixabayJson(url) {
+  const hit = pbCache.get(url) || (() => { try { const v = JSON.parse(sessionStorage.getItem('pb:' + url) || 'null'); return v && Date.now() - v.t < 864e5 ? v.j : null; } catch { return null; } })();
+  if (hit) return { ok: true, status: 200, json: async () => hit };
+  const res = await apiFetch(url, 'Pixabay');
+  if (!res.ok) return res;
+  const j = await res.json();
+  pbCache.set(url, j);
+  try { sessionStorage.setItem('pb:' + url, JSON.stringify({ t: Date.now(), j })); } catch { /* المساحة مليانة */ }
+  return { ok: true, status: 200, json: async () => j };
+}
+// 🧪 رابط يفتح طلب Pixabay في تاب: المتصفح بيوري الرد الحقيقي (مفتاح غلط / طلبات كتير / حماية Cloudflare)
+export const pixabayTestUrl = q => `https://pixabay.com/api/?key=${encodeURIComponent(getSettings().pixabayKey || '')}&q=${encodeURIComponent(q || 'ocean')}`;
 export async function searchPixabay(query, kind, aspect, opts = {}) {
   const { pixabayKey } = getSettings();
   if (!pixabayKey) throw new Error('حط مفتاح Pixabay في الإعدادات الأول');
@@ -57,7 +71,7 @@ export async function searchPixabay(query, kind, aspect, opts = {}) {
   const extra = `&safesearch=true&per_page=${PER}&page=${page}&order=${order}${opts.editors ? '&editors_choice=true' : ''}`;
   let j;
   if (kind === 'video') {
-    const res = await apiFetch(`https://pixabay.com/api/videos/?key=${pixabayKey}&q=${q}${extra}`, 'Pixabay');
+    const res = await pixabayJson(`https://pixabay.com/api/videos/?key=${pixabayKey}&q=${q}${extra}`);
     if (!res.ok) throw new Error(res.status === 400 && page > 1 ? 'مفيش صفحات أكتر' : 'Pixabay: ' + res.status);
     j = await res.json();
     const items = (j.hits || []).map(h => {
@@ -69,7 +83,7 @@ export async function searchPixabay(query, kind, aspect, opts = {}) {
     return { items, total: j.total ?? null, pages: pagesOf(total), hasMore: page * PER < total };
   }
   const o = aspect === '9:16' ? 'vertical' : aspect === '16:9' ? 'horizontal' : 'all';
-  const res = await apiFetch(`https://pixabay.com/api/?key=${pixabayKey}&q=${q}&image_type=photo&orientation=${o}${extra}`, 'Pixabay');
+  const res = await pixabayJson(`https://pixabay.com/api/?key=${pixabayKey}&q=${q}&image_type=photo&orientation=${o}${extra}`);
   if (!res.ok) throw new Error(res.status === 400 && page > 1 ? 'مفيش صفحات أكتر' : 'Pixabay: ' + res.status);
   j = await res.json();
   const total = Math.min(j.totalHits || 0, 500);
