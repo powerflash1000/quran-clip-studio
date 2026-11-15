@@ -7,6 +7,7 @@ import { autoMarks } from './automark.js';
 import { ASPECTS, TEXT_FONT, TEXT_FONTS, TEXT_FX, TEXT_ANIM, ensureFonts, drawBackground, drawOverlay, drawWave, textFont, WHEEL_THEMES } from './slides.js';
 import { exportAudio, exportVideo, exportFilmoraPackage, renderStill, makeSrt, download } from './exporter.js';
 import { PROVIDERS, downloadStock } from './stock.js';
+import * as STOCK from './stock.js';
 import * as T from './templates.js';
 import { getSettings, setSettings, load, save } from './storage.js';
 import * as EL from './elevenlabs.js';
@@ -3526,6 +3527,7 @@ function setupStock() {
     const shown = last.items.filter(passes);
     const hidden = last.items.length - shown.length;
     $('#stock-info').textContent = [
+      last.trNote || '',
       last.from ? `من: ${last.from}` : '',
       last.total != null ? `النتايج: ${fmtN(last.total)}` : '',
       last.errs?.length ? `⚠️ ${last.errs.join(' • ')}` : '',
@@ -3580,7 +3582,10 @@ function setupStock() {
     box.textContent = 'جاري البحث…';
     $('#stock-pager').innerHTML = '';
     try {
-      const kind = $('#stock-kind').value, q = $('#stock-q').value.trim() || 'nature';
+      const kind = $('#stock-kind').value;
+      // بالعربي ← إنجليزي (المواقع دي بتفهم إنجليزي بس)
+      const tr = await STOCK.englishQuery($('#stock-q').value.trim() || 'nature', LLM.config().key ? LLM.askJson : null);
+      const q = tr.q;
       const use = provs.filter(k => PROVIDERS[k] && fitsKind(k, kind) && hasKey(k));
       const skipped = provs.filter(k => PROVIDERS[k] && fitsKind(k, kind) && !hasKey(k)).map(k => `${PROVIDERS[k].short} محتاج مفتاح`);
       if (!use.length) throw new Error(skipped.length ? `${skipped.join(' • ')} — حط المفتاح في ⚙️ الإعدادات أو اختار مصدر تاني` : 'اختار مصدر واحد على الأقل من الأزرار تحت البحث');
@@ -3597,7 +3602,7 @@ function setupStock() {
       const ok = res.map((r, i) => r.status === 'fulfilled' ? r.value : null);
       const totals = ok.filter(v => v && v.total != null).map(v => v.total);
       if (!items.length && errs.length) throw new Error(errs.join(' • '));
-      last = { items, page, errs, from: use.filter((k, i) => ok[i]).map(k => PROVIDERS[k].short).join('، '),
+      last = { items, page, errs, trNote: tr.note || '', from: use.filter((k, i) => ok[i]).map(k => PROVIDERS[k].short).join('، '),
         total: totals.length ? totals.reduce((a, b) => a + b, 0) : null,
         pages: Math.max(0, ...ok.filter(Boolean).map(v => v.pages || 0)) || null,
         hasMore: ok.some(v => v && (v.hasMore || (v.pages && page < v.pages))) };

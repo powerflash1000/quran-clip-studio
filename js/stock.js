@@ -183,3 +183,55 @@ export const PROVIDERS = {
   pexels: { name: 'Pexels (لو عندك مفتاح قديم)', short: 'Pexels', key: s => s.pexelsKey, fn: searchPexels, order: [] },
   coverr: { name: 'Coverr — فيديو (مفتاح مجاني)', short: 'Coverr', key: () => coverrKey(), fn: searchCoverr, order: [], videoOnly: true },
 };
+
+// ===== 🌐 البحث بالعربي: Pixabay و Pexels بيفهموا إنجليزي بس — بنترجم كلمات المناظر الشائعة =====
+const AR_EN = {
+  سما: 'sky', سماء: 'sky', سحاب: 'clouds', سحب: 'clouds', غيوم: 'clouds', غيم: 'clouds', شمس: 'sun', شروق: 'sunrise', غروب: 'sunset',
+  قمر: 'moon', هلال: 'crescent moon', نجوم: 'stars', نجم: 'star', ليل: 'night', نهار: 'day', فجر: 'dawn', صبح: 'morning', صباح: 'morning', مسا: 'evening', مساء: 'evening',
+  بحر: 'sea', بحار: 'sea', محيط: 'ocean', موج: 'waves', امواج: 'waves', شاطي: 'beach', شاطئ: 'beach', شط: 'beach', نهر: 'river', انهار: 'rivers',
+  مطر: 'rain', امطار: 'rain', شلال: 'waterfall', شلالات: 'waterfalls', بحيره: 'lake', ميه: 'water', مياه: 'water', ماء: 'water', ما: 'water',
+  جبل: 'mountain', جبال: 'mountains', صحرا: 'desert', صحراء: 'desert', رمل: 'sand', رمال: 'sand dunes', كثبان: 'dunes', غابه: 'forest', غابات: 'forest',
+  شجر: 'trees', شجره: 'tree', اشجار: 'trees', ورد: 'roses', وردة: 'rose', ورده: 'rose', ورود: 'roses', زهور: 'flowers', زهره: 'flower', زهر: 'flowers',
+  عشب: 'grass', خضره: 'greenery', زرع: 'plants', طبيعه: 'nature', ثلج: 'snow', ثلوج: 'snow', ضباب: 'fog', نور: 'light', ضوء: 'light', اضواء: 'lights',
+  برق: 'lightning', عاصفه: 'storm', رعد: 'thunder', ريح: 'wind', رياح: 'wind', طيور: 'birds', طير: 'bird', حمام: 'doves', فراشه: 'butterfly', فراشات: 'butterflies',
+  مسجد: 'mosque', مساجد: 'mosques', مئذنه: 'minaret', قران: 'quran', مصحف: 'quran', سبحه: 'prayer beads', فانوس: 'lantern', فوانيس: 'lanterns', رمضان: 'ramadan',
+  شمعه: 'candle', كتاب: 'book', مدينه: 'city', طريق: 'road', بيت: 'house', خريف: 'autumn', ربيع: 'spring', شتا: 'winter', شتاء: 'winter', صيف: 'summer',
+  هادي: 'calm', هادئ: 'calm', هدوء: 'calm', جميل: 'beautiful', جميله: 'beautiful', اخضر: 'green', ازرق: 'blue', ذهبي: 'golden', دهبي: 'golden', ابيض: 'white', اسود: 'black',
+  فضا: 'space', فضاء: 'space', مجره: 'galaxy', نخل: 'palm trees', نخيل: 'palm trees', نخله: 'palm tree', زيتون: 'olive tree', حقل: 'field', حقول: 'fields', وادي: 'valley',
+  كهف: 'cave', جزيره: 'island', مركب: 'boat', سفينه: 'ship', قلعه: 'castle', غيمه: 'cloud', سحابه: 'cloud', قوس: 'rainbow', بركه: 'pond', ينبوع: 'spring water',
+  ليلا: 'night', نهارا: 'day', صباحا: 'morning', مساءا: 'evening', قطه: 'cat', قطط: 'cats', حصان: 'horse', خيل: 'horses', جمل: 'camel', جمال: 'camels',
+  علي: '', علی: '', في: '', من: '', مع: '', فوق: '', تحت: '', عند: '', الي: '', بين: '', و: '',
+  بطيء: 'slow motion', تصوير: '', خلفيه: 'background', منظر: 'landscape', مناظر: 'landscape', طبيعيه: 'nature', ليلي: 'night', فلك: 'astronomy', جنه: 'garden', حديقه: 'garden',
+};
+const AR_LETTER = /[\u0621-\u064A]/;
+const normAr = w => w.replace(/[\u064B-\u065F\u0670\u0640]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي');
+const trCache = new Map();
+// بيرجّع { q: الكلمة بالإنجليزي, note } — لو فيه كلمات مش في القاموس وفيه مفتاح ذكاء اصطناعي، بنترجم بيه
+export async function englishQuery(raw, askJson) {
+  const q = String(raw || '').trim();
+  if (!AR_LETTER.test(q)) return { q };
+  if (trCache.has(q)) return trCache.get(q);
+  const words = q.split(/[\s،,]+/).filter(Boolean);
+  const out = [], miss = [];
+  for (const w0 of words) {
+    if (!AR_LETTER.test(w0)) { out.push(w0); continue; }
+    let w = normAr(w0);
+    const tries = [w, w.replace(/^(وال|فال|بال|كال|ال|و)/, ''), w.replace(/^(وال|فال|بال|كال|ال|و)/, '').replace(/(ات|ين|ون)$/, '')];
+    const hit = tries.find(t => AR_EN[t] !== undefined);
+    if (hit !== undefined) { if (AR_EN[hit]) out.push(AR_EN[hit]); } else miss.push(w0);
+  }
+  let res;
+  if (!miss.length && out.length) res = { q: out.join(' '), note: `بحثت بالإنجليزي: «${out.join(' ')}»` };
+  else if (askJson) {
+    try {
+      const j = await askJson(`Translate this Arabic search phrase for a stock photo/video site into a short English search query (1-4 words, nouns of what should be seen). Reply JSON {"en": "..."} only. Phrase: «${q.replace(/[«»<>]/g, ' ')}»`);
+      const en = String(j?.en || '').replace(/[^\w\s-]/g, ' ').trim();
+      if (en) res = { q: en, note: `بحثت بالإنجليزي: «${en}»` };
+    } catch { /* نكمل بالقاموس */ }
+  }
+  if (!res) res = out.length
+    ? { q: out.join(' '), note: `بحثت بالإنجليزي: «${out.join(' ')}» (ماعرفتش أترجم: ${miss.join('، ')} — اكتبها بالإنجليزي أحسن)` }
+    : { q, note: 'المواقع دي بتفهم إنجليزي بس — اكتب كلمة البحث بالإنجليزي (sea، mountains، night sky…) أو حط مفتاح Gemini المجاني عشان أترجم لوحدي' };
+  trCache.set(q, res);
+  return res;
+}
