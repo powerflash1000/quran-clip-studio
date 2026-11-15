@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261115c">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261115d">
 </head>
 <body>
   <header class="topbar">
@@ -587,7 +587,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261115c</div>
+    <div class="muted" id="app-version">الإصدار 20261115d</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -790,6 +790,7 @@
         <button class="btn" data-act="tafsir" type="button" title="تفسير الآيات دي من كتب التفسير المعتمدة — انسخه أو حطه كارت في الفيديو">📖 التفسير</button>
         <button class="btn" data-act="genBg" type="button" title="برومبت خلفية للآيات دي: انسخه، ولّد في Flow أو Higgsfield أو Gemini أو ChatGPT، وارجع حط اللي ولّدته">🎨 خلفية بالذكاء الاصطناعي</button>
         <button class="btn" data-act="follow" type="button" title="تسمع الشيخ آية آية وتقرا وراه — الفيديو بيطلع بصوتك أنت بس">🎧 اقرا ورا الشيخ — والفيديو بصوتك</button>
+        <button class="btn" data-act="mp3q" type="button" title="٢٤٤ قارئ من mp3quran.net (زي إسلام صبحي) — السورة كاملة وبتتقسم آيات لوحدها">📥 قرّاء أكتر (mp3quran)</button>
       </div>
       <details class="adv custom-rec" hidden>
         <summary>🎙️ الصوت من ملف</summary>
@@ -1055,6 +1056,30 @@
       </div>
       <p class="muted" id="ct-sum"></p>
       <div class="btn-row"><button class="btn primary" id="ct-go" type="button">➕ اعمل الكروت</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-mp3q">
+    <div class="dlg wide">
+      <div class="row">
+        <h2 class="grow">📥 قرّاء أكتر — من mp3quran.net</h2>
+        <button class="btn icon" id="mq-close" type="button" title="اقفل">✕</button>
+      </div>
+      <p class="hint">بيجيب <b>السورة كاملة</b> بصوت القارئ اللي تختاره، والبرنامج بيطلّع منها الآيات اللي في الكارت. القرّاء اللي عليهم ⏱ ليهم توقيت آيات جاهز من الموقع (التقسيم بالظبط)، والباقي البرنامج بيدوّر على الآيات بنفسه. المصدر: mp3quran.net (متاح للاستخدام لأي حد).</p>
+      <div class="row" style="gap:.5rem;flex-wrap:wrap">
+        <input id="mq-q" type="search" class="grow" placeholder="دوّر باسم القارئ (إسلام صبحي، الدوسري…)" autocomplete="off">
+        <label class="check"><input type="checkbox" id="mq-new"> 🆕 اللي مش عندي بس</label>
+        <label class="check"><input type="checkbox" id="mq-hafs" checked> حفص بس</label>
+        <label class="check"><input type="checkbox" id="mq-timed"> ⏱ بتوقيت جاهز بس</label>
+      </div>
+      <select id="mq-list" size="12" style="width:100%;margin-top:.5rem"></select>
+      <p class="muted" id="mq-sum"></p>
+      <audio id="mq-audio" controls preload="none" style="width:100%"></audio>
+      <div class="btn-row">
+        <button class="btn primary" id="mq-go" type="button">📥 حط التلاوة دي في الكارت</button>
+        <a class="btn ghost" id="mq-dl" target="_blank" rel="noopener" download>⬇️ نزّل الملف</a>
+      </div>
+      <p class="muted" id="mq-status"></p>
     </div>
   </dialog>
 
@@ -1703,6 +1728,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261115c"></script>
+  <script type="module" src="js/main.js?v=20261115d"></script>
 </body>
 </html>

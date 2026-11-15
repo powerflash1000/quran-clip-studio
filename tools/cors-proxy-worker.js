@@ -16,6 +16,10 @@ const ALLOWED_HOSTS = [
   'api.elevenlabs.io',
   'freesound.org',
   'cdn.freesound.org',
+  // 📥 قرّاء mp3quran.net (الواجهة + ملفات السور)
+  'mp3quran.net',
+  'www.mp3quran.net',
+  'cdn.mp3quran.net',
 ];
 // مواقع الصور والفيديوهات: الدومين نفسه وأي دومين فرعي منه (زي ar.pinterest.com و i.pinimg.com)
 const ALLOWED_SUFFIXES = ['pinterest.com', 'pin.it', 'pinimg.com', 'mixkit.co', 'coverr.co', 'pexels.com', 'pixabay.com', 'facebook.com', 'fb.watch', 'fbcdn.net'];

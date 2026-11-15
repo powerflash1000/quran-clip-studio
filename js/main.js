@@ -38,6 +38,7 @@ import { youtubeChapters } from './chapters.js';
 import { ZONES, INKS } from './zone.js';
 import { FRAMES, KEN_BURNS, PATTERNS } from './frame.js';
 import * as ZS from './zsounds.js';
+import * as MQ from './mp3quran.js';
 import { loopReady, exportLongLoop } from './fastexport.js';
 import { PLATFORMS, generate, getPublishSettings, setPublishSettings, canShareFile, shareFile } from './publish.js';
 
@@ -907,6 +908,63 @@ function quranBlockEl(b, i) {
   return li;
 }
 
+// ===== 📥 قرّاء أكتر من mp3quran.net =====
+let mqPick = null;
+async function openMp3q(b, onPick) {
+  const dlg = $('#dlg-mp3q');
+  const sur = Q.surah(b.surah);
+  dlg.querySelector('h2').textContent = `📥 سورة ${sur.ar} بصوت قارئ تاني — من mp3quran.net`;
+  $('#mq-status').textContent = '';
+  $('#mq-sum').textContent = '⏳ بيجيب قايمة القرّاء…';
+  $('#mq-list').innerHTML = '';
+  $('#mq-close').onclick = () => { $('#mq-audio').pause(); dlg.close(); };
+  dlg.showModal();
+  let all;
+  try { all = await MQ.moshafsFor(b.surah); } catch (e) { $('#mq-sum').textContent = '❌ ' + e.message; return; }
+  const render = () => {
+    const q = $('#mq-q').value.trim().replace(/[أإآ]/g, 'ا');
+    const list = all.filter(m => (!$('#mq-new').checked || !m.known) && (!$('#mq-hafs').checked || m.hafs) && (!$('#mq-timed').checked || m.timed)
+      && (!q || m.reciter.replace(/[أإآ]/g, 'ا').includes(q)));
+    $('#mq-list').innerHTML = list.map((m, i) => `<option value="${all.indexOf(m)}"${i ? '' : ' selected'}>${m.timed ? '⏱ ' : ''}${m.known ? '' : '🆕 '}${escapeHtml(m.reciter)}${m.multi || !m.hafs ? ' — ' + escapeHtml(m.moshaf) : ''}</option>`).join('');
+    const nNew = all.filter(m => !m.known).length;
+    $('#mq-sum').textContent = `${Q.arabicNum(list.length)} تلاوة لسورة ${sur.ar} (من ${Q.arabicNum(all.length)}؛ منهم ${Q.arabicNum(nNew)} 🆕 مش في قايمة البرنامج).`;
+    pick();
+  };
+  const pick = () => {
+    const m = all[+$('#mq-list').value];
+    mqPick = m || null;
+    $('#mq-go').disabled = !m;
+    if (!m) return;
+    $('#mq-audio').src = m.url;
+    $('#mq-dl').href = m.url;
+    $('#mq-status').textContent = m.timed ? '⏱ التلاوة دي ليها توقيت آيات جاهز — التقسيم هيبقى بالظبط.' : 'التلاوة دي من غير توقيت جاهز — البرنامج هيدوّر على الآيات بنفسه (راجعها بـ ▶).'
+    if (sur.count > 120 || b.surah <= 7) $('#mq-status').textContent += ' ⚠️ السورة طويلة: الملف كبير والتحميل والقراية ممكن ياخدوا دقايق ومحتاجين رامات كتير.';
+  };
+  for (const id of ['#mq-q', '#mq-new', '#mq-hafs', '#mq-timed']) $(id).oninput = render;
+  $('#mq-list').onchange = pick;
+  $('#mq-go').onclick = async () => {
+    const m = mqPick;
+    if (!m) return;
+    const btn = $('#mq-go');
+    btn.disabled = true;
+    $('#mq-audio').pause();
+    try {
+      const st = t => { $('#mq-status').textContent = t; status(t); };
+      st('⏳ بيحمّل السورة…');
+      const [blob, timing] = await Promise.all([
+        MQ.downloadSurah(m.url, (got, total) => st(`⏳ بيحمّل السورة… ${(got / 1048576).toFixed(1)}${total ? ' من ' + (total / 1048576).toFixed(1) : ''} ميجا`)),
+        m.timed ? MQ.ayahTiming(m.moshafId, b.surah, sur.count) : null,
+      ]);
+      st('⏳ بيقرا الملف…');
+      const name = m.reciter + (m.hafs ? '' : ` (${m.moshaf})`);
+      await onPick({ blob, name, fileName: `mp3quran-${m.moshafId}-${String(b.surah).padStart(3, '0')}.mp3`, timing });
+      dlg.close();
+      status(`✅ سورة ${sur.ar} بصوت ${name}${timing ? ' — بتوقيت الآيات من الموقع' : ''}. اسمع «▶ اسمع الآيات دي» في الكارت.`);
+    } catch (e) { $('#mq-status').textContent = '❌ ' + e.message; showError(e); } finally { btn.disabled = false; }
+  };
+  render();
+}
+
 // ===== تلاوة من ملف (قارئ مش في القايمة) =====
 const stripMarks = t => t.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\s]/g, '');
 
@@ -1101,6 +1159,22 @@ function wireRecitation(li, b) {
     changed();
     status(`🪄 لقيت آيات السورة كلها (${Q.arabicNum(n)} آية)، وحددت الآيات ${Q.arabicNum(from)}–${Q.arabicNum(to)}: من ${fmtDur(start)} لـ ${fmtDur(end)}. اسمع «▶ اسمع المقطع» — ولو غيّرت الآيات دوس 🪄 تاني (هيبقى فوري).`);
   };
+  // 📥 السورة كاملة من mp3quran: لو ليها توقيت آيات جاهز بنحطه مكان التحليل (أدق وفوري)
+  act('mp3q').onclick = () => openMp3q(b, async ({ blob, name, fileName, timing }) => {
+    let buffer = await decode(await blob.arrayBuffer());
+    if (buffer.duration > 600 && buffer.numberOfChannels > 1) buffer = toMono(buffer);
+    setHadithAudio(b, buffer, fileName, blob);
+    b.rec = { name, file: fileName, start: 0, end: buffer.duration, marks: [], whole: true, wholeSurah: b.surah, src: 'mp3quran' };
+    if (timing) {
+      const starts = timing.map(t => t.start);
+      const ends = timing.map((t, i) => (i ? timing[i - 1].end : t.start));
+      alignCache.set(`${b.surah}|${fileName}|${buffer.duration.toFixed(2)}`, { starts, ends, n: timing.length, lead: b.surah !== 1 && b.surah !== 9 });
+    }
+    libSave(b, 'upload', blob, buffer, fileName);
+    li.querySelector('.custom-rec').hidden = false;
+    changed();
+    try { autoWholeSurah(b, buffer); } catch (e) { showError(e); }
+  });
   act('recMarksClear').onclick = () => { if (!b.rec) return; b.rec.marks = []; delete b.rec.bas; changed(); };
   act('recClear').onclick = () => {
     player.pause();
