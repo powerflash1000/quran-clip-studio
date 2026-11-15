@@ -498,7 +498,11 @@ audio.full { width: 100%; margin: .4rem 0; }
 .tl-lab { font-size: .8rem; color: var(--muted); margin: .45rem 0 .2rem; }
 .tl-ctl { display: flex; flex-wrap: wrap; gap: .45rem .8rem; align-items: center; margin-top: .55rem; }
 .tl-t { display: inline-flex; align-items: center; gap: .25rem; }
-.tl-t input { width: 6.5em; text-align: center; direction: ltr; font-variant-numeric: tabular-nums; }
+.tl-player { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; justify-content: center; margin-top: .65rem; padding: .55rem; border: 1px solid var(--line); border-radius: 10px; background: var(--field); }
+.tl-clock { font-size: 1.6rem; font-weight: 700; direction: ltr; font-variant-numeric: tabular-nums; min-width: 5.5em; text-align: center; }
+.tl-mark { font-weight: 700; border-color: var(--accent, #1f6f5c); }
+.tl-val { display: inline-block; min-width: 4.6em; text-align: center; direction: ltr; font-weight: 700; font-size: 1.1rem; font-variant-numeric: tabular-nums; padding: .15rem .35rem; border-radius: 6px; background: var(--field); }
+.tl-t .btn { padding: .25rem .45rem; font-size: .85rem; }
 .tl-info { margin: .5rem 0; font-weight: 600; }
 .preview-wrap.big #preview { max-height: 86vh; }
 .pv-exit { display: none; }

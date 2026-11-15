@@ -64,7 +64,7 @@ export function setupTimeline(api) {
   const $ = s => document.querySelector(s);
   const panel = $('#tl-panel'), over = $('#tl-over'), det = $('#tl-detail');
   const audio = new Audio();
-  let b = null, au = null, al = null, A = 0, B = 0, marks = [], view = [0, 1], drag = null, raf = 0;
+  let drag0 = null, b = null, au = null, al = null, A = 0, B = 0, marks = [], view = [0, 1], drag = null, raf = 0;
   const css = n => getComputedStyle(document.body).getPropertyValue(n).trim();
   const dirty = () => b?.rec && (Math.abs(A - (b.rec.start || 0)) > 0.04 || Math.abs(B - (b.rec.end || 0)) > 0.04);
 
@@ -88,15 +88,16 @@ export function setupTimeline(api) {
     A = Math.max(0, Number(b.rec.start) || 0);
     B = Math.min(au.buffer.duration, Number(b.rec.end) > A ? Number(b.rec.end) : au.buffer.duration);
     marks = [...(b.rec.marks || [])];
-    if (audio.src !== au.url) audio.src = au.url;
+    if (audio.src !== au.url) { const a0 = A; audio.src = au.url; audio.addEventListener('loadedmetadata', () => { audio.currentTime = a0; ui(); }, { once: true }); }
     setView();
     $('#tl-snap').disabled = !al;
     ui();
   };
   const ui = () => {
     if (!au) return;
-    $('#tl-a').value = fmtT(A);
-    $('#tl-b').value = fmtT(B);
+    $('#tl-a').textContent = fmtT(A);
+    $('#tl-b').textContent = fmtT(B);
+    $('#tl-now').textContent = fmtT(audio.currentTime);
     let txt = `المدة ${fmtT(B - A)}`;
     if (al) {
       const r = rangeAyat(al, au.buffer.duration, A, B);
@@ -130,7 +131,7 @@ export function setupTimeline(api) {
       // علامات الدقايق
       g.fillStyle = muted; g.font = '10px system-ui'; const stepM = dur > 3600 ? 600 : dur > 1200 ? 300 : dur > 300 ? 60 : 10;
       for (let t = stepM; t < dur; t += stepM) { g.fillRect(x(t), 0, 1, 4); g.fillText(fmtT(t).replace(/\.0$/, ''), x(t) + 2, 10); }
-      if (!audio.paused) { g.fillStyle = '#e33'; g.fillRect(x(audio.currentTime), 0, 2, h); }
+      g.fillStyle = audio.paused ? ink : '#e33'; g.fillRect(x(audio.currentTime) - 1, 0, 2, h);
     }
     // تحت: تكبير على الحتة
     {
@@ -163,18 +164,28 @@ export function setupTimeline(api) {
       }
       g.textAlign = 'left'; g.fillStyle = muted; g.font = '10px system-ui';
       g.fillText(fmtT(v0), 3, h - 3); g.textAlign = 'right'; g.fillText(fmtT(v1), w - 3, h - 3); g.textAlign = 'left';
-      if (!audio.paused && audio.currentTime >= v0 && audio.currentTime <= v1) { g.fillStyle = '#e33'; g.fillRect(x(audio.currentTime) - 1, 0, 2, h); }
+      if (audio.currentTime >= v0 && audio.currentTime <= v1) { g.fillStyle = audio.paused ? ink : '#e33'; g.fillRect(x(audio.currentTime) - 1, 0, 2, h); }
     }
   };
+  // free = تشغيل عادي (بتسمع وتعلّم «ابدأ من هنا» / «لحد هنا»)، وإلا بيقف لوحده عند «إلى»
+  let free = false;
+  const labels = () => {
+    const on = !audio.paused;
+    $('#tl-free').textContent = on && free ? '⏸ وقّف' : '▶ شغّل';
+    $('#tl-play').textContent = on && !free ? '■ وقّف' : '▶ اسمع الحتة اللي اخترتها';
+  };
   const tick = () => {
-    if (audio.paused) { raf = 0; draw(); $('#tl-play').textContent = '▶ اسمع الحتة'; return; }
-    if (audio.currentTime >= B) { audio.pause(); }
+    $('#tl-now').textContent = fmtT(audio.currentTime);
+    if (audio.paused) { raf = 0; labels(); draw(); return; }
+    if (!free && audio.currentTime >= B) audio.pause();
     draw(); raf = requestAnimationFrame(tick);
   };
-  const play = from => {
-    audio.currentTime = from ?? A;
-    audio.play().then(() => { $('#tl-play').textContent = '■ وقّف'; if (!raf) raf = requestAnimationFrame(tick); }).catch(() => {});
+  const play = (from, isFree = false) => {
+    free = isFree;
+    if (from != null) audio.currentTime = from;
+    audio.play().then(() => { labels(); if (!raf) raf = requestAnimationFrame(tick); }).catch(() => {});
   };
+  const seek = t => { audio.currentTime = Math.max(0, Math.min(au.buffer.duration, t)); $('#tl-now').textContent = fmtT(audio.currentTime); draw(); };
   const snap = (t, which) => {
     if (!al || !$('#tl-snap').checked) return t;
     const dur = au.buffer.duration;
@@ -197,7 +208,7 @@ export function setupTimeline(api) {
     if (Math.abs(t - A) < tol) drag = { c: over, v, k: 'A' };
     else if (Math.abs(t - B) < tol) drag = { c: over, v, k: 'B' };
     else if (t > A && t < B && B - A < dur * 0.7) drag = { c: over, v, k: 'move', t0: t, A0: A, B0: B };
-    else { A = B = t; drag = { c: over, v, k: 'new', t0: t }; }
+    else { drag0 = { A, B, t }; A = B = t; drag = { c: over, v, k: 'new', t0: t }; }
     over.setPointerCapture(e.pointerId);
   };
   det.onpointerdown = e => {
@@ -208,7 +219,7 @@ export function setupTimeline(api) {
     else {
       const mi = dirty() ? -1 : marks.findIndex(m => Math.abs(m - t) < tol);
       if (mi >= 0) drag = { c: det, v, k: 'mark', i: mi };
-      else { play(Math.max(A, Math.min(t, B - 0.1))); return; }
+      else { if (!audio.paused && free) seek(t); else play(Math.max(A, Math.min(t, B - 0.1))); return; }
     }
     det.setPointerCapture(e.pointerId);
   };
@@ -227,7 +238,7 @@ export function setupTimeline(api) {
     const k = drag.k;
     drag = null;
     if (k === 'mark') { api.apply(b, A, B, marks.map(m => +m.toFixed(2))); ui(); return; }
-    if (k === 'new' && B - A < 0.5) { A = Number(b.rec.start) || 0; B = Number(b.rec.end) || au.buffer.duration; }
+    if (k === 'new' && B - A < 0.5) { A = drag0.A; B = drag0.B; seek(drag0.t); ui(); return; } // دوسة من غير سحب = نط للمكان ده
     if (k === 'A' || k === 'new' || k === 'move') A = snap(A, 'A');
     if (k === 'B' || k === 'new' || k === 'move') B = snap(B, 'B');
     clampAB();
@@ -235,20 +246,31 @@ export function setupTimeline(api) {
   };
   for (const c of [over, det]) { c.onpointermove = move; c.onpointerup = up; c.onpointercancel = up; }
 
-  $('#tl-play').onclick = () => (audio.paused ? play() : audio.pause());
-  for (const [id, k] of [['#tl-a', 'A'], ['#tl-b', 'B']]) {
-    $(id).onchange = () => {
-      const t = parseT($(id).value);
-      if (t == null) { ui(); return; }
-      if (k === 'A') A = t; else B = t;
-      clampAB(); setView(); ui();
-    };
-  }
+  $('#tl-play').onclick = () => (audio.paused || free ? play(A) : audio.pause());
+  $('#tl-free').onclick = () => (audio.paused || !free ? play(null, true) : audio.pause());
+  $('#tl-back').onclick = () => seek(audio.currentTime - 5);
+  $('#tl-fwd').onclick = () => seek(audio.currentTime + 5);
+  // «ابدأ من هنا» / «لحد هنا»: من مكان التشغيل دلوقتي
+  $('#tl-setA').onclick = () => {
+    if (!au) return;
+    const dur = au.buffer.duration, len = Math.max(5, B - A);
+    A = snap(audio.currentTime, 'A');
+    if (B <= A + 0.2) B = Math.min(dur, A + len);
+    clampAB(); setView(); ui();
+  };
+  $('#tl-setB').onclick = () => {
+    if (!au) return;
+    const t = snap(audio.currentTime, 'B');
+    if (t <= A + 0.2) { $('#tl-info').textContent = '⚠️ «لحد هنا» لازم تبقى بعد «ابدأ من هنا» — شغّل لحد آخر الحتة ودوس تاني.'; return; }
+    B = t;
+    if (free) audio.pause();
+    clampAB(); setView(); ui();
+  };
   panel.querySelectorAll('[data-nudge]').forEach(btn => {
     btn.onclick = () => {
       const [k, d] = btn.dataset.nudge.split(','); if (k === 'A') A += Number(d); else B += Number(d);
       clampAB(); setView(); ui();
-      if (audio.paused) play(k === 'A' ? A : Math.max(A, B - 3));
+      if (audio.paused || !free) play(k === 'A' ? A : Math.max(A, B - 3));
     };
   });
   $('#tl-reset').onclick = () => load(b?.id);
