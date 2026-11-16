@@ -39,6 +39,7 @@ import { ZONES, INKS } from './zone.js';
 import { FRAMES, KEN_BURNS, PATTERNS } from './frame.js';
 import * as ZS from './zsounds.js';
 import * as MQ from './mp3quran.js';
+import { openWordFix } from './wordfix.js';
 import { setupTimeline, rangeAyat, fmtT } from './timeline.js';
 import { loopReady, exportLongLoop } from './fastexport.js';
 import { PLATFORMS, generate, getPublishSettings, setPublishSettings, canShareFile, shareFile } from './publish.js';
@@ -1850,6 +1851,7 @@ function hadithBlockEl(b, i) {
     el('audio-preview').hidden = !au?.url;
     el('audioTools').hidden = !au;
     act('regen').hidden = !['ai', 'gtts'].includes(au?.kind);
+    if (act('wordFix')) act('wordFix').hidden = !['ai', 'gtts'].includes(au?.kind);
     if (au?.url && el('audio-preview').src !== au.url) el('audio-preview').src = au.url;
   };
 
@@ -2118,6 +2120,34 @@ function wireAudioControls(li, b, sync) {
     // detail = 'force': ولّد نسخة جديدة فعلًا (مش من المكتبة)
     if (kind === 'gtts') act('gtts').onclick({ detail: 'force' });
     else if (kind === 'ai') act('ai').onclick({ detail: 'force' });
+  };
+  // ✏️ صلّح كلمة: تولّد الكلمة الغلط بس وتتركّب مكانها (بدل ما تولّد الكلام كله تاني)
+  act('wordFix').onclick = () => {
+    const au = hadithAudio.get(b.id);
+    if (!au?.buffer) return;
+    const kind = au.kind;
+    const elVoice = f('elVoice').value || getSettings().elevenVoiceId;
+    const gVoice = b.gVoice || getSettings().gttsVoice || 'Charon';
+    const providers = [];
+    if (EL.hasKey() && elVoice) providers.push({
+      id: 'ai', name: `ElevenLabs — ${elVoices.find(v => v.id === elVoice)?.name || 'صوتك'}`,
+      note: kind === 'gtts' ? '⚠️ الصوت الأصلي من Gemini — ElevenLabs هيطلع بصوت مختلف.' : 'نفس صوتك ونفس إعدادات الأداء — بيتخصم عدد حروف الحتة بس.',
+      speak: t => EL.speak(EL.prepareText(t), elVoice, perfOf()),
+    });
+    if (GT.hasKey()) providers.push({
+      id: 'gtts', name: `Gemini — ${gVoice} (مجاني)`,
+      note: kind === 'ai' ? '⚠️ الصوت الأصلي من ElevenLabs بصوتك — Gemini صوته مختلف، فالكلمة هتبان. ينفع لو الكلام كله Gemini.' : 'نفس صوت Gemini — مجاني.',
+      speak: t => GT.speak(EL.prepareText(t), b.gVoice, emotion(b.emo).say || ''),
+    });
+    if (!providers.length) { alert('محتاج مفتاح ElevenLabs أو Gemini من ⚙️ الإعدادات عشان تولّد الكلمة.'); return; }
+    openWordFix({
+      buffer: au.buffer, text: EL.prepareText(b.text || ''), providers, provider: kind, decode,
+      onApply: async buf => {
+        const blob = bufferToWavBlob(buf);
+        const id = await AL.addClip({ name: `✏️ مصلّح — ${au.name || ''}`, kind, text: EL.prepareText(b.text || ''), voice: `fixed:${Date.now()}`, dur: buf.duration, blob });
+        useAudio(kind, buf, au.name || (kind === 'gtts' ? 'Gemini' : 'ElevenLabs'), blob, id, '✅ اتحفظ الصوت المصلّح واتحط في الكارت (والنسخة القديمة لسه في 📚 المكتبة).');
+      },
+    });
   };
   act('audioDel').onclick = () => {
     if (!confirm('تحذف الصوت ده؟')) return;
@@ -2401,6 +2431,7 @@ function zikrBlockEl(b, i) {
     el('audio-preview').hidden = !au?.url;
     el('audioTools').hidden = !au;
     act('regen').hidden = !['ai', 'gtts'].includes(au?.kind);
+    if (act('wordFix')) act('wordFix').hidden = !['ai', 'gtts'].includes(au?.kind);
     if (au?.url && el('audio-preview').src !== au.url) el('audio-preview').src = au.url;
   };
   fillItems();
