@@ -7462,6 +7462,11 @@ async function init() {
   setupRecTimeline();
   setupMediaLink();
   // 🔎 الباحث: نافذة منفصلة (research.html) — «＋ أضف للفيديو» منها بيضيف كارت آيات هنا
+  $('#btn-hashtags').onclick = () => {
+    const w = window.open('hashtags.html', 'qcs-hashtags', 'width=1150,height=880');
+    if (!w) location.href = 'hashtags.html';
+    else w.focus();
+  };
   $('#btn-research').onclick = () => {
     const w = window.open('research.html', 'qcs-research', 'width=1150,height=880');
     if (!w) location.href = 'research.html'; // لو المتصفح منع النوافذ
