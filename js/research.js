@@ -17,11 +17,11 @@ const TA_SLUG = { muyassar: 'muyassar', mukhtasar: 'mukhtasar', jalalayn: 'jalal
 // أقسام الباحث القرآني (الأسماء من قايمة كتبه)
 const TA_SECTIONS = [
   { name: '📖 تفاسير أخرى', books: [['zad-almaseer', 'زاد المسير — ابن الجوزي'], ['ibn-aashoor', 'التحرير والتنوير — ابن عاشور'], ['alaloosi', 'روح المعاني — الألوسي'], ['alrazi', 'مفاتيح الغيب — الرازي'], ['adwaa-albayan', 'أضواء البيان — الشنقيطي'], ['ibn-atiyah', 'المحرر الوجيز — ابن عطية'], ['kashaf', 'الكشاف — الزمخشري'], ['albahr-almuheet', 'البحر المحيط — أبو حيان'], ['ibn-uthaymeen', 'تفسير ابن عثيمين'], ['aldur-almanthoor', 'الدر المنثور — السيوطي'], ['ibn-abi-hatim', 'تفسير ابن أبي حاتم']] },
-  { name: '🎙️ القراءات', books: [['qiraat-almawsoah', 'موسوعة القراءات'], ['alnashir', 'النشر في القراءات العشر — ابن الجزري'], ['tahbeer-altayseer', 'تحبير التيسير'], ['mafateeh-alaghanee', 'مفاتيح الأغاني في القراءات']] },
+  { name: '🎙️ القراءات', note: 'كتب القراءات بتتكلم عن الكلمات اللي فيها خلاف بين القرّاء بس — لو الآية مافيهاش خلاف، الصفحة هتقول «غير متاح».', books: [['qiraat-almawsoah', 'موسوعة القراءات'], ['alnashir', 'النشر في القراءات العشر — ابن الجزري'], ['tahbeer-altayseer', 'تحبير التيسير'], ['mafateeh-alaghanee', 'مفاتيح الأغاني في القراءات']] },
   { name: '✍️ الإعراب واللغة', books: [['aliraab-almuyassar', 'الإعراب الميسّر'], ['iraab-daas', 'إعراب القرآن — دعاس'], ['aljadwal', 'الجدول في إعراب القرآن'], ['aldur-almasoon', 'الدر المصون — السمين الحلبي'], ['iraab-aldarweesh', 'إعراب القرآن وبيانه — درويش'], ['iraab-alnahas', 'إعراب القرآن — النحاس']] },
-  { name: '📜 أسباب النزول', books: [['wahidi-asbab', 'أسباب النزول — الواحدي']] },
-  { name: '🔤 غريب القرآن ومعانيه', books: [['siraaj-ghareeb', 'السراج في بيان غريب القرآن'], ['almuyassar-ghareeb', 'الميسّر في غريب القرآن'], ['ghareeb-ibn-qutaybah', 'غريب القرآن — ابن قتيبة'], ['zajjaj', 'معاني القرآن — الزجاج'], ['farraa', 'معاني القرآن — الفرّاء']] },
-  { name: '⚖️ الأحكام والناسخ والمنسوخ', books: [['ahkam-ibn-alarabee', 'أحكام القرآن — ابن العربي'], ['aljasas', 'أحكام القرآن — الجصاص'], ['eedah-naskh-mansukh', 'الإيضاح لناسخ القرآن ومنسوخه — مكي']] },
+  { name: '📜 أسباب النزول', note: 'مش كل آية ليها سبب نزول (أغلب القرآن نزل من غير سبب معيّن). لو كتاب الواحدي قال «غير متاح» يبقى مفيش عنده سبب للآية دي — جرّب «موسوعة التفسير المأثور» أو «البسيط» لأنهم بيذكروا الروايات اللي حوالين الآية.', books: [['wahidi-asbab', 'أسباب النزول — الواحدي'], ['mathoor', 'موسوعة التفسير المأثور — معهد الشاطبي'], ['albaseet', 'البسيط — الواحدي']] },
+  { name: '🔤 غريب القرآن ومعانيه', note: 'كتب الغريب بتشرح الكلمات الصعبة بس — لو الآية كلماتها واضحة ممكن متلاقيش حاجة.', books: [['siraaj-ghareeb', 'السراج في بيان غريب القرآن'], ['almuyassar-ghareeb', 'الميسّر في غريب القرآن'], ['ghareeb-ibn-qutaybah', 'غريب القرآن — ابن قتيبة'], ['zajjaj', 'معاني القرآن — الزجاج'], ['farraa', 'معاني القرآن — الفرّاء']] },
+  { name: '⚖️ الأحكام والناسخ والمنسوخ', note: 'كتب الأحكام بتشرح آيات الأحكام (العبادات والمعاملات) بس، وكتاب الناسخ والمنسوخ بيذكر الآيات اللي فيها نسخ بس.', books: [['ahkam-ibn-alarabee', 'أحكام القرآن — ابن العربي'], ['aljasas', 'أحكام القرآن — الجصاص'], ['eedah-naskh-mansukh', 'الإيضاح لناسخ القرآن ومنسوخه — مكي']] },
 ];
 const TA_DICTS = [['lisan', 'لسان العرب'], ['mufradat-ragheb', 'مفردات الراغب'], ['maqayees', 'مقاييس اللغة'], ['qamoos', 'القاموس المحيط'], ['alsihah', 'الصحاح']];
 
@@ -169,9 +169,9 @@ function tabTrans(box) {
 
 function tabMore(box) {
   const { s, a } = st;
-  box.insertAdjacentHTML('beforeend', `<p class="hint">الأقسام دي بتفتح على <b>${Q.surah(s).ar} ${N(a)}</b> في «الباحث القرآني» (tafsir.app) في تاب جديد. الموقع ده من فريق «نُقاية»، مجاني ووقف لله، ومابيسمحش ينعرض جوه برامج تانية — فبنفتحه هناك.</p>`);
+  box.insertAdjacentHTML('beforeend', `<p class="hint">الأقسام دي بتفتح على <b>${Q.surah(s).ar} ${N(a)}</b> في «الباحث القرآني» (tafsir.app) في تاب جديد. الموقع ده من فريق «نُقاية»، مجاني ووقف لله، ومابيسمحش ينعرض جوه برامج تانية — فبنفتحه هناك.</p><p class="hint">لو كتاب قال <b>«غير متاح»</b>: ده معناه غالبًا إن الكتاب ده <b>مالوش كلام عن الآية دي</b> (مش إن الموقع مقفول) — كتب أسباب النزول والقراءات والأحكام والغريب بتغطي آيات معيّنة بس. جرّب كتاب تاني من نفس القسم، أو <a href="${TA}/${s}/${a}" target="_blank" rel="noopener">افتح الآية في الباحث القرآني</a> واختار من قايمة الكتب هناك (بتوريك الكتب اللي ليها كلام عن الآية).</p>`);
   for (const sec of TA_SECTIONS) {
-    box.insertAdjacentHTML('beforeend', `<div class="rs-sec">${sec.name}</div>`);
+    box.insertAdjacentHTML('beforeend', `<div class="rs-sec">${sec.name}</div>` + (sec.note ? `<p class="hint" style="margin:.1rem 0 .4rem">ℹ️ ${sec.note}</p>` : ''));
     const g = document.createElement('div'); g.className = 'rs-ext';
     for (const [slug, name] of sec.books) {
       const el = document.createElement('a'); el.href = `${TA}/${slug}/${s}/${a}`; el.target = '_blank'; el.rel = 'noopener';
