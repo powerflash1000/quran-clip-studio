@@ -117,6 +117,22 @@ export function mountHashtags(root, opts) {
     <h2 class="ht-sec">💡 أفكار تركب الترند بأمانة</h2>
     <div class="ht-grid" data-h="ideas"></div>
 
+    <h2 class="ht-sec">🕵️ افحص صفحة أو حساب — تفاعل حقيقي ولا مصنوع؟</h2>
+    <div class="ht-box">
+      <div class="ht-row"><input type="text" data-h="acc" placeholder="اسم الحساب أو اللينك — مثلًا: zad.almoumen أو tiktok.com/@name">
+        <select data-h="accPlat"><option value="tiktok">تيك توك</option><option value="instagram">إنستجرام</option><option value="youtube">يوتيوب</option><option value="facebook">فيسبوك</option></select></div>
+      <div class="ht-row" style="margin-top:.5rem" data-h="accLinks"></div>
+      <p class="ht-warn">Social Blade بيوريك رسم نمو المتابعين يوم بيوم — القفزة المفاجئة وبعدها خط مستقيم = غالبًا شراء —. HypeAuditor بيقدّر نسبة المتابعين الوهميين — جزء منه مجاني —. فيسبوك مالوش أداة عامة: افتح الصفحة ← «حول» ← «شفافية الصفحة»، أو مكتبة الإعلانات.</p>
+
+      <h3 style="margin:.9rem 0 .3rem;font-size:1rem">🧮 حاسبة نسب التفاعل لريل أو بوست</h3>
+      <div class="ht-row"><label>المشاهدات <input type="number" min="0" data-h="cV" style="width:9em"></label><label>اللايكات <input type="number" min="0" data-h="cL" style="width:8em"></label><label>التعليقات <input type="number" min="0" data-h="cC" style="width:7em"></label><label>المشاركات <input type="number" min="0" data-h="cS" style="width:7em"></label></div>
+      <div data-h="calcOut" style="margin-top:.5rem"></div>
+
+      <h3 style="margin:.9rem 0 .3rem;font-size:1rem">✅ قايمة الفحص — علّم على اللي لقيته</h3>
+      <div data-h="checks"></div>
+      <p data-h="checkOut" style="font-weight:700;margin:.4rem 0 0"></p>
+    </div>
+
     <h2 class="ht-sec">📋 الهاشتاجات المتعلّمة ومجموعاتي</h2>
     <div class="ht-box">
       <div class="ht-tags" data-h="picked"></div>
@@ -210,6 +226,60 @@ export function mountHashtags(root, opts) {
       q('aiMsg').textContent = (r.note ? r.note + ' — ' : '') + 'دوس على اللي يعجبك يتعلّم. اتأكد بنفسك إن الهاشتاج عليه محتوى شبه بتاعك (دوس عليه في «دوّر» فوق).';
     } catch (e) { q('aiMsg').textContent = '❌ ' + (e.message || e); } finally { btn.disabled = false; }
   };
+
+  // 🕵️ فحص حساب: لينكات بالاسم
+  const accName = () => {
+    let v = q('acc').value.trim();
+    const m = v.match(/(?:tiktok\.com\/@|instagram\.com\/|youtube\.com\/@|facebook\.com\/)([^/?#\s]+)/i);
+    if (m) v = m[1];
+    return v.replace(/^@/, '').replace(/\/$/, '');
+  };
+  const ACC = {
+    tiktok: n => [['Social Blade', `https://socialblade.com/tiktok/user/${n}`], ['HypeAuditor', `https://hypeauditor.com/tiktok/${n}/`], ['افتح الحساب', `https://www.tiktok.com/@${n}`]],
+    instagram: n => [['Social Blade', `https://socialblade.com/instagram/user/${n}`], ['HypeAuditor', `https://hypeauditor.com/instagram/${n}/`], ['افتح الحساب', `https://www.instagram.com/${n}/`]],
+    youtube: n => [['Social Blade', `https://socialblade.com/youtube/handle/${n}`], ['HypeAuditor', `https://hypeauditor.com/youtube/${n}/`], ['افتح القناة', `https://www.youtube.com/@${n}`]],
+    facebook: n => [['مكتبة الإعلانات', `https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&q=${encodeURIComponent(n)}&search_type=keyword_unordered`], ['افتح الصفحة', /^\d+$/.test(n) ? `https://www.facebook.com/profile.php?id=${n}` : `https://www.facebook.com/${n}`]],
+  };
+  const renderAcc = () => {
+    const n = accName();
+    q('accLinks').innerHTML = n ? ACC[q('accPlat').value](encodeURIComponent(n)).map(([t, u]) => `<a class="ht-btn" href="${esc(u)}" target="_blank" rel="noopener">${esc(t)}</a>`).join('') : '<span class="ht-warn">اكتب اسم الحساب فوق.</span>';
+  };
+  q('acc').oninput = renderAcc; q('accPlat').onchange = renderAcc; renderAcc();
+
+  // 🧮 حاسبة النسب
+  const pct = (a, b) => (b > 0 ? (a / b) * 100 : NaN);
+  const f1 = x => (x >= 10 ? x.toFixed(0) : x.toFixed(x >= 1 ? 1 : 2));
+  const verdictRow = (label, val, ok, warn, note) => `<div style="margin:.2rem 0"><b>${label}:</b> ${Number.isFinite(val) ? f1(val) + '٪' : '—'} ${Number.isFinite(val) ? (ok ? '🟢 طبيعي' : warn ? '🟡 مش معتاد' : '🔴 مشبوه') : ''} <span class="ht-warn">${note}</span></div>`;
+  const calc = () => {
+    const V = +q('cV').value || 0, L = +q('cL').value || 0, C = +q('cC').value || 0, S = +q('cS').value || 0;
+    if (!V && !L) { q('calcOut').innerHTML = '<span class="ht-warn">اكتب الأرقام اللي ظاهرة تحت الريل.</span>'; return; }
+    const lv = pct(L, V), cl = pct(C, L), sl = pct(S, L);
+    q('calcOut').innerHTML =
+      verdictRow('اللايكات ÷ المشاهدات', lv, lv >= 1 && lv <= 12, (lv >= 0.3 && lv < 1) || (lv > 12 && lv <= 20), '— الطبيعي ١٪–١٠٪ تقريبًا: أقل جدًا = مشاهدات مشتريّة، أعلى جدًا = لايكات مشتريّة')
+      + verdictRow('التعليقات ÷ اللايكات', cl, cl >= 0.5 && cl <= 10, (cl > 10 && cl <= 25) || (cl >= 0.1 && cl < 0.5), '— تعليقات كتير جدًا متشابهة = جروبات تفاعل')
+      + verdictRow('المشاركات ÷ اللايكات', sl, sl <= 60, sl > 60 && sl <= 150, '— محتوى ديني بيتشارك كتير، بس مشاركات أكتر من اللايكات بكتير = شبكة مشاركات')
+      + '<p class="ht-warn" style="margin:.3rem 0 0">النسب مؤشر بس، مش حكم نهائي — ريل بيضرب بجد ممكن يطلع رقم غريب. اجمعها مع قايمة الفحص تحت.</p>';
+  };
+  for (const k of ['cV', 'cL', 'cC', 'cS']) q(k).oninput = calc;
+  calc();
+
+  // ✅ قايمة الفحص
+  const CHECKS = [
+    'المسؤولين عن الصفحة في بلد مالهاش علاقة بجمهورها — من «شفافية الصفحة»',
+    'الصفحة جديدة أو اسمها اتغيّر قريب',
+    'الوصف أو الهاشتاجات مالهاش علاقة بالفيديو — منسوخة من ترند',
+    'هاشتاجات تبادل تفاعل زي fblifestyle / frindship / challenge',
+    'من عينة ٢٠ حساب عملوا لايك: أكتر من ٨ من غير صورة أو جداد أو من بلاد بعيدة',
+    'تعليقات متكررة بنفس الكلام في نفس الدقيقة، ومحدش بيتكلم عن الفيديو نفسه',
+    'نسب الحاسبة فوق فيها 🔴',
+    'المتابعين بيزيدوا على دفعات مفاجئة — ألف في ساعة وبعدين صفر',
+  ];
+  q('checks').innerHTML = CHECKS.map((c, i) => `<label class="check" style="display:block;margin:.15rem 0"><input type="checkbox" data-ck="${i}"> ${esc(c)}</label>`).join('');
+  const checkOut = () => {
+    const n = root.querySelectorAll('[data-ck]:checked').length;
+    q('checkOut').textContent = n >= 4 ? `🔴 ${n} من ${CHECKS.length}: غالبًا تفاعل مصنوع أو شبكة صفحات.` : n >= 2 ? `🟡 ${n} من ${CHECKS.length}: فيه علامات — كمّل الفحص قبل ما تحكم.` : `🟢 ${n} من ${CHECKS.length}: غالبًا نمو طبيعي (ريل ضرب بجد).`;
+  };
+  q('checks').onchange = checkOut; checkOut();
 
   renderTrends(); renderSearch(); renderPicked(); renderSets();
 }
