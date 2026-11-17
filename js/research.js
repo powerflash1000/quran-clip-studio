@@ -84,6 +84,7 @@ function show(s, a) {
     </div>
     <div class="rs-tabs" id="rs-tabs">
       <button type="button" data-t="tafsir">📖 التفاسير</button>
+      <button type="button" data-t="asbab">📜 سبب النزول</button>
       <button type="button" data-t="trans">🌐 الترجمات</button>
       <button type="button" data-t="more">📚 قراءات • إعراب • أسباب نزول • غريب • أحكام</button>
       <button type="button" data-t="word">🔤 معنى كلمة</button>
@@ -119,7 +120,7 @@ function setTab(t) {
   document.querySelectorAll('#rs-tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
   const box = $('#rs-tab');
   box.innerHTML = '';
-  ({ tafsir: tabTafsir, trans: tabTrans, more: tabMore, word: tabWord })[t]?.(box);
+  ({ tafsir: tabTafsir, asbab: tabAsbab, trans: tabTrans, more: tabMore, word: tabWord })[t]?.(box);
 }
 
 function bookCard(box, title, link) {
@@ -167,6 +168,130 @@ function tabTrans(box) {
   }
 }
 
+// ===== 📜 أسباب النزول (بيانات الموسوعة القرآنية quranpedia.net — كتابين) =====
+// المحرر (المزيني): كل سبب مدروس، وفي آخره «النتيجة»: ثبت أنه سبب النزول ولا لأ.
+// الواحدي: الروايات بأسانيدها (فيها الصحيح والضعيف).
+let ASBAB = null;
+async function asbabData() {
+  if (ASBAB) return ASBAB;
+  status('⏳ بيحمّل أسباب النزول…');
+  const j = await (await fetch('data/asbab.json')).json();
+  const idx = new Map();
+  const add = (k, v) => { if (!idx.has(k)) idx.set(k, {}); Object.assign(idx.get(k), v); };
+  for (const [s, a, ok, res, text] of j.m) add(`${s}:${a}`, { m: { ok, res, text } });
+  for (const [s, a, text] of j.w) add(`${s}:${a}`, { w: { text } });
+  ASBAB = { ...j, idx };
+  status('');
+  return ASBAB;
+}
+const VERDICT = { 1: ['✅ ثبت أنه سبب النزول', '#1f6f5c'], [-1]: ['⚠️ لم يثبت أنه سبب النزول', '#a15c00'], 0: ['', ''] };
+const credit = d => `المصدر: ${d.books.m} • ${d.books.w} — بيانات الموسوعة القرآنية (quranpedia.net)`;
+// قصة جاهزة للنسخ (لكتابة سكريبت الريل)
+function storyText(s, a, e, d) {
+  const sur = Q.surah(s).ar, out = [`📜 سبب نزول ${sur} ${N(a)}`];
+  if (e.m) { if (e.m.ok) out.push(VERDICT[e.m.ok][0] + ' — ' + d.books.m); if (e.m.res) out.push('الخلاصة: ' + e.m.res); out.push('', e.m.text); }
+  else if (e.w) out.push('', `${d.books.w}:`, e.w.text, '', '⚠️ روايات الواحدي فيها الصحيح والضعيف — راجع درجة الرواية قبل ما تحكيها.');
+  out.push('', credit(d));
+  return out.join('\n');
+}
+async function tabAsbab(box) {
+  const { s, a } = st;
+  let d;
+  try { d = await asbabData(); } catch { box.innerHTML = '<p class="muted">❌ مقدرتش أحمّل ملف أسباب النزول.</p>'; return; }
+  if (st.s !== s || st.a !== a || st.tab !== 'asbab') return;
+  const e = d.idx.get(`${s}:${a}`);
+  box.insertAdjacentHTML('beforeend', `<p class="hint">أغلب القرآن نزل من غير سبب معيّن، فمش كل آية ليها سبب نزول. <b>المحرر</b> بيدرس كل رواية ويقول في «النتيجة» ثبت إنها سبب النزول ولا لأ — ده اللي تعتمد عليه في القصص. <b>الواحدي</b> بيجمع الروايات بأسانيدها (فيها الصحيح والضعيف). <button class="btn" type="button" id="rs-asb-browse">📜 تصفّح كل أسباب النزول</button></p>`);
+  $('#rs-asb-browse').onclick = () => browseAsbab();
+  if (!e) {
+    // الآية ممكن تكون جزء من سبب نزول آية قبلها في نفس السورة
+    let near = 0;
+    for (let k = a - 1; k >= Math.max(1, a - 8); k--) if (d.idx.has(`${s}:${k}`)) { near = k; break; }
+    box.insertAdjacentHTML('beforeend', `<div class="rs-book"><p>مفيش سبب نزول مذكور للآية دي في الكتابين.${near ? ` <br>بس فيه سبب نزول لـ<b>الآية ${N(near)}</b> قبلها — ساعات السبب بيشمل كذا آية ورا بعض. <button class="btn" type="button" id="rs-asb-near">شوف سبب نزول الآية ${N(near)}</button>` : ''}</p></div>`);
+    if (near) $('#rs-asb-near').onclick = () => show(s, near);
+    tabMoreAsbabLinks(box, s, a);
+    return;
+  }
+  const row = document.createElement('div'); row.className = 'rs-search'; row.style.margin = '.4rem 0';
+  row.innerHTML = '<button class="btn primary" type="button">📋 انسخ القصة (لسكريبت الريل)</button>';
+  row.querySelector('button').onclick = () => navigator.clipboard.writeText(storyText(s, a, e, d)).then(() => status('✅ اتنسخت القصة — راجعها وخد منها اللي يناسب الريل'), () => status('⚠️ المتصفح منع النسخ'));
+  box.append(row);
+  if (e.m) {
+    const [lbl, col] = VERDICT[e.m.ok];
+    const c = document.createElement('div'); c.className = 'rs-book';
+    c.innerHTML = `<h3><span class="grow"></span></h3>${lbl ? `<p style="font-weight:700;color:${col};margin:.1rem 0 .4rem"></p>` : ''}<div class="rs-res-box" style="border-inline-start:4px solid ${col || '#888'};padding:.4rem .7rem;margin-bottom:.5rem;background:rgba(127,127,127,.07);border-radius:8px"><b>النتيجة:</b> <span></span></div><details><summary>اقرا الدراسة كاملة (الروايات والتخريج وكلام المفسرين)</summary><p></p></details>`;
+    c.querySelector('.grow').textContent = d.books.m;
+    if (lbl) c.querySelector('h3 + p').textContent = lbl;
+    c.querySelector('.rs-res-box span').textContent = e.m.res || '—';
+    c.querySelector('details p').textContent = e.m.text;
+    box.append(c);
+  }
+  if (e.w) {
+    const c = document.createElement('div'); c.className = 'rs-book';
+    c.innerHTML = `<h3><span class="grow"></span></h3><p class="hint" style="margin:.1rem 0 .4rem">الروايات هنا بأسانيدها — فيها الصحيح والضعيف${e.m ? '، والحكم عليها في «المحرر» فوق' : ' (الآية دي مش مدروسة في المحرر — راجع درجة الرواية قبل ما تحكيها)'}.</p><details ${e.m ? '' : 'open'}><summary>نص الواحدي</summary><p></p></details>`;
+    c.querySelector('.grow').textContent = d.books.w;
+    c.querySelector('details p').textContent = e.w.text;
+    box.append(c);
+  }
+  tabMoreAsbabLinks(box, s, a);
+  box.insertAdjacentHTML('beforeend', `<p class="hint">${credit(d)} — النسخة ${d.ver.m}.</p>`);
+}
+function tabMoreAsbabLinks(box, s, a) {
+  const sec = TA_SECTIONS.find(x => x.name.includes('أسباب'));
+  if (!sec) return;
+  box.insertAdjacentHTML('beforeend', '<div class="rs-sec">كتب تانية في الباحث القرآني (tafsir.app)</div>');
+  const g = document.createElement('div'); g.className = 'rs-ext';
+  for (const [slug, name] of sec.books) {
+    const el = document.createElement('a'); el.href = `${TA}/${slug}/${s}/${a}`; el.target = '_blank'; el.rel = 'noopener';
+    el.innerHTML = '<span></span><small>↗ tafsir.app</small>'; el.querySelector('span').textContent = name;
+    g.append(el);
+  }
+  box.append(g);
+}
+// تصفّح كل أسباب النزول في العمود الجانبي: فلتر بالكتاب والحكم والسورة، وبحث في نص القصة
+async function browseAsbab() {
+  let d;
+  try { d = await asbabData(); } catch { status('❌ مقدرتش أحمّل ملف أسباب النزول.'); return; }
+  const box = $('#rs-results');
+  const f = load('asbF', { book: 'm', ok: '1', sur: '', q: '' });
+  box.innerHTML = `<div class="rs-sec" style="margin-top:0">📜 أسباب النزول</div>
+    <div class="rs-pick" style="flex-direction:column;gap:.35rem">
+      <select id="asb-book"><option value="m">المحرر (مدروس ومحكوم عليه)</option><option value="w">الواحدي (روايات بأسانيدها)</option><option value="all">الاتنين</option></select>
+      <select id="asb-ok"><option value="1">✅ اللي ثبت إنه سبب النزول بس</option><option value="">كل الروايات</option><option value="-1">⚠️ اللي لم يثبت (عشان تنبّه عليه)</option></select>
+      <select id="asb-sur"><option value="">كل السور</option></select>
+      <input id="asb-q" type="search" placeholder="دوّر في القصص: الأنصار، عائشة، اليهود…">
+    </div><p class="muted" id="asb-n"></p><div id="asb-list"></div>`;
+  const surs = [...new Set([...d.idx.keys()].map(k => +k.split(':')[0]))].sort((x, y) => x - y);
+  $('#asb-sur').insertAdjacentHTML('beforeend', surs.map(s => `<option value="${s}">${N(s)}. ${Q.surah(s).ar}</option>`).join(''));
+  $('#asb-book').value = f.book; $('#asb-ok').value = f.ok; $('#asb-sur').value = f.sur; $('#asb-q').value = f.q;
+  const norm = t => clean(t).replace(/[^ء-ي\s]/g, '');
+  const render = () => {
+    const F = { book: $('#asb-book').value, ok: $('#asb-ok').value, sur: $('#asb-sur').value, q: $('#asb-q').value.trim() };
+    save('asbF', F);
+    $('#asb-ok').disabled = F.book === 'w';
+    const q = norm(F.q);
+    const items = [...d.idx.entries()].map(([k, e]) => { const [s, a] = k.split(':').map(Number); return { s, a, e }; })
+      .filter(({ s, e }) => (F.book === 'all' ? true : !!e[F.book]) && (!F.sur || s === +F.sur)
+        && (F.book === 'w' || !F.ok || (e.m && String(e.m.ok) === F.ok))
+        && (!q || norm((e.m?.text || '') + ' ' + (e.w?.text || '')).includes(q)))
+      .sort((x, y) => x.s - y.s || x.a - y.a);
+    $('#asb-n').textContent = `${N(items.length)} آية`;
+    const list = $('#asb-list'); list.innerHTML = '';
+    for (const { s, a, e } of items.slice(0, 400)) {
+      const el = document.createElement('div'); el.className = 'rs-res';
+      const badge = e.m ? (e.m.ok === 1 ? '✅' : e.m.ok === -1 ? '⚠️' : '') : '📗';
+      const snip = (e.m?.res || e.w?.text || '').replace(/\s+/g, ' ');
+      el.innerHTML = '<small></small><div></div>';
+      el.querySelector('small').textContent = `${badge} ${Q.surah(s).ar} • ${N(a)}`;
+      el.querySelector('div').textContent = snip.length > 120 ? snip.slice(0, 120) + '…' : snip;
+      el.onclick = () => { list.querySelectorAll('.on').forEach(x => x.classList.remove('on')); el.classList.add('on'); st.tab = 'asbab'; show(s, a); };
+      list.append(el);
+    }
+  };
+  for (const id of ['#asb-book', '#asb-ok', '#asb-sur']) $(id).onchange = render;
+  let tm; $('#asb-q').oninput = () => { clearTimeout(tm); tm = setTimeout(render, 250); };
+  render();
+}
+
 function tabMore(box) {
   const { s, a } = st;
   box.insertAdjacentHTML('beforeend', `<p class="hint">الأقسام دي بتفتح على <b>${Q.surah(s).ar} ${N(a)}</b> في «الباحث القرآني» (tafsir.app) في تاب جديد. الموقع ده من فريق «نُقاية»، مجاني ووقف لله، ومابيسمحش ينعرض جوه برامج تانية — فبنفتحه هناك.</p><p class="hint">لو كتاب قال <b>«غير متاح»</b>: ده معناه غالبًا إن الكتاب ده <b>مالوش كلام عن الآية دي</b> (مش إن الموقع مقفول) — كتب أسباب النزول والقراءات والأحكام والغريب بتغطي آيات معيّنة بس. جرّب كتاب تاني من نفس القسم، أو <a href="${TA}/${s}/${a}" target="_blank" rel="noopener">افتح الآية في الباحث القرآني</a> واختار من قايمة الكتب هناك (بتوريك الكتب اللي ليها كلام عن الآية).</p>`);
@@ -212,6 +337,7 @@ function tabWord(box) {
   if (ls?.script === 'imlaei') await Q.setScript('imlaei').catch(() => {});
   status('');
   $('#rs-go').onclick = doSearch;
+  $('#rs-asbab').onclick = () => browseAsbab();
   $('#rs-q').onkeydown = e => { if (e.key === 'Enter') doSearch(); };
   const p = new URLSearchParams(location.search);
   const last = p.get('s') ? { s: +p.get('s'), a: +p.get('a') || 1 } : load('rsLast', null);
