@@ -4235,11 +4235,13 @@ function setupPublish() {
 
   const ps = getPublishSettings();
   $('#pub-signature').value = ps.signature;
+  $('#pub-links').value = ps.links;
   $('#pub-hashtags').value = ps.extraHashtags;
   for (const k of ['includeText', 'includeTranslation', 'includeCredits']) $('#pub-' + k).checked = ps[k];
   const saveSettings = () => {
     setPublishSettings({
       signature: $('#pub-signature').value,
+      links: $('#pub-links').value,
       extraHashtags: $('#pub-hashtags').value,
       includeText: $('#pub-includeText').checked,
       includeTranslation: $('#pub-includeTranslation').checked,
@@ -4247,7 +4249,7 @@ function setupPublish() {
     });
     refreshPublish(true);
   };
-  ['#pub-signature', '#pub-hashtags'].forEach(id => { $(id).onchange = saveSettings; });
+  ['#pub-signature', '#pub-links', '#pub-hashtags'].forEach(id => { $(id).onchange = saveSettings; });
   ['includeText', 'includeTranslation', 'includeCredits'].forEach(k => { $('#pub-' + k).onchange = saveSettings; });
   refreshPublish(true);
 }

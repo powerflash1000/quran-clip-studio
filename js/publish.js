@@ -13,8 +13,22 @@ export const PLATFORMS = {
   facebook: { name: 'فيسبوك', captionMax: 5000, hashtags: 5 },
 };
 
+// 🔗 روابط حسابات القناة: بتتحط في كل وصف ككتلة لوحدها (سطر لكل رابط، من غير كلام حواليهم)
+export const DEFAULT_LINKS = [
+  'https://www.instagram.com/tilawat.alaa/',
+  'https://www.youtube.com/@Tilawat-alaa',
+  'https://www.facebook.com/guidanceway/',
+  'https://www.tiktok.com/@tilawat.alaa',
+].join('\n');
+const LINK_ICON = [[/instagram\.com/i, '📸'], [/youtube\.com|youtu\.be/i, '▶️'], [/facebook\.com|fb\.com/i, '📘'], [/tiktok\.com/i, '🎵'], [/x\.com|twitter\.com/i, '𝕏'], [/t\.me|telegram/i, '✈️'], [/whatsapp|wa\.me/i, '💬']];
+export function linksBlock(ps) {
+  return String(ps.links || '').split(/\n+/).map(l => l.trim()).filter(Boolean)
+    .map(u => `${(LINK_ICON.find(([re]) => re.test(u)) || [, '🔗'])[1]} ${u}`).join('\n');
+}
+
 const DEFAULTS = {
   signature: '',
+  links: DEFAULT_LINKS,
   extraHashtags: '',
   includeText: false,        // نص الآيات كامل في الوصف (السطر الأول فيه مقتطف دايمًا)
   includeTranslation: true,
@@ -194,7 +208,7 @@ export async function generate(blocks, style, translationOf, series = null) {
   for (const [id, p] of Object.entries(PLATFORMS)) {
     const hs = [...new Set([...(p.extra || []), ...base, ...user])].slice(0, Math.min(p.hashtags, 4 + (p.extra?.length || 0) + user.length));
     const head = [hook, kwLine].join('\n');
-    const tail = [cta, info.join('\n'), ps.signature, credits.join('\n'), hs.join(' ')].filter(Boolean).join('\n\n');
+    const tail = [cta, info.join('\n'), ps.signature, credits.join('\n'), linksBlock(ps), hs.join(' ')].filter(Boolean).join('\n\n');
     const room = p.captionMax - head.length - tail.length - 4;
     const text = body.length && room > 40 ? clip(body.join('\n\n'), room) : '';
     const caption = [head, text, tail].filter(Boolean).join('\n\n');
@@ -231,6 +245,7 @@ const FRAME_AR = { gold: 'برواز دهبي', thin: 'برواز دهبي رف�
 const durEn = m => (m >= 60 ? `${m / 60 === 1 ? '1 Hour' : `${+(m / 60).toFixed(1)} Hours`}` : `${m} Minutes`);
 const durAr = m => ({ 30: 'نص ساعة', 60: 'ساعة', 120: 'ساعتين', 180: '٣ ساعات' }[m] || `${N(m)} دقيقة`);
 function tvArt(blocks, style) {
+  const links = linksBlock(getPublishSettings());
   const quran = blocks.filter(b => b.type === 'quran');
   const zikr = blocks.filter(b => b.type !== 'quran' && b.text);
   const mins = Number(style.tvMins) || 120, silent = !!style.tvSilent;
@@ -274,12 +289,16 @@ ${durEn(mins)} • ${hd} • 16:9`;
 — ${ref}` : ''}
 
 🖼️ لوحة للتلفزيون (TV Art) — النسخة الكاملة ${durAr(mins)} على يوتيوب 🤍
-
+${links ? `
+${links}
+` : ''}
 ${[...(p.extra || []), ...hs.slice(0, 4)].join(' ')}`
       : `${descAr}
 
 ${descEn}
-
+${links ? `
+${links}
+` : ''}
 ${hs.slice(0, 3).join(' ')}`;
     const res = { caption: clip(caption, p.captionMax) };
     if (p.title) res.title = id === 'shorts' ? clip(`${ar} | Islamic TV Art ✨ #shorts`, 100) : title;
