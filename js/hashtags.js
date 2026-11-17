@@ -277,7 +277,7 @@ export function mountHashtags(root, opts) {
   q('checks').innerHTML = CHECKS.map((c, i) => `<label class="check" style="display:block;margin:.15rem 0"><input type="checkbox" data-ck="${i}"> ${esc(c)}</label>`).join('');
   const checkOut = () => {
     const n = root.querySelectorAll('[data-ck]:checked').length;
-    q('checkOut').textContent = n >= 4 ? `🔴 ${n} من ${CHECKS.length}: غالبًا تفاعل مصنوع أو شبكة صفحات.` : n >= 2 ? `🟡 ${n} من ${CHECKS.length}: فيه علامات — كمّل الفحص قبل ما تحكم.` : `🟢 ${n} من ${CHECKS.length}: غالبًا نمو طبيعي (ريل ضرب بجد).`;
+    q('checkOut').textContent = n >= 4 ? `🔴 ${n} من ${CHECKS.length}: غالبًا تفاعل مصنوع أو شبكة صفحات.` : n >= 2 ? `🟡 ${n} من ${CHECKS.length}: فيه علامات — كمّل الفحص قبل ما تحكم.` : `🟢 ${n} من ${CHECKS.length}: غالبًا نمو طبيعي — ريل ضرب بجد.`;
   };
   q('checks').onchange = checkOut; checkOut();
 
