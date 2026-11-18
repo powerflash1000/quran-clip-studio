@@ -2182,13 +2182,20 @@ function wireAudioControls(li, b, sync) {
 
 // بيحفظ صوت المقطع في 📚 المكتبة، والمقطع بيفتكر رقمه (عشان يرجع بعد Refresh)
 async function libSave(b, kind, blob, buffer, name) {
-  b.audioId = await AL.addClip({ name, kind, text: b.text || '', voice: '', dur: buffer.duration, blob });
+  const big = blob.size > 5 * 1048576;
+  if (big) status('💾 بيحفظ الملف على جهازك عشان يفضل بعد الريفرش… استنى ثانية');
+  const id = await AL.addClip({ name, kind, text: b.text || '', voice: '', dur: buffer.duration, blob });
+  if (!id) { status('⚠️ الملف ما اتحفظش على الجهاز (المساحة مليانة؟) — هيشتغل دلوقتي بس هيضيع لو عملت ريفرش. امسح أصوات قديمة من «📚 مكتبة الأصوات».', null, true); return; }
+  b.audioId = id;
   persist();
+  if (big) status('✅ اتحفظ على جهازك — لو عملت ريفرش هيرجع لوحده.');
 }
 
 // الأصوات اللي اتحفظت للمقاطع بترجع لوحدها بعد ما الصفحة تتفتح تاني
 async function restoreBlockAudio() {
   let n = 0;
+  const lost = [];
+  if (state.blocks.some(b => b.audioId && !hadithAudio.has(b.id))) status('⏳ بيرجّع صوت الكروت من جهازك…');
   for (const b of state.blocks) {
     if (b.srcClip && !hadithAudio.has(b.id)) {
       try {
@@ -2198,7 +2205,7 @@ async function restoreBlockAudio() {
     }
     if (!b.audioId || hadithAudio.has(b.id)) continue;
     const c = await AL.getClip(b.audioId);
-    if (!c) continue;
+    if (!c) { if (b.type === 'quran' && b.rec) lost.push(`سورة ${Q.surah(b.surah).ar}${b.rec.name ? ' — ' + b.rec.name : ''}`); continue; }
     try {
       const buf = await decode(await c.blob.arrayBuffer());
       setHadithAudio(b, c.kind === 'ai' || c.kind === 'gtts' ? trimSilence(buf) : buf, c.kind === 'gtts' ? 'Gemini' : c.kind === 'ai' ? 'ElevenLabs' : c.name, c.blob, c.kind);
@@ -2206,6 +2213,8 @@ async function restoreBlockAudio() {
     } catch { /* ملف بايظ */ }
   }
   if (n) { renderBlocks(); refreshPreview(); }
+  if (lost.length) status(`⚠️ صوت الكارت ده مش موجود على الجهاز: ${lost.join('، ')} — حمّله تاني من «📥 mp3quran» (من دلوقتي الملفات اللي كروتك شغالة عليها مابتتمسحش).`, null, true);
+  else if (n) status(`✅ رجع صوت ${Q.arabicNum(n)} كارت`);
 }
 
 // 📚 مكتبة الأصوات: اختار صوت اتعمل قبل كده للمقطع ده
@@ -7456,6 +7465,9 @@ async function init() {
   setupTemplates();
   setupSettings();
   renderBlocks();
+  // الأصوات اللي كروت المحتوى أو قايمة البث شغالة عليها: التنضيف التلقائي للمكتبة مايقربلهاش
+  AL.setInUse(() => new Set([...state.blocks, ...(live?.items || []).flatMap(it => it.blocks || [])].map(b => b.audioId).filter(Boolean)));
+  AL.askPersist();
   restoreBlockAudio();
 
   $('#add-quran').onclick = () => { state.blocks.push(newQuranBlock(1, 1, 1)); renderBlocks(); focusLastBlock(); };

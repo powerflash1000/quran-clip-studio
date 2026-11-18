@@ -1,7 +1,12 @@
 // مكتبة الأصوات: كل صوت اتولّد (Gemini / ElevenLabs) أو اتسجّل أو اترفع لدعاء أو حديث بيتحفظ هنا (IndexedDB)
 // عشان: ١) مايضيعش لما الصفحة تتقفل أو تعمل Refresh  ٢) تستخدمه تاني من غير ما تولّده (ومن غير ما يتخصم رصيد)
 const DB = 'qcs-audio', STORE = 'clips';
-const MAX_ITEMS = 300, MAX_BYTES = 400 * 1048576; // فوق كده بنمسح الأقدم
+const MAX_ITEMS = 300, MAX_BYTES = 1024 * 1048576; // فوق كده بنمسح الأقدم (السورة الكاملة من mp3quran ممكن تبقى ١٠–٥٠ ميجا)
+// الأصوات اللي كروت شغالة عليها دلوقتي مابتتمسحش أبدًا في التنضيف التلقائي (main.js بيقول مين)
+let inUse = () => new Set();
+export function setInUse(fn) { inUse = fn; }
+// بنطلب من المتصفح يخلّي التخزين «دائم» عشان مايمسحوش لوحده لما الهارد يقرّب يتملي
+export function askPersist() { try { navigator.storage?.persist?.(); } catch { /* مش مهم */ } }
 
 function openDb() {
   return new Promise((res, rej) => {
@@ -27,7 +32,7 @@ export async function addClip(clip) {
     await done(tx);
     db.close();
     prune();
-  } catch (e) { console.warn('تعذر حفظ الصوت في المكتبة', e); }
+  } catch (e) { console.warn('تعذر حفظ الصوت في المكتبة', e); return null; }
   return id;
 }
 
@@ -80,8 +85,10 @@ async function prune() {
   let bytes = all.reduce((a, c) => a + (c.size || 0), 0);
   const drop = [];
   // الملفات المثبّتة (ملفات «كلام من ملف صوت» الأصلية — الكروت بتتقص منها) مابتتمسحش
+  let keep = new Set();
+  try { keep = inUse(); } catch { /* */ }
   for (let i = all.length - 1; i >= 0 && (all.length - drop.length > MAX_ITEMS || bytes > MAX_BYTES); i--) {
-    if (all[i].pin) continue;
+    if (all[i].pin || keep.has(all[i].id)) continue;
     drop.push(all[i].id);
     bytes -= all[i].size || 0;
   }
