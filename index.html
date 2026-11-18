@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261117d">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261118a">
 </head>
 <body>
   <header class="topbar">
@@ -21,6 +21,7 @@
       </div>
     </div>
     <div class="btn-row" style="margin:0">
+      <a class="btn ghost" id="btn-radar" href="https://powerflash1000.github.io/news-reels-studio/radar.html" target="qcs-radar" rel="noopener" title="الرادار (من استوديو ريلز الأخبار): الترند في ١٦ دولة، الجديد، اللي طالع في كذا دولة، ويوتيوب الأكثر مشاهدة">📡<span class="lbl"> الرادار</span></a>
       <button class="btn ghost" id="btn-hashtags" type="button" title="نافذة منفصلة: فين الترند والهاشتاجات في كل بلد، بحث عن أي هاشتاج في كل المنصات، واقتراح هاشتاجات للريل">#️⃣<span class="lbl"> هاشتاجات</span></button>
       <button class="btn ghost" id="btn-research" type="button" title="نافذة منفصلة: بحث في القرآن، التفاسير، الترجمات، وروابط للقراءات والإعراب وأسباب النزول في الباحث القرآني">🔎<span class="lbl"> الباحث</span></button>
       <button class="btn ghost" id="btn-live" type="button" title="بث مباشر مستمر: قايمة تلاوات وأدعية بتشتغل ورا بعض">🔴<span class="lbl"> بث</span></button>
@@ -446,6 +447,8 @@
           <label>اسم القناة <input type="text" id="channelName" placeholder="قرآن يريح القلب 🤍"></label>
           <label>جملة الخاتمة <input type="text" id="outroText" placeholder="تابعنا لمزيد من التلاوات"></label>
         </div>
+        <div class="loop-note" id="loop-note" hidden>⚠️ <b>المقدمة والخاتمة متقفلين دلوقتي</b> لأن «🔁 مقطع بيلف (Loop)» شغال، وده بيشتغل لوحده مع قالب «لوحة للتلفزيون». الـ Loop بيقفل المقدمة والخاتمة والجملة الافتتاحية وكارت الاشتراك عشان مايتكرروش كل دورة.
+          <button class="btn" id="loop-off" type="button">🔁 اقفل الـ Loop وشغّل المقدمة والخاتمة</button></div>
         <h3>🔔 كارت الاشتراك</h3>
         <div class="grid2">
           <label>يظهر <select id="subCard"></select></label>
@@ -632,7 +635,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261117d</div>
+    <div class="muted" id="app-version">الإصدار 20261118a</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -1776,6 +1779,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261117d"></script>
+  <script type="module" src="js/main.js?v=20261118a"></script>
 </body>
 </html>

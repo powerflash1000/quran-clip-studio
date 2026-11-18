@@ -521,3 +521,6 @@ audio.full { width: 100%; margin: .4rem 0; }
 
 .preview-wrap.drop { outline: 3px dashed var(--accent, #1f6f5c); outline-offset: -6px; }
 .link-row input { min-width: 200px; }
+
+.loop-note{background:rgba(245,166,35,.12);border:1px solid rgba(245,166,35,.5);border-radius:10px;padding:8px 12px;margin:8px 0;font-size:14px;line-height:1.8}
+.loop-note .btn{margin-top:6px}

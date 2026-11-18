@@ -3052,6 +3052,13 @@ function applyStyleToInputs() {
   renderReciters();
   $('#bgEvery-wrap').hidden = st.bgSwitch === 'ayah';
   $('#bgEvery-lbl').textContent = st.bgSwitch === 'custom' ? 'المدة الافتراضية (ث)' : 'كل (ث)';
+  loopNote();
+}
+
+// 🔁 الـ Loop بيقفل المقدمة/الخاتمة/الافتتاحية/كارت الاشتراك من غير ما حد يحس — فبنقول ده جنبهم بوضوح، وزرار يقفل الـ Loop
+function loopNote() {
+  const st = state.style;
+  $('#loop-note').hidden = !(st.loop && (st.bumper || (st.intro || '').trim() || st.subCard));
 }
 
 function updateBgVisibility() {
@@ -3105,6 +3112,7 @@ function setupStyle() {
       if (k === 'bgSwitch') { $('#bgEvery-wrap').hidden = v === 'ayah'; $('#bgEvery-lbl').textContent = v === 'custom' ? 'المدة الافتراضية (ث)' : 'كل (ث)'; }
       if (['bgSwitch', 'bgEvery'].includes(k)) renderBgList();
       if (k === 'loop') { renderLong(); scheduleDuration(); }
+      loopNote();
       persist();
       if (k === 'textFont') ensureFonts(state.style).then(() => refreshPreview());
       if (k === 'script') Q.setScript(v).then(() => { renderBlocks(true); refreshPreview(); }).catch(() => status('⚠️ ملف الكتابة الإملائية ما اتحمّلش — جرّب تاني'));
@@ -3122,6 +3130,12 @@ function setupStyle() {
   };
   ['handlePos', 'logoPos'].forEach(id => $('#' + id).addEventListener('input', brandUi));
   $('#sub-preview').onclick = previewSubCard;
+  $('#loop-off').onclick = () => {
+    state.style.loop = false; $('#loop').checked = false;
+    if (!state.style.bumper) { state.style.bumper = 'both'; $('#bumper').value = 'both'; }
+    renderLong(); scheduleDuration(); loopNote(); persist(); refreshPreview();
+    status('✅ الـ Loop اتقفل — المقدمة والخاتمة هيظهروا في الفيديو');
+  };
   $('#logo-file').onchange = () => {
     const f = $('#logo-file').files[0];
     $('#logo-file').value = '';
