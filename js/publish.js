@@ -195,7 +195,8 @@ export async function generate(blocks, style, translationOf, series = null) {
   // ===== هاشتاجات قليلة ومرتبطة =====
   const base = [];
   if (quran.length) {
-    base.push('#قرآن_كريم', '#تلاوة_خاشعة');
+    // #دولة_التلاوة: ترند تيك توك مصر (نوفمبر ٢٠٢٦، طلب المستخدم) — للتلاوات بس لأنه مرتبط بيها؛ امسحه من هنا لما الترند يخلص
+    base.push('#قرآن_كريم', '#دولة_التلاوة', '#تلاوة_خاشعة');
     base.push(tag('سورة ' + Q.surah(quran[0].surah).ar));
     base.push('#' + (topic?.tag || 'راحة_نفسية'));
   } else if (zikr.length) base.push('#دعاء', '#أذكار', '#' + (topic?.tag || 'راحة_نفسية'), '#ذكر_الله');
