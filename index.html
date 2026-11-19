@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261119c">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261119d">
 </head>
 <body>
   <header class="topbar">
@@ -358,6 +358,16 @@
             </select>
             <small id="word-src" class="muted"></small>
           </label>
+          <div class="span2 wsync">
+            <label>⏱ مزامنة الكلام مع الصوت — <b id="wordSync-v">مظبوط</b>
+              <input type="range" id="wordSync" min="-1" max="1" step="0.05"></label>
+            <div class="btn-row">
+              <button class="btn" type="button" data-wsync="0.1" title="لو الكلمة بتظهر قبل ما الشيخ يقولها">⏩ الكتابة بتسبق الصوت — أخّرها</button>
+              <button class="btn" type="button" data-wsync="-0.1" title="لو الكلمة بتظهر بعد ما الشيخ يقولها">⏪ الكتابة متأخرة — قدّمها</button>
+              <button class="btn ghost" type="button" data-wsync="0">↺ صفر</button>
+            </div>
+            <small class="muted">كل دوسة = عُشر ثانية. شغّل «▶ معاينة» واسمع، وظبّط لحد ما الكلمة تظهر مع النطق. بيتطبّق على المعاينة والتصدير والبث.</small>
+          </div>
           <label class="check"><input type="checkbox" id="showLabel"> اسم السورة ورقم الآية</label>
           <label class="check"><input type="checkbox" id="showFooter"> اسم القارئ / مصدر الحديث</label>
           <label class="check"><input type="checkbox" id="showTranslation"> إظهار الترجمة</label>
@@ -635,7 +645,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261119c</div>
+    <div class="muted" id="app-version">الإصدار 20261119d</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -1779,6 +1789,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261119c"></script>
+  <script type="module" src="js/main.js?v=20261119d"></script>
 </body>
 </html>

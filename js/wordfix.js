@@ -27,6 +27,11 @@ export function estimateWords(buffer, text) {
     if (!v && st < 0) st = i;
     if (v && st >= 0) { if (i - st >= 6) gaps.push([st / 100, i / 100, (i - st) / 100]); st = -1; }
   }
+  // لو السكتات الواضحة (٨٠ ملّي أو أكتر) عددها = عدد الفواصل بين الكلمات بالظبط: كل سكتة هي حد كلمة — ده أدق تقسيم ممكن
+  const clear = gaps.filter(g => g[2] >= 0.08);
+  if (words.length > 1 && clear.length === words.length - 1) {
+    return words.map((x, i) => ({ text: x, start: i ? clear[i - 1][1] : s0 / 100, end: i < clear.length ? clear[i][0] : e0 / 100 }));
+  }
   // الوقت المنطوق التراكمي (من غير السكتات)
   const cum = [0]; for (let i = 0; i < env.length; i++) cum.push(cum[i] + (voiced[i] ? 0.01 : 0));
   const vAt = t => cum[Math.max(0, Math.min(env.length, Math.round(t * 100)))];

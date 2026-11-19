@@ -28,6 +28,7 @@ export const DEFAULT_STYLE = {
   trimSilence: true,       // قص السكوت من أول وآخر ملف كل آية
   ayahLayout: 'one',       // one (آية آية) | all (الآيات كلها مرة واحدة) | allHi (كلها + الآية الحالية منوّرة)
   script: 'uthmani',        // uthmani (رسم المصحف) | imlaei (إملائي حديث من Tanzil)
+  wordSync: 0,             // ⏱ تقديم/تأخير الكتابة عن الصوت (ث، موجب = تتأخر)
   wordMode: 'full',        // full | reveal (الكلمات بتظهر مع التلاوة) | highlight (تظليل الكلمة الحالية)
   hideText: false,         // 🙈 من غير كتابة في الفيديو كله
   safeUI: true,            // 📱 الطولي: الكلام بيبعد عن أزرار التطبيقات (يمين وتحت)

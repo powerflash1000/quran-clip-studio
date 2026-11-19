@@ -39,7 +39,7 @@ import { ZONES, INKS } from './zone.js';
 import { FRAMES, KEN_BURNS, PATTERNS } from './frame.js';
 import * as ZS from './zsounds.js';
 import * as MQ from './mp3quran.js';
-import { openWordFix } from './wordfix.js';
+import { openWordFix, estimateWords } from './wordfix.js';
 import { setupTimeline, rangeAyat, fmtT } from './timeline.js';
 import { loopReady, exportLongLoop } from './fastexport.js';
 import { PLATFORMS, generate, getPublishSettings, setPublishSettings, canShareFile, shareFile } from './publish.js';
@@ -298,9 +298,9 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
           } else if (wordSync) {
             const n = WT.words(s.text).length;
             const exact = qc && WT.timesFromSegments(qc.segments, n, s.audio.trimStart || 0);
-            s.wordTimes = exact || WT.approxTimes(s.text, s.audio.duration);
+            s.wordTimes = exact || audioTimes(s.text, s.audio);
             s.wordExact = !!exact;
-            s.wordSource = exact ? (qc.align ? 'quran-align' : 'Quran.com') : 'تقريبي';
+            s.wordSource = exact ? (qc.align ? 'quran-align' : 'Quran.com') : 'من الصوت';
           }
         } catch (e) {
           if (s.part && /توقيت كلمات/.test(e.message)) throw e;
@@ -318,15 +318,30 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
     if (wordSync) {
       for (const s of segs) {
         if ((s.kind !== 'hadith' && s.kind !== 'zikr' && !s.custom) || s.wordTimes) continue;
-        s.wordTimes = WT.approxTimes(s.text, s.audio ? s.audio.duration : (s.silence || 3));
+        s.wordTimes = s.audio ? audioTimes(s.text, s.audio) : WT.approxTimes(s.text, s.silence || 3);
       }
     }
   }
   applyScript(segs);
+  // ⏱ مزامنة الكلام: تقديم/تأخير الكتابة كلها بجزء من الثانية (موجب = الكتابة تتأخر) — مش على عدّاد الأذكار
+  const off = Number(st.wordSync) || 0;
+  if (off) for (const s of segs) if (s.wordTimes && !s.counter) s.wordTimes = s.wordTimes.map(t => Math.max(0, t + off));
   return segs;
 }
 
 // «إملائي حديث»: بنبدّل نص العرض بعد ما توقيت الكلمات اتحسب على كلمات المصحف،
+
+// توقيت كلمات من الصوت نفسه (بيدوّر على الكلام والسكتات) للقرّاء اللي مالهمش توقيت دقيق — أدق من التقسيم على عدد الحروف
+function audioTimes(text, buffer) {
+  const ws = WT.words(text);
+  try {
+    const t = estimateWords(buffer, ws.map(w => w.replace(/\s+/g, '')).join(' '));
+    const st = t.map(w => (typeof w === 'number' ? w : w.start));
+    if (st.length === ws.length && st.every((x, i) => Number.isFinite(x) && (i === 0 || x >= st[i - 1]))) return st;
+  } catch { /* نرجع للتقريبي */ }
+  return WT.approxTimes(text, buffer.duration);
+}
+
 // وكل كلمة عثمانية بتاخد توقيتها للكلمة (أو الكلمتين) اللي قصادها في الإملائي — فالصوت والتلوين يفضلوا مظبوطين
 function applyScript(segs) {
   if (Q.scriptOf() !== 'imlaei') return;
@@ -2968,7 +2983,7 @@ function renderLong() {
 const PAINT_PRESET = {
   aspect: '16:9', bgType: 'gradient', color1: '#f6f0e4', color2: '#e7dbc6', dim: 0,
   textColor: '#2b211a', subColor: '#5b4a37', accent: '#a8781e', textSize: 92, textFx: '', textAnim: '', textZone: '', textInk: '',
-  ayahLayout: 'all', script: 'uthmani', countViz: '', safeUI: true, hideText: false, countTheme: 'gold', countRim: 'none', countInk: '', countAlpha: 0, countTick: true, countSound: 'wood', countNext: 'whoosh', wordMode: 'full', showLabel: true, showFooter: false, showTranslation: false, waveform: false,
+  ayahLayout: 'all', script: 'uthmani', countViz: '', safeUI: true, hideText: false, countTheme: 'gold', countRim: 'none', countInk: '', countAlpha: 0, countTick: true, countSound: 'wood', countNext: 'whoosh', wordMode: 'full', wordSync: 0, showLabel: true, showFooter: false, showTranslation: false, waveform: false,
   frame: 'mirror', wall: '#0e0e0e', pattern: 'stars', kenBurns: 'slow', loop: true,
   look: '', light: '', cardTrans: '', bumper: '', subCard: '', intro: '', handleOpacity: 0.45,
 };
@@ -3046,7 +3061,7 @@ function setupPainting() {
 
 // ===== الشكل =====
 let syncInk = () => {}, ctInk = () => {};
-const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'textZone', 'textInk', 'safeUI', 'hideText', 'ayahLayout', 'script', 'countViz', 'countTheme', 'countRim', 'countAlpha', 'countTick', 'countSound', 'countNext', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade', 'frame', 'wall', 'pattern', 'kenBurns', 'loop'];
+const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'textZone', 'textInk', 'safeUI', 'hideText', 'ayahLayout', 'script', 'countViz', 'countTheme', 'countRim', 'countAlpha', 'countTick', 'countSound', 'countNext', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'wordSync', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade', 'frame', 'wall', 'pattern', 'kenBurns', 'loop'];
 
 function applyStyleToInputs() {
   const st = state.style;
@@ -3062,6 +3077,12 @@ function applyStyleToInputs() {
   $('#bgEvery-wrap').hidden = st.bgSwitch === 'ayah';
   $('#bgEvery-lbl').textContent = st.bgSwitch === 'custom' ? 'المدة الافتراضية (ث)' : 'كل (ث)';
   loopNote();
+  syncLbl();
+}
+
+function syncLbl() {
+  const v = Number(state.style.wordSync) || 0;
+  $('#wordSync-v').textContent = v === 0 ? 'مظبوط' : v > 0 ? `الكتابة متأخرة ${v.toFixed(2)} ث` : `الكتابة بدري ${(-v).toFixed(2)} ث`;
 }
 
 // 🔁 الـ Loop بيقفل المقدمة/الخاتمة/الافتتاحية/كارت الاشتراك من غير ما حد يحس — فبنقول ده جنبهم بوضوح، وزرار يقفل الـ Loop
@@ -3121,6 +3142,7 @@ function setupStyle() {
       if (k === 'bgSwitch') { $('#bgEvery-wrap').hidden = v === 'ayah'; $('#bgEvery-lbl').textContent = v === 'custom' ? 'المدة الافتراضية (ث)' : 'كل (ث)'; }
       if (['bgSwitch', 'bgEvery'].includes(k)) renderBgList();
       if (k === 'loop') { renderLong(); scheduleDuration(); }
+      if (k === 'wordSync') syncLbl();
       loopNote();
       persist();
       if (k === 'textFont') ensureFonts(state.style).then(() => refreshPreview());
@@ -3139,6 +3161,13 @@ function setupStyle() {
   };
   ['handlePos', 'logoPos'].forEach(id => $('#' + id).addEventListener('input', brandUi));
   $('#sub-preview').onclick = previewSubCard;
+  // ⏱ مزامنة الكلام: زراير ±0.1 ث + صفر
+  document.querySelectorAll('[data-wsync]').forEach(bt => bt.onclick = () => {
+    const d = bt.dataset.wsync, el = $('#wordSync');
+    const v = d === '0' ? 0 : Math.round((Number(state.style.wordSync || 0) + Number(d)) * 100) / 100;
+    state.style.wordSync = Math.max(-1, Math.min(1, v)); el.value = state.style.wordSync;
+    syncLbl(); persist(); refreshPreview();
+  });
   $('#loop-off').onclick = () => {
     state.style.loop = false; $('#loop').checked = false;
     if (!state.style.bumper) { state.style.bumper = 'both'; $('#bumper').value = 'both'; }
