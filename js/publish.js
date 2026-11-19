@@ -193,16 +193,16 @@ export async function generate(blocks, style, translationOf, series = null) {
   }
 
   // ===== هاشتاجات قليلة ومرتبطة =====
+  // التلاتة دول ثابتين مع بعض في كل وصف (طلب المستخدم ٢٠٢٦-١١-١٩) — مكتوبين بالظبط كده: دولة/التلاوة بتاء مربوطة، ودوله/التلاوه بهاء
+  const FIXED_TAGS = ['#دولة_التلاوة', '#دوله_التلاوه', '#الله_يهدينا'];
   const base = [];
   if (quran.length) {
-    // #دولة_التلاوة: هاشتاج دائم للتلاوات (شغال طول السنة من وقت البرنامج، طلب المستخدم ٢٠٢٦-١١) — للتلاوات بس لأنه مرتبط بيها
-    // + الكتابة التانية من غير همزة/تاء مربوطة (الناس بتدوّر بالاتنين) و#الله_يهدينا (طلب المستخدم ٢٠٢٦-١١-١٩)
-    base.push('#قرآن_كريم', '#دولة_التلاوة', '#دوله_التلاوه', '#الله_يهدينا');
+    base.push('#قرآن_كريم', ...FIXED_TAGS);
     base.push(tag('سورة ' + Q.surah(quran[0].surah).ar), '#تلاوة_خاشعة');
     base.push('#' + (topic?.tag || 'راحة_نفسية'));
-  } else if (zikr.length) base.push('#دعاء', '#أذكار', '#' + (topic?.tag || 'راحة_نفسية'), '#ذكر_الله');
-  else if (hadith.length) base.push('#حديث_شريف', '#السنة_النبوية', '#ذكر_الله');
-  else base.push('#قرآن_كريم', '#تلاوة_خاشعة', '#راحة_نفسية');
+  } else if (zikr.length) base.push('#دعاء', ...FIXED_TAGS, '#أذكار', '#' + (topic?.tag || 'راحة_نفسية'), '#ذكر_الله');
+  else if (hadith.length) base.push('#حديث_شريف', ...FIXED_TAGS, '#السنة_النبوية', '#ذكر_الله');
+  else base.push('#قرآن_كريم', ...FIXED_TAGS, '#تلاوة_خاشعة', '#راحة_نفسية');
   const user = ps.extraHashtags.split(/[\s,،]+/).filter(Boolean).map(h => (h.startsWith('#') ? h : '#' + h));
   const cta = pick(CTA[kind], seed);
 
