@@ -196,8 +196,9 @@ export async function generate(blocks, style, translationOf, series = null) {
   const base = [];
   if (quran.length) {
     // #دولة_التلاوة: هاشتاج دائم للتلاوات (شغال طول السنة من وقت البرنامج، طلب المستخدم ٢٠٢٦-١١) — للتلاوات بس لأنه مرتبط بيها
-    base.push('#قرآن_كريم', '#دولة_التلاوة', '#تلاوة_خاشعة');
-    base.push(tag('سورة ' + Q.surah(quran[0].surah).ar));
+    // + الكتابة التانية من غير همزة/تاء مربوطة (الناس بتدوّر بالاتنين) و#الله_يهدينا (طلب المستخدم ٢٠٢٦-١١-١٩)
+    base.push('#قرآن_كريم', '#دولة_التلاوة', '#دوله_التلاوه', '#الله_يهدينا');
+    base.push(tag('سورة ' + Q.surah(quran[0].surah).ar), '#تلاوة_خاشعة');
     base.push('#' + (topic?.tag || 'راحة_نفسية'));
   } else if (zikr.length) base.push('#دعاء', '#أذكار', '#' + (topic?.tag || 'راحة_نفسية'), '#ذكر_الله');
   else if (hadith.length) base.push('#حديث_شريف', '#السنة_النبوية', '#ذكر_الله');
@@ -207,7 +208,7 @@ export async function generate(blocks, style, translationOf, series = null) {
 
   const out = {};
   for (const [id, p] of Object.entries(PLATFORMS)) {
-    const hs = [...new Set([...(p.extra || []), ...base, ...user])].slice(0, Math.min(p.hashtags, 4 + (p.extra?.length || 0) + user.length));
+    const hs = [...new Set([...(p.extra || []), ...base, ...user])].slice(0, Math.min(p.hashtags, 6 + (p.extra?.length || 0) + user.length));
     const head = [hook, kwLine].join('\n');
     const tail = [cta, info.join('\n'), ps.signature, credits.join('\n'), linksBlock(ps), hs.join(' ')].filter(Boolean).join('\n\n');
     const room = p.captionMax - head.length - tail.length - 4;
