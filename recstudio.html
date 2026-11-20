@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>استوديو التسجيل — اقرا ورا الشيخ</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261120d">
+  <style>
+    body { margin: 0; }
+    .rs-wrap { max-width: 1200px; margin: 0 auto; padding: 14px; }
+    .rs-head { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: 10px; }
+    .rs-head h1 { margin: 0; font-size: 1.25rem; flex: 1; }
+    .rs-cols { display: grid; grid-template-columns: 1fr 340px; gap: 14px; }
+    @media (max-width: 900px) { .rs-cols { grid-template-columns: 1fr; } }
+    .rs-box { background: var(--card, #fff); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; }
+    .rs-box h2 { font-size: 1.02rem; margin: 0 0 8px; }
+    #rs-text { font-family: Hafs, "KFGQPC Uthmanic Script HAFS", Amiri, serif; font-size: clamp(28px, 4.2vw, 46px); line-height: 2; text-align: center; padding: 10px 6px; }
+    #rs-where { text-align: center; color: var(--muted); }
+    .rs-ctrl { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 8px 0; }
+    .rs-ctrl .btn { font-size: 1.02rem; }
+    .rs-meter-wrap { height: 8px; background: var(--field); border-radius: 6px; overflow: hidden; margin: 6px 0; }
+    #rs-meter { height: 100%; width: 0; background: #2fbf71; transition: width .08s; }
+    #rs-meter.clip { background: #e5484d; }
+    .rs-take { border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; margin: 6px 0; }
+    .rs-take.star { border-color: #e7b416; box-shadow: 0 0 0 2px rgba(231,180,22,.25); }
+    .rs-take-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .rs-take-head .grow { flex: 1; }
+    .rs-wave { width: 100%; height: 70px; display: block; border-radius: 8px; cursor: ew-resize; touch-action: none; }
+    .rs-opts { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .92rem; }
+    #rs-sliders label { display: block; font-size: .9rem; margin: 6px 0; }
+    #rs-sliders input { width: 100%; }
+    #rs-status { min-height: 1.4em; font-weight: 600; }
+    #rs-status.err { color: #d9363e; }
+    #rs-dots { display: flex; flex-wrap: wrap; gap: 4px; }
+    .kbd { font-size: .85rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="rs-wrap">
+  <div class="rs-head">
+    <h1 id="rs-title">🎛️ استوديو التسجيل</h1>
+    <a class="btn ghost" href="index.html">↩ البرنامج</a>
+  </div>
+  <p class="muted">صوت الشيخ للتعلّم بس — الملف اللي بيطلع فيه صوتك أنت بس. كل حتة صغيرة لحد علامة وقف جايز، فالنَّفَس يكفي، والبرنامج بيلزقهم ورا بعض.</p>
+  <div class="rs-cols" id="rs-main">
+    <div>
+      <div class="rs-box">
+        <div id="rs-where"></div>
+        <div id="rs-text"></div>
+        <div class="rs-meter-wrap"><div id="rs-meter"></div></div>
+        <div class="rs-ctrl">
+          <button class="btn" id="rs-prev" type="button">→ اللي قبلها</button>
+          <button class="btn" id="rs-listen" type="button">▶️ اسمع الشيخ — L</button>
+          <button class="btn primary" id="rs-rec" type="button">🔴 سجّل — مسافة</button>
+          <button class="btn" id="rs-play" type="button">🎧 اسمع تسجيلي — P</button>
+          <button class="btn ghost" id="rs-stop" type="button">⏹ وقّف</button>
+          <button class="btn" id="rs-next" type="button">اللي بعدها ←</button>
+        </div>
+        <div id="rs-status"></div>
+        <div class="rs-opts">
+          <label>القارئ <select id="rs-reciter"></select></label>
+          <label>سرعة الشيخ <select id="rs-rate"><option value="0.75">٠.٧٥ — بطيء للتعلّم</option><option value="0.9">٠.٩</option><option value="1" selected>عادي</option></select></label>
+          <label class="check"><input type="checkbox" id="rs-loop"> 🔁 كرّر الشيخ</label>
+          <label class="check"><input type="checkbox" id="rs-count" checked> ⏳ عدّ ٣-٢-١ قبل التسجيل</label>
+          <label class="check"><input type="checkbox" id="rs-autorec"> سجّل لوحده بعد الشيخ</label>
+          <label class="check"><input type="checkbox" id="rs-autonext"> روح للي بعدها بعد التسجيل</label>
+          <label class="check"><input type="checkbox" id="rs-autolisten"> شغّل الشيخ في الحتة الجديدة</label>
+        </div>
+      </div>
+      <div class="rs-box">
+        <h2>🎙️ تسجيلات الحتة دي</h2>
+        <p class="kbd">اسحب الخطين الأصفر على الموجة عشان تقص البداية والنهاية. ⭐ = التسجيل اللي هيدخل التلاوة. 🎛️ = اسمعه بالمؤثرات.</p>
+        <div id="rs-takes"></div>
+      </div>
+      <div class="rs-box">
+        <h2>🧩 الحتت <small class="muted" id="rs-progress"></small></h2>
+        <label>التقسيم <select id="rs-mode">
+          <option value="waqf">على علامات الوقف الجايز — الأسهل للنَّفَس</option>
+          <option value="long">الوقف + الآيات الطويلة كل ١٢ كلمة</option>
+          <option value="ayah">كل آية حتة واحدة</option>
+        </select></label>
+        <div id="rs-dots" style="margin-top:8px"></div>
+      </div>
+    </div>
+    <div>
+      <div class="rs-box">
+        <h2>🎛️ المؤثرات</h2>
+        <label>جاهز <select id="rs-preset"></select></label>
+        <label>نوع الصدى <select id="rs-reverb"></select></label>
+        <div id="rs-sliders"></div>
+        <p class="kbd">معالجة صوت عادية — EQ وضغط وصدى — — مش بتغيّر صوتك ولا بتولّد صوت.</p>
+      </div>
+      <div class="rs-box">
+        <h2>🧷 التجميع والتصدير</h2>
+        <label>سكتة بين الحتت جوه الآية — <b id="rs-gp-v"></b><input type="range" id="rs-gp" min="0" max="0.6" step="0.02"></label>
+        <label>سكتة بين الآيات — <b id="rs-ga-v"></b><input type="range" id="rs-ga" min="0.1" max="1.5" step="0.05"></label>
+        <label class="check"><input type="checkbox" id="rs-mixfx" checked> بالمؤثرات</label>
+        <div class="btn-row">
+          <button class="btn" id="rs-mix" type="button">🎧 اسمع التلاوة كلها</button>
+          <button class="btn" id="rs-wav" type="button">⬇️ WAV</button>
+        </div>
+        <label>اسمك — بيظهر بدل اسم القارئ <input type="text" id="rs-name" placeholder="مثلًا: علاء"></label>
+        <button class="btn primary" id="rs-apply" type="button" style="width:100%;margin-top:8px">✅ حطها في الكارت</button>
+        <p class="kbd">الاختصارات: مسافة = سجّل/وقّف · L = الشيخ · P = تسجيلي · ← → = الحتة · Esc = وقّف الصوت. التسجيلات بتتحفظ على جهازك لو عملت ريفرش.</p>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="module" src="js/recstudio.js?v=20261120d"></script>
+</body>
+</html>

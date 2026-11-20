@@ -121,7 +121,7 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
       const recName = rec ? (b.rec.name || 'قارئ') : reciter.name;
       const withBasmala = b.basmala && b.surah !== 1 && b.surah !== 9;
       // تلاوتك من «اقرا ورا الشيخ» تسجيل مايك: بننضّفه (من غير صدى — الصدى من «تأثير التلاوة»)
-      const recBuf = rec && withAudio ? (b.rec.own ? await enhanceVoice(rec.buffer, 'clean') : rec.buffer) : null;
+      const recBuf = rec && withAudio ? (b.rec.own && !b.rec.studio ? await enhanceVoice(rec.buffer, 'clean') : rec.buffer) : null;
       const pieces = recBuf ? recPieces(b, recBuf, from, to, withBasmala) : null;
       const footer = `بصوت القارئ ${recName}`;
       for (let r = 0; r < Math.max(1, b.repeatRange); r++) {
@@ -1468,6 +1468,7 @@ function setupFollow() {
   $('#fl-prev').onclick = () => flGo(-1);
   $('#fl-next').onclick = () => flGo(1);
   $('#fl-done').onclick = () => flDone().catch(showError);
+  $('#fl-studio').onclick = () => { persist(); window.open(`recstudio.html?b=${encodeURIComponent(follow.b.id)}`, 'qcs-studio'); };
   $('#fl-close').onclick = () => dlg.close();
   dlg.addEventListener('keydown', e => {
     if (e.code !== 'Space' || e.target.matches('input, textarea')) return;
@@ -7577,6 +7578,16 @@ async function init() {
   AL.setInUse(() => new Set([...state.blocks, ...(live?.items || []).flatMap(it => it.blocks || [])].map(b => b.audioId).filter(Boolean)));
   AL.askPersist();
   restoreBlockAudio();
+  // 🎛️ استوديو التسجيل (صفحة لوحدها) بيبعت التلاوة الجاهزة للكارت
+  try {
+    new BroadcastChannel('qcs-studio').onmessage = async e => {
+      const m = e.data; if (m?.type !== 'applied') return;
+      const b = state.blocks.find(x => x.id === m.id); if (!b) return;
+      b.rec = m.rec; b.audioId = m.audioId; hadithAudio.delete(b.id);
+      persist(); await restoreBlockAudio(); renderBlocks(); refreshPublish(true); refreshPreview();
+      status('✅ تلاوتك من الاستوديو اتحطت في الكارت — اسمع المعاينة.');
+    };
+  } catch { /* متصفح قديم: الكارت بيتحدّث بعد الريفرش */ }
 
   $('#add-quran').onclick = () => { state.blocks.push(newQuranBlock(1, 1, 1)); renderBlocks(); focusLastBlock(); };
   $('#add-hadith').onclick = () => { state.blocks.push(newHadithBlock()); renderBlocks(); focusLastBlock(); };
