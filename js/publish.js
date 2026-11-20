@@ -97,6 +97,50 @@ function clip(text, max) {
   return text.slice(0, Math.max(0, max - 1)).replace(/\s+\S*$/, '') + '…';
 }
 
+// ===== 🎲 بنك عناوين جذابة (من غير ذكاء اصطناعي) =====
+// قواعد: من غير وعود كدابة («هتتغير حياتك»)، من غير فضائل من غير مصدر، من غير «شير/لايك» (engagement bait)، ومن غير نص آيات مكتوب من دماغنا
+function titleBank({ kind, sur, about, famous, whole, cat }) {
+  const S = sur ? `سورة ${sur}` : '';
+  if (kind === 'quran') {
+    const A = famous || about || 'آيات تريح القلب';
+    return [
+      `اسمعها بقلب حاضر 🤍 | ${S}`, `${A} | دقيقة تريح قلبك 🤍`, `لو قلبك تعبان… اسمع دي 🤍 | ${S}`,
+      `قبل ما تنام اسمع ${A} 🌙`, `تلاوة تهدّي أعصابك 🎧 | ${S}`, `آيات لما الدنيا تضيق عليك 🤍`,
+      `سكّت الدنيا واسمع ${S} 🎧`, `${A} بصوت يريّح القلب ✨`, `خد نفس… واسمع ${S} 🤍`,
+      `لما تحس إنك لوحدك اسمع دي 🤍`, `صوت يطمّنك 🤍 | ${A}`, `تلاوة الفجر 🌅 | ${S}`,
+      `محتاج هدوء؟ اسمع ${S} 🎧`, `${S} | تلاوة خاشعة هتحبها 🤍`, `كلام ربنا يريّح القلب 🤍 | ${S}`,
+      `دقيقة مع ${S} تنسيك تعب اليوم 🤍`, `اسمع بقلبك مش بودانك 🤍 | ${A}`, `${A} | اسمعها للآخر 🤍`,
+      `من أجمل التلاوات في ${S} ✨`, `آيات تطبطب على قلبك 🤍`, `أهدى دقيقة في يومك 🤍 | ${S}`,
+      `ريّح قلبك بـ${A} 🎧`, `${whole ? `${S} كاملة` : A} بصوت خاشع 🌙`, `هدّي نفسك… ${S} 🤍`,
+      `تلاوة تخليك تقف عند كل آية 🤍`, `اسمعها في وقت ضيقك 🤍 | ${A}`, `${S} 🤍 تلاوة ولا أروع`,
+      `وقت راحة مع القرآن 🎧 | ${S}`, `${A} | قرآن يريح القلب 🤍`, `اقفل كل حاجة واسمع دي 🎧 | ${S}`,
+    ];
+  }
+  if (kind === 'dua') {
+    const C = cat || 'دعاء';
+    return [
+      `قولها دلوقتي 🤍 | ${C}`, `دقيقة ذكر تريح قلبك 🤍`, `${C} | ماتنساش تقولها النهارده`, `ذكر يطمّن القلب 🤍`,
+      `اختم يومك بالذكر ده 🌙`, `ابدأ يومك بيه ☀️ | ${C}`, `كلمات خفيفة على اللسان 🤍`, `ردّدها معايا 🤍 | ${C}`,
+      `${C} بصوت هادي 🎧`, `لما قلبك يتقل… قول ده 🤍`, `ذكر من حصن المسلم 🤍`, `خلّيها عادة كل يوم 🤍 | ${C}`,
+      `دقيقة مع ذكر الله 🤍`, `اقفل عينك وردّد 🤍 | ${C}`, `هدوء القلب في ذكر الله 🤍`,
+    ];
+  }
+  if (kind === 'hadith') {
+    return [
+      `حديث يهوّن عليك يومك 🤍`, `من كلام النبي ﷺ 🤍`, `حديث شريف لازم تعرفه 🤍`, `وصية من النبي ﷺ 🤍`,
+      `حديث قصير ومعناه كبير 🤍`, `اسمعه وافهمه 🤍 | حديث شريف`, `من السنة النبوية 🤍`, `حديث يريّح القلب 🤍`,
+      `كلام النبي ﷺ في دقيقة 🤍`,
+    ];
+  }
+  return ['تلاوة خاشعة تريح القلب 🤍', 'قرآن يريح القلب 🤍', 'دقيقة هدوء مع القرآن 🎧'];
+}
+// بيرجّع العناوين بترتيب عشوائي من غير تكرار (عشان «عنوان تاني» يجيب جديد كل مرة)
+export function shuffleTitles(list) {
+  const a = [...new Set(list)].filter(t => t && !/\|\s*$/.test(t));
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+
 // يرجع { title, caption, tags } لكل منصة — نفس الشكل في كل مكان (النشر والسلاسل والتصدير):
 // ١) سطر يشد: مقتطف من الآية + موضوعها  ٢) كلمات البحث  ٣) دعوة للإرسال/الحفظ  ٤) هاشتاجات قليلة مرتبطة
 // من غير اسم القارئ ولا المصادر (إلا لو فعّلت «ذكر المصادر»)
@@ -142,6 +186,12 @@ export async function generate(blocks, style, translationOf, series = null) {
     title = 'تلاوة خاشعة تريح القلب';
   }
   // (وصف «لوحة للتلفزيون» بقى اختيار صريح — tvArt() فوق — مش من شكل الفيديو)
+  const ideaCtx = quran.length
+    ? (() => { const b = quran[0], su = Q.surah(b.surah), fm = FAMOUS.find(f => f.s === b.surah && f.from === b.from && f.to === b.to); return { kind: 'quran', sur: su.ar, about: fm ? fm.name : topic ? topic.name : '', famous: fm?.name, whole: b.from === 1 && b.to === su.count }; })()
+    : zikr.length ? { kind: 'dua', cat: zikr[0].custom ? (zikr[0].label || 'دعاء') : zikr[0].cat }
+      : hadith.length ? { kind: 'hadith' } : { kind: 'other' };
+  const ideas = shuffleTitles(titleBank(ideaCtx));
+  if (!series && ideas.length) title = ideas[0];
 
   // ===== كلمات البحث (سطر واحد) =====
   const kw = [];
@@ -218,7 +268,6 @@ export async function generate(blocks, style, translationOf, series = null) {
     const res = { caption: clip(caption, p.captionMax) };
     if (p.title) {
       let t = title;
-      if (id === 'shorts' && t.length + 8 <= p.titleMax) t += ' #shorts';
       res.title = clip(t, p.titleMax);
     }
     if (p.tags) {
@@ -236,6 +285,7 @@ export async function generate(blocks, style, translationOf, series = null) {
     if (id === 'tiktok' || id === 'instagram') res.sound = quran.length ? `تلاوة خاشعة – سورة ${Q.surah(quran[0].surah).ar}${topic ? ' – ' + topic.name : ''}` : (zikr.length ? 'دعاء يريح القلب' : 'حديث شريف');
     out[id] = res;
   }
+  Object.defineProperty(out, 'ideas', { value: ideas, enumerable: false }); // 🎲 اقتراحات العنوان (مش منصة)
   return out;
 }
 

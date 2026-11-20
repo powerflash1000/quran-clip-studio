@@ -4300,6 +4300,58 @@ function setupPublish() {
     copyText(parts.join('\n\n'), $('#pub-copy-all'));
   };
   $('#pub-regen').onclick = () => refreshPublish(true);
+  // 🎲 العناوين: بنك محلي بيتلف عليه، أو ٢٠ اقتراح تختار منهم، أو ٢٠ من مساعد الكتابة
+  const setTitle = t => {
+    if (!pub.data) return;
+    // تيك توك/إنستجرام/فيسبوك مالهمش عنوان: نروح لتبويب الشورتس عشان تشوف العنوان اتحط
+    if (!PLATFORMS[pub.platform].title) { pub.platform = PLATFORMS.shorts ? 'shorts' : 'youtube'; save('pubPlatform', pub.platform); }
+    // العنوان بيتحط في تبويبين يوتيوب الاتنين (العادي والشورتس)
+    for (const [id, pp] of Object.entries(PLATFORMS)) if (pp.title && pub.data[id]) pub.data[id].title = t.slice(0, pp.titleMax);
+    pub.edited = true; renderPublish();
+  };
+  let titleIdx = 0;
+  $('#pub-title-next').onclick = async () => {
+    if (!pub.data) await refreshPublish(true);
+    const ideas = pub.data?.ideas || [];
+    if (!ideas.length) return;
+    titleIdx = (titleIdx + 1) % ideas.length;
+    setTitle(ideas[titleIdx]);
+  };
+  const showIdeas = (list, note) => {
+    const box = $('#pub-title-ideas');
+    box.innerHTML = '';
+    for (const t of list) {
+      const c = document.createElement('button');
+      c.type = 'button'; c.className = 'chip'; c.textContent = t;
+      c.onclick = () => setTitle(t);
+      box.appendChild(c);
+    }
+    if (note) { const n = document.createElement('small'); n.className = 'muted'; n.textContent = note; box.appendChild(n); }
+  };
+  $('#pub-title-list').onclick = async () => {
+    if (!pub.data) await refreshPublish(true);
+    showIdeas((pub.data?.ideas || []).slice(0, 20), 'دوس على أي عنوان يتحط. ودوس «📋 ٢٠ اقتراح» تاني تجيلك ترتيبة جديدة.');
+    if (pub.data?.ideas) pub.data.ideas.sort(() => Math.random() - 0.5);
+  };
+  $('#pub-title-ai').onclick = async () => {
+    if (!LLM.isReady()) { needLLM(); return; }
+    const btn = $('#pub-title-ai'); const prev = btn.textContent;
+    btn.disabled = true; btn.textContent = '✨ بيكتب…';
+    try {
+      const j = await LLM.askJson(`اكتب 20 عنوان مختلفين لفيديو قصير (ريلز/شورتس) لصفحة «قرآن يريح القلب».
+الشروط:
+- كل عنوان أقل من 70 حرف، بالعربي (فصحى بسيطة أو مصري خفيف)، وفيه إيموجي واحد بالكتير.
+- يشد ويحسّس بالراحة والطمأنينة، ومتنوعين في الأسلوب: سؤال، موقف (قبل النوم، وقت الضيق، الفجر)، دعوة للاستماع، اسم السورة أو الموضوع.
+- ممنوع: وعود مش حقيقية (زي «هتتغير حياتك» أو «هيتحقق اللي في بالك»)، فضل أو ثواب من غير مصدر، طلب لايك أو شير أو متابعة، كتابة نص آيات أو أحاديث من عندك.
+- مايتكرروش.
+رجّع JSON بالشكل: {"titles": ["…", "…"]}
+محتوى الفيديو (للفهم بس):
+${contentSummary()}`);
+      const list = (Array.isArray(j?.titles) ? j.titles : []).map(t => String(t).trim()).filter(Boolean).slice(0, 20);
+      showIdeas(list, list.length ? '✨ من مساعد الكتابة — راجع العنوان قبل ما تنشر.' : 'مارجعش عناوين — جرّب تاني.');
+    } catch (e) { showError(e); }
+    btn.disabled = false; btn.textContent = prev;
+  };
   $('#pub-sound-copy').onclick = e => copyText($('#pub-sound').value, e.currentTarget);
   $('#pub-share').onclick = async () => {
     if (!pub.lastFile) return;

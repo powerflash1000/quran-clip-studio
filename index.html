@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261120b">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261120c">
 </head>
 <body>
   <header class="topbar">
@@ -590,6 +590,12 @@
           <div class="pub-field" data-pf="title">
             <div class="pub-head"><span>العنوان</span><span class="count"></span><button class="btn icon" type="button" data-copy="title" title="نسخ">📋</button></div>
             <input type="text" data-pv="title">
+            <div class="btn-row title-tools">
+              <button class="btn" type="button" id="pub-title-next" title="عنوان جديد من بنك العناوين">🎲 عنوان تاني</button>
+              <button class="btn" type="button" id="pub-title-list">📋 ٢٠ اقتراح</button>
+              <button class="btn" type="button" id="pub-title-ai" title="بمساعد الكتابة من ⚙️ الإعدادات">✨ ٢٠ بالذكاء الاصطناعي</button>
+            </div>
+            <div class="chips title-ideas" id="pub-title-ideas"></div>
           </div>
           <div class="pub-field" data-pf="caption">
             <div class="pub-head"><span>الوصف</span><span class="count"></span><button class="btn icon" type="button" data-copy="caption" title="نسخ">📋</button></div>
@@ -647,7 +653,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261120b</div>
+    <div class="muted" id="app-version">الإصدار 20261120c</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -1793,6 +1799,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261120b"></script>
+  <script type="module" src="js/main.js?v=20261120c"></script>
 </body>
 </html>
