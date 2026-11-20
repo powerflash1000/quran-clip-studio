@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261119d">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261120a">
 </head>
 <body>
   <header class="topbar">
@@ -358,6 +358,8 @@
             </select>
             <small id="word-src" class="muted"></small>
           </label>
+          <label class="span2">🏷️ شكل الكلمة اللي بتتقال <select id="wordStyle"></select>
+            <small class="muted">بيشتغل مع «الكلمات بتظهر مع التلاوة» و«التظليل» و«كلمتين تلاتة» و«كلمة واحدة». جرّبهم وشوف المعاينة.</small></label>
           <div class="span2 wsync">
             <label>⏱ مزامنة الكلام مع الصوت — <b id="wordSync-v">مظبوط</b>
               <input type="range" id="wordSync" min="-1" max="1" step="0.05"></label>
@@ -645,7 +647,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261119d</div>
+    <div class="muted" id="app-version">الإصدار 20261120a</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -1789,6 +1791,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261119d"></script>
+  <script type="module" src="js/main.js?v=20261120a"></script>
 </body>
 </html>

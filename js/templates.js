@@ -28,6 +28,7 @@ export const DEFAULT_STYLE = {
   trimSilence: true,       // قص السكوت من أول وآخر ملف كل آية
   ayahLayout: 'one',       // one (آية آية) | all (الآيات كلها مرة واحدة) | allHi (كلها + الآية الحالية منوّرة)
   script: 'uthmani',        // uthmani (رسم المصحف) | imlaei (إملائي حديث من Tanzil)
+  wordStyle: '',           // 🏷️ شكل الكلمة الحالية: خلفية ملوّنة زي ترجمات الريلز (WORD_STYLES في slides.js)
   wordSync: 0,             // ⏱ تقديم/تأخير الكتابة عن الصوت (ث، موجب = تتأخر)
   wordMode: 'full',        // full | reveal (الكلمات بتظهر مع التلاوة) | highlight (تظليل الكلمة الحالية)
   hideText: false,         // 🙈 من غير كتابة في الفيديو كله

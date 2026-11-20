@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>الهاشتاجات والترند — استوديو مقاطع القرآن</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%23</text></svg>">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261119d">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261120a">
   <style>body { margin: 0; }</style>
 </head>
 <body>
   <div id="ht"></div>
   <script type="module">
-    import { mountHashtags, hashtagPrompt } from './js/hashtags.js?v=20261119d';
-    import * as LLM from './js/llm.js?v=20261119d';
+    import { mountHashtags, hashtagPrompt } from './js/hashtags.js?v=20261120a';
+    import * as LLM from './js/llm.js?v=20261120a';
     mountHashtags(document.getElementById('ht'), {
       app: 'quran', prefix: 'qcs:',
       ask: args => LLM.askJson(hashtagPrompt(args)),

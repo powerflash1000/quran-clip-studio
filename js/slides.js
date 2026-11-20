@@ -46,6 +46,66 @@ export const TEXT_FX = {
   card: 'كارت شفاف ورا النص',
   band: 'شريط ملوّن ورا النص',
 };
+// 🏷️ شكل الكلمة اللي بتتقال (مع «كلمة كلمة» / «تظليل» / «كلمتين تلاتة» / «كلمة واحدة») — زي ترجمات الريلز
+export const WORD_STYLES = {
+  '': 'لون التمييز بس (من غير خلفية)',
+  redYellow: '🟥 كلمة صفرا على خلفية حمرا',
+  yellowBlack: '🟨 كلمة سودا على خلفية صفرا',
+  yellowWhite: '🟨 كلمة بيضا على خلفية صفرا',
+  whiteBlack: '⬜ كلمة سودا على خلفية بيضا',
+  greenWhite: '🟩 كلمة بيضا على خلفية خضرا',
+  accentBox: '🎨 خلفية بلون التمييز',
+  gold: '✨ كارت دهبي',
+  neonBox: '💡 برواز نيون',
+  underline: '➖ خط ملوّن تحت الكلمة',
+  chips: '🏷️ كل كلمة في كارت أبيض — والحالية صفرا',
+};
+const WS_SPEC = {
+  redYellow: { bg: '#E5262B', ink: '#FFE14D' },
+  yellowBlack: { bg: '#FFD60A', ink: '#111111' },
+  yellowWhite: { bg: '#F2B705', ink: '#ffffff', stroke: 'rgba(90,50,0,0.55)' },
+  whiteBlack: { bg: '#ffffff', ink: '#111111' },
+  greenWhite: { bg: '#16A34A', ink: '#ffffff' },
+  gold: { grad: ['#fff1b8', '#e2b443', '#a8741a'], ink: '#2a1800' },
+  chips: { bg: '#FFD60A', ink: '#111111', other: { bg: 'rgba(255,255,255,0.93)', ink: '#111111' } },
+};
+// بيرسم خلفية الكلمة (من x ناحية اليمين لأن الكتابة RTL) وبعدين الكلمة نفسها. بيرجّع false لو مفيش شكل (يرسمها العادي)
+function drawWordStyled(ctx, word, x, y, w, size, style, cur) {
+  const key = style.wordStyle;
+  if (!key || !WORD_STYLES[key]) return false;
+  let spec = key === 'accentBox' ? { bg: style.accent, ink: bandInk(style.accent) } : WS_SPEC[key] || {};
+  if (!cur) { if (key !== 'chips') return false; spec = spec.other; }
+  const padX = size * 0.16, h = size * 1.34, top = y - h / 2, left = x - w - padX, bw = w + padX * 2, r = size * 0.24;
+  const sv = { fs: ctx.fillStyle, sc: ctx.shadowColor, sb: ctx.shadowBlur, sy: ctx.shadowOffsetY, ss: ctx.strokeStyle, lw: ctx.lineWidth, P: PAINT };
+  ctx.save();
+  if (key === 'underline') {
+    ctx.shadowColor = 'transparent';
+    ctx.fillStyle = style.accent;
+    ctx.beginPath(); ctx.roundRect(x - w, y + size * 0.5, w, Math.max(4, size * 0.11), size * 0.06); ctx.fill();
+    ctx.restore();
+    return false; // الكلمة نفسها بترتسم عادي فوق الخط (بلون التمييز)
+  }
+  if (key === 'neonBox') {
+    ctx.shadowColor = style.accent; ctx.shadowBlur = size * 0.45; ctx.shadowOffsetY = 0;
+    ctx.strokeStyle = style.accent; ctx.lineWidth = Math.max(3, size * 0.07);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.roundRect(left, top, bw, h, r); ctx.fill(); ctx.stroke();
+    spec = { ink: '#ffffff' };
+  } else {
+    ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = size * 0.18; ctx.shadowOffsetY = size * 0.06;
+    if (spec.grad) { const g = ctx.createLinearGradient(0, top, 0, top + h); g.addColorStop(0, spec.grad[0]); g.addColorStop(0.55, spec.grad[1]); g.addColorStop(1, spec.grad[2]); ctx.fillStyle = g; }
+    else ctx.fillStyle = spec.bg;
+    ctx.beginPath(); ctx.roundRect(left, top, bw, h, r); ctx.fill();
+  }
+  ctx.restore();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+  PAINT = spec.stroke ? { stroke: Math.max(2, size * 0.06), strokeColor: spec.stroke } : null;
+  ctx.fillStyle = spec.ink;
+  fillRtl(ctx, word, x, y);
+  PAINT = sv.P; ctx.fillStyle = sv.fs; ctx.shadowColor = sv.sc; ctx.shadowBlur = sv.sb; ctx.shadowOffsetY = sv.sy; ctx.strokeStyle = sv.ss; ctx.lineWidth = sv.lw;
+  return true;
+}
+
 // حركة دخول النص في الفيديو (لكل آية/كارت)
 export const TEXT_ANIM = {
   '': 'من غير حركة',
@@ -259,8 +319,11 @@ function drawWords(ctx, lines, cx, y, size, lineH, shown, mode, style) {
     words.forEach((w, k) => {
       if (idx < shown) {
         ctx.globalAlpha = 1;
-        ctx.fillStyle = mode === 'highlight' && idx === shown - 1 ? style.accent : style.textColor;
-        fillRtl(ctx, w, x, yy);
+        const cur = idx === shown - 1;
+        if (!drawWordStyled(ctx, w, x, yy, widths[k], size, style, cur)) {
+          ctx.fillStyle = (mode === 'highlight' || style.wordStyle === 'underline') && cur ? style.accent : style.textColor;
+          fillRtl(ctx, w, x, yy);
+        }
       } else if (mode === 'highlight') {
         ctx.globalAlpha = 0.3;
         ctx.fillStyle = style.textColor;
@@ -296,6 +359,7 @@ function drawLive(ctx, lines, cx, cy, boxW, baseSize, font, shown, mode, style, 
   const widthOf = list => { ctx.font = font(size); const sp = ctx.measureText(' ').width; const w = list.map(x => measureRtl(ctx, x)); return { sp, w, total: w.reduce((p, q) => p + q, 0) + sp * Math.max(0, w.length - 1) }; };
   while (widthOf(full).total > boxW * 0.95 && size > baseSize * 0.6) size = Math.floor(size * 0.92);
   const m = widthOf(ws);
+  if (style.wordStyle && style.wordStyle !== 'underline') m.total += size * 0.5 * Math.max(0, ws.length - 1);
   if (fx === 'card' || fx === 'band') {
     const ph = size * 0.45, saved = ctx.fillStyle;
     ctx.fillStyle = fx === 'card' ? 'rgba(0,0,0,0.45)' : hexA(style.accent, 0.82);
@@ -305,9 +369,12 @@ function drawLive(ctx, lines, cx, cy, boxW, baseSize, font, shown, mode, style, 
   const base = ctx.fillStyle;
   let x = cx + m.total / 2;
   ws.forEach((w, k) => {
-    ctx.fillStyle = mode !== 'now1' && k === ws.length - 1 && ws.length > 1 ? style.accent : base;
-    fillRtl(ctx, w, x, cy);
-    x -= m.w[k] + m.sp;
+    const cur = k === ws.length - 1;
+    if (!drawWordStyled(ctx, w, x, cy, m.w[k], size, style, cur)) {
+      ctx.fillStyle = (mode !== 'now1' && cur && ws.length > 1) || (style.wordStyle === 'underline' && cur) ? style.accent : base;
+      fillRtl(ctx, w, x, cy);
+    }
+    x -= m.w[k] + m.sp + (style.wordStyle && style.wordStyle !== 'underline' ? size * 0.5 : 0);
   });
   ctx.fillStyle = base;
 }
