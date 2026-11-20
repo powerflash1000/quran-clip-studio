@@ -1716,11 +1716,19 @@ const post = { segs: [], bgImg: null, bgUrl: null };
 const isQ = sg => sg.kind === 'ayah' || sg.kind === 'basmala';
 
 // بيجمع الكروت في «شريحة» واحدة: آيات ورا بعض، أو أدعية/أحاديث ورا بعض (القرآن والكلام العادي مش بيتخلطوا عشان الخط)
+// الكروت اللي ينفع تبقى بوست: كل الآيات/الأدعية/الأحاديث (المقدمة والخاتمة في الآخر لو حد عايزهم)
+function postCards() {
+  const main = post.segs.filter(sg => sg.kind !== 'title' && sg.kind !== 'bumper');
+  return [...main, ...post.segs.filter(sg => sg.kind === 'bumper')];
+}
 function postSeg() {
-  const segs = post.segs.filter(sg => sg.kind !== 'title');
-  if (!segs.length) return null;
-  const cur = segs[Math.min(state.segIndex, segs.length - 1)] || segs[0];
-  if ($('#post-what').value === 'card') return { ...cur, sub: '' };
+  const all = postCards();
+  const segs = all.filter(sg => sg.kind !== 'bumper');
+  if (!all.length) return null;
+  const pick = all[Number($('#post-card').value) || 0] || all[0];
+  if ($('#post-what').value === 'card') return { ...pick, sub: '' };
+  if (!segs.length) return { ...pick, sub: '' };
+  const cur = pick.kind === 'bumper' ? segs[0] : pick;
   const fam = segs.filter(sg => isQ(sg) === isQ(cur));
   const seen = new Set(), uniq = fam.filter(sg => !seen.has(sg.text) && seen.add(sg.text));
   const mixed = fam.length < segs.length;
@@ -1761,7 +1769,7 @@ async function drawPost(canvas) {
   const bgMode = $('#post-bg').value;
   let media = null;
   if (bgMode === 'upload' && post.bgImg) media = { kind: 'image', el: post.bgImg };
-  else if (bgMode === 'current') media = previewBg(null).cur || state.mediaList[0] || null;
+  else if (bgMode === 'current') media = state.mediaList[Number($('#post-media').value) || 0] || previewBg(null).cur || null;
   g.clearRect(0, 0, W, H);
   drawBackground(g, W, H, bgMode === 'color' ? { ...st, bgType: st.bgType === 'media' ? 'gradient' : st.bgType } : st, media);
   BR.drawLight(g, W, H, st, 2);
@@ -1776,6 +1784,12 @@ async function drawPost(canvas) {
   $('#post-note').textContent = notes.join(' ');
 }
 
+function postUi() {
+  $('#post-card-wrap').hidden = $('#post-what').value !== 'card';
+  $('#post-upload-wrap').hidden = $('#post-bg').value !== 'upload';
+  $('#post-media-wrap').hidden = $('#post-bg').value !== 'current' || state.mediaList.length < 1;
+}
+
 async function openPost() {
   post.segs = await buildSegments(false);
   $('#post-fx').value = state.style.textFx || '';
@@ -1783,8 +1797,18 @@ async function openPost() {
   $('#post-ink').value = state.style.textInk || '';
   $('#post-font').value = state.style.textFont || 'Amiri';
   $('#post-dim').value = state.style.dim ?? 0.3;
-  $('#post-bg').value = state.style.bgType === 'media' && state.mediaList.length ? 'current' : post.bgImg ? 'upload' : 'color';
-  $('#post-upload-wrap').hidden = $('#post-bg').value !== 'upload';
+  $('#post-bg').value = state.mediaList.length ? 'current' : post.bgImg ? 'upload' : 'color';
+  // قايمة الكروت: كل آية/دعاء/حديث بنصه، والمقدمة والخاتمة في الآخر
+  const short = t => { const w = String(t || '').replace(/\s+/g, ' ').trim(); return w.length > 46 ? w.slice(0, 46) + '…' : w; };
+  const cards = postCards();
+  const segs0 = cards.filter(sg => sg.kind !== 'bumper');
+  const pv = previewSegs[state.segIndex];
+  const curIdx = Math.max(0, segs0.findIndex(sg => pv && sg.kind === pv.kind && sg.text === pv.text));
+  $('#post-card').innerHTML = cards.map((sg, i) => `<option value="${i}">${sg.kind === 'bumper' ? (sg.which === 'intro' ? '🎬 المقدمة — ' : '🎬 الخاتمة — ') + escapeHtml(short(sg.text)) : `${Q.arabicNum(i + 1)}. ${escapeHtml(short([sg.label, sg.text].filter(Boolean).join(' — ')))}`}</option>`).join('');
+  $('#post-card').value = String(curIdx);
+  // قايمة خلفيات الاستوديو
+  $('#post-media').innerHTML = state.mediaList.map((m, i) => `<option value="${i}">${Q.arabicNum(i + 1)}. ${m.kind === 'video' ? '🎞️ فيديو — لقطة منه' : '🖼️ صورة'}${m.file?.name ? ' — ' + escapeHtml(short(m.file.name)) : ''}</option>`).join('');
+  postUi();
   $('#dlg-post').showModal();
   await drawPost($('#post-canvas'));
 }
@@ -1798,8 +1822,10 @@ function setupPost() {
   $('#post-close').onclick = () => $('#dlg-post').close();
   const redraw = () => drawPost($('#post-canvas')).catch(showError);
   for (const id of ['post-size', 'post-what', 'post-fx', 'post-font', 'post-size-k', 'post-dim', 'post-zone', 'post-ink', 'post-label', 'post-footer']) $('#' + id).addEventListener('input', redraw);
+  for (const id of ['post-card', 'post-media']) $('#' + id).addEventListener('input', redraw);
+  $('#post-what').addEventListener('input', postUi);
   $('#post-bg').onchange = () => {
-    $('#post-upload-wrap').hidden = $('#post-bg').value !== 'upload';
+    postUi();
     if ($('#post-bg').value === 'upload' && !post.bgImg) $('#post-upload').click();
     redraw();
   };
