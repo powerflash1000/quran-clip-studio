@@ -3371,6 +3371,7 @@ function renderBgList() {
         ? `مجموع الخلفيات ${fmtDur(sum)} — الفيديو ${fmtDur(durCache.duration)}${sum < durCache.duration - 0.5 ? ' (هترجع تلف من الأول)' : sum > durCache.duration + 0.5 ? ' (اللي بعد آخر الفيديو مش هيظهر)' : ' ✅ مظبوط'}`
         : `مجموع الخلفيات ${fmtDur(sum)}`;
     } else tm.textContent = durCache ? `الفيديو ${fmtDur(durCache.duration)} — التوقيت جنب كل خلفية` : '';
+    if (!durCache) tm.textContent += ($('#dur-total')?.textContent || '').includes('؟') ? ' — ⚠️ مش قادر أحسب مدة التلاوة دلوقتي، فالتوقيت جنب الخلفيات مش هيظهر (اتأكد إن الصوت بيشتغل في المعاينة)' : ' — ⏱ التوقيت هيظهر بعد ما المدة تتحسب…';
   }
   if (!list.length) return;
   list.forEach((m, i) => {
@@ -3438,14 +3439,22 @@ function renderBgList() {
     li.appendChild(name);
     const mk = (txt, title, fn, dis) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn icon'; b.textContent = txt; b.title = title; b.disabled = !!dis; b.onclick = fn; li.appendChild(b); };
     const swap = j => { [list[i], list[j]] = [list[j], list[i]]; state.media = list[0]; persistMedia(); renderBgList(); refreshPreview(); };
-    if (custom && list.length > 1) {
+    if (list.length > 1) {
       const inp = document.createElement('input');
       inp.type = 'number'; inp.min = '0.5'; inp.max = '120'; inp.step = '0.5';
       inp.className = 'bg-secs';
       inp.placeholder = String(state.style.bgEvery || 6);
-      inp.title = 'المدة بالثواني';
-      inp.value = m.secs ?? '';
-      inp.onchange = () => { m.secs = inp.value === '' ? null : Math.max(0.5, Number(inp.value)); persistMedia(); renderBgList(); refreshPreview(); };
+      inp.title = custom ? 'المدة بالثواني' : 'اكتب مدة الخلفية دي بالثواني (التبديل هيتحول لـ«مدة لكل خلفية»)';
+      inp.value = custom ? (m.secs ?? '') : '';
+      inp.onchange = () => {
+        m.secs = inp.value === '' ? null : Math.max(0.5, Number(inp.value));
+        if (!custom && m.secs != null) {
+          state.style.bgSwitch = 'custom';
+          $('#bgSwitch').value = 'custom'; $('#bgEvery-wrap').hidden = false; $('#bgEvery-lbl').textContent = 'المدة الافتراضية (ث)';
+          persist();
+        }
+        persistMedia(); renderBgList(); refreshPreview();
+      };
       li.appendChild(inp);
       const u = document.createElement('span'); u.className = 'muted'; u.textContent = 'ث'; li.appendChild(u);
     }
@@ -3463,6 +3472,15 @@ function renderBgList() {
     mk('✕', 'شيلها', () => { URL.revokeObjectURL(m.url); list.splice(i, 1); state.media = list[0] || null; persistMedia(); renderBgList(); refreshPreview(); });
     ol.appendChild(li);
   });
+}
+
+// القالب بيغيّر الشكل بس — توقيت الخلفيات (مع كل آية / كل كام ثانية / مدة لكل خلفية) مربوط بالخلفيات اللي إنت رافعها،
+// فلو عندك أكتر من خلفية بيفضل زي ما هو (القوالب كلها فيها «مع كل آية» كافتراضي، فكانت بتمسح اختيارك)
+function keepBgTiming() {
+  if (state.mediaList.length < 2) return {};
+  const out = {};
+  for (const k of ['bgSwitch', 'bgEvery', 'bgFade']) if (state.style[k] !== undefined) out[k] = state.style[k];
+  return out;
 }
 
 // نقل خلفية من مكان لمكان (السحب، أو ⤒ ⤓)
@@ -3913,7 +3931,7 @@ function setupTemplates() {
     const tpl = T.listTemplates()[$('#templates').value];
     if (!tpl) return;
     const keepMedia = state.mediaList.length > 0 && state.style.bgType === 'media';
-    state.style = { ...T.DEFAULT_STYLE, ...tpl, script: state.style.script || 'uthmani', bgType: keepMedia ? 'media' : tpl.bgType === 'media' && !state.media ? 'gradient' : tpl.bgType };
+    state.style = { ...T.DEFAULT_STYLE, ...tpl, ...keepBgTiming(tpl), script: state.style.script || 'uthmani', bgType: keepMedia ? 'media' : tpl.bgType === 'media' && !state.media ? 'gradient' : tpl.bgType };
     applyStyleToInputs();
     persist();
     refreshPreview();
@@ -4858,7 +4876,7 @@ async function runQueue() {
   const saved = { blocks: state.blocks, style: state.style, activeSeries: state.activeSeries };
   if (tplName) {
     const tpl = T.listTemplates()[tplName];
-    state.style = { ...T.DEFAULT_STYLE, ...tpl, script: state.style.script || 'uthmani', bgType: tpl.bgType === 'media' && !state.media ? 'gradient' : tpl.bgType };
+    state.style = { ...T.DEFAULT_STYLE, ...tpl, ...keepBgTiming(tpl), script: state.style.script || 'uthmani', bgType: tpl.bgType === 'media' && !state.media ? 'gradient' : tpl.bgType };
   }
   queue.running = true;
   queue.stopAfter = false;
