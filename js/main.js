@@ -939,7 +939,18 @@ function quranBlockEl(b, i) {
 
 // تقسيم ملف السورة الكاملة لآيات: من توقيت mp3quran لو موجود، وإلا بالتحليل (autoMarks).
 // بيتحفظ في b.rec.align عشان يفضل بعد الريفرش (والتايم لاين بيستخدمه).
+// تصحيح الترقيم: لو الاكتشاف التلقائي زحلق آية (اللي سمّاه ١٥٨ هو فعلاً ١٥٩)، المستخدم بيصحّحه مرة
+// وكل الآيات من بعدها بتتنقل معاه: صوت الآية a = اللي التحليل كان سمّاه a − shift
+function shiftAlign(al, sh) {
+  if (!sh) return al;
+  const mv = arr => arr.map((v, i) => (i - sh >= 0 && i - sh < arr.length ? arr[i - sh] : v));
+  return { ...al, starts: mv(al.starts), ends: mv(al.ends) };
+}
 function surahAlign(b, buffer) {
+  const sh = Number(b.rec?.alignShift) || 0;
+  return shiftAlign(surahAlignRaw(b, buffer), sh);
+}
+function surahAlignRaw(b, buffer) {
   const n = Q.surah(b.surah).count, lead = b.surah !== 1 && b.surah !== 9;
   const sv = b.rec?.align;
   if (sv && sv.surah === b.surah && sv.starts?.length === n && Math.abs((sv.dur || 0) - buffer.duration) < 0.5) return { starts: sv.starts, ends: sv.ends, n, lead };
@@ -980,7 +991,18 @@ function applyTimeRange(b, A, B, marks) {
     let al = null;
     try { al = tlAlign(b); } catch { al = null; }
     if (al) {
-      const r = rangeAyat(al, au.buffer.duration, A, B);
+      let r = rangeAyat(al, au.buffer.duration, A, B);
+      // الكارت مكتوب فيه آية (من البحث)، والتايم لاين شايف الحتة دي رقم تاني (نفس العدد): غالبًا التحليل زاحل آية
+      const d = b.from - r.from;
+      if (d && Math.abs(d) <= 5 && (b.to - b.from) === (r.to - r.from) && b.rec.wholeSurah === b.surah && !(b.rec.align && b.rec.alignExact)) {
+        const n = (x, y) => Q.arabicNum(x) + (y > x ? '–' + Q.arabicNum(y) : '');
+        if (confirm(`التايم لاين شايف الحتة دي آية ${n(r.from, r.to)}، والكارت مكتوب فيه ${n(b.from, b.to)}.\n\nالصوت اللي اخترته ده فعلاً آية ${n(b.from, b.to)}؟\n\n«OK» = آه — صحّح ترقيم التايم لاين (والآيات اللي بعدها كمان)\n«Cancel» = لأ — خلّي الكارت ${n(r.from, r.to)}`)) {
+          b.rec.alignShift = (Number(b.rec.alignShift) || 0) + d;
+          al = tlAlign(b);
+          r = rangeAyat(al, au.buffer.duration, A, B);
+          TL?.refresh();
+        }
+      }
       b.from = r.from; b.to = r.to; b.basmala = r.basmala; delete b.part;
       const m = [];
       if (r.basmala) m.push(al.starts[0]);
@@ -1227,7 +1249,7 @@ function wireRecitation(li, b) {
     // نسيب الصفحة ترسم الرسالة الأول (التحليل بياخد ثانية أو اتنين في السورة الطويلة)
     setTimeout(() => {
       try {
-        if (wholeSurahFile(b, au.buffer)) return autoWholeSurah(b, au.buffer);
+        if (wholeSurahFile(b, au.buffer)) { delete b.rec.alignShift; return autoWholeSurah(b, au.buffer); }
         const start = Math.max(0, Number(b.rec.start) || 0);
         const end = Math.min(au.buffer.duration, Number(b.rec.end) > start ? Number(b.rec.end) : au.buffer.duration);
         const { marks, pauses } = autoMarks(au.buffer, start, end, units.map(t => stripMarks(t).length + 6));
@@ -1269,6 +1291,7 @@ function wireRecitation(li, b) {
       const starts = timing.map(t => t.start);
       const ends = timing.map((t, i) => (i ? timing[i - 1].end : t.start));
       b.rec.align = { surah: b.surah, dur: +buffer.duration.toFixed(2), starts, ends };
+      b.rec.alignExact = true;
     }
     libSave(b, 'upload', blob, buffer, fileName);
     li.querySelector('.custom-rec').hidden = false;
@@ -7789,4 +7812,4 @@ async function init() {
 init().catch(showError);
 
 // للاختبار من الكونسول
-window.__qcs = { state, buildProject, buildSegments, live, withProject, projectFromVideo };
+window.__qcs = { state, buildProject, buildSegments, live, withProject, projectFromVideo, applyTimeRange, surahAlign };
