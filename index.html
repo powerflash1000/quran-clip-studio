@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261124a">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261124b">
 </head>
 <body>
   <header class="topbar">
@@ -138,6 +138,7 @@
           <button class="btn" id="add-hadith" type="button">＋ حديث</button>
           <button class="btn" id="add-custom" type="button" title="دعاء أو كلام من عندك مش موجود في المكتبة">✍️ نص خاص</button>
           <button class="btn" id="add-speech" type="button" title="ارفع صوت أو فيديو، حدد من الثانية كام لكام، والكلام يتكتب على الشاشة بنفس الصوت">🎧 كلام من ملف صوت</button>
+          <button class="btn" id="open-lib" type="button" title="كل الأصوات اللي اشتغلت عليها: ملفات رفعتها، سور من mp3quran، وكل حتة قصّيتها في كارت (آية أو آيتين) — لو حاجة ضاعت من كارت هتلاقيها هنا">📚 مكتبة الأصوات</button>
           <button class="btn primary" id="btn-reel" type="button" title="اختار موضوع والبرنامج يعمل الريل كله">🪄 ريل بضغطة</button>
           <button class="btn primary" id="add-zikr" type="button">📿 مكتبة الأذكار والأدعية</button>
           <button class="btn" id="add-count" type="button" title="أذكار الصباح/المساء أو التسبيح بعدد مراتها — بسبحة أو عجلة بتعدّ مع كل مرة">📿 فيديو أذكار بالعدد</button>
@@ -653,7 +654,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261124a</div>
+    <div class="muted" id="app-version">الإصدار 20261124b</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -857,6 +858,7 @@
         <button class="btn" data-act="genBg" type="button" title="برومبت خلفية للآيات دي: انسخه، ولّد في Flow أو Higgsfield أو Gemini أو ChatGPT، وارجع حط اللي ولّدته">🎨 خلفية بالذكاء الاصطناعي</button>
         <button class="btn" data-act="follow" type="button" title="تسمع الشيخ آية آية وتقرا وراه — الفيديو بيطلع بصوتك أنت بس">🎧 اقرا ورا الشيخ — والفيديو بصوتك</button>
         <button class="btn" data-act="mp3q" type="button" title="٢٤٤ قارئ من mp3quran.net (زي إسلام صبحي) — السورة كاملة وبتتقسم آيات لوحدها">📥 قرّاء أكتر (mp3quran)</button>
+        <button class="btn" data-act="qLib" type="button" title="حط للكارت ده صوت من المكتبة (حتة قصّيتها قبل كده، أو سورة اتحمّلت)">📚 من المكتبة</button>
       </div>
       <details class="adv custom-rec" hidden>
         <summary>🎙️ الصوت من ملف</summary>
@@ -1328,7 +1330,7 @@
         <h2 class="grow">📚 مكتبة الأصوات <span class="muted" id="al-count"></span></h2>
         <button class="btn icon" id="al-close" type="button">✕</button>
       </div>
-      <p class="hint">كل صوت ولّدته (Gemini أو ElevenLabs) أو سجّلته أو رفعته بيتحفظ هنا في المتصفح ده. ✅ = نفس نص المقطع. وأي صوت اتولّد قبل كده لنفس النص بنفس الصوت بيتاخد من هنا لوحده من غير ما يتخصم رصيد.</p>
+      <p class="hint">كل صوت ولّدته (Gemini أو ElevenLabs) أو سجّلته أو رفعته بيتحفظ هنا في المتصفح ده. و«✂️ حتة» = آية أو آيات قصّيتها في كارت (بتتحفظ لوحدها بعد كل تعديل) — «＋ كارت» بيرجّعها كارت بنفس الآيات والقص. ✅ = نفس نص المقطع. وأي صوت اتولّد قبل كده لنفس النص بنفس الصوت بيتاخد من هنا لوحده من غير ما يتخصم رصيد.</p>
       <input type="search" id="al-search" placeholder="دوّر بكلمة من النص…" style="width:100%">
       <ol class="parts" id="al-list"></ol>
       <p class="muted" id="al-empty" hidden>مفيش أصوات لسه.</p>
@@ -1800,6 +1802,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261124a"></script>
+  <script type="module" src="js/main.js?v=20261124b"></script>
 </body>
 </html>

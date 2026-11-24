@@ -87,6 +87,7 @@ function persist() {
   clearTimeout(kvTimer);
   const snap = JSON.parse(JSON.stringify(blocks));
   kvTimer = setTimeout(() => kvSet('blocks', { t, blocks: snap }), ok ? 800 : 0);
+  scheduleCuts();
   if (!ok && !lsWarned) { lsWarned = true; status('⚠️ مساحة حفظ المتصفح الصغيرة مليانة — كروتك بتتحفظ دلوقتي في النسخة الاحتياطية الكبيرة، فمش هتضيع. (لو عايز تفضّي: امسح قوالب قديمة أو إحصائيات من «📈»).', null, true); }
 }
 // قبل ما الصفحة تتقفل: اكتب النسخة الاحتياطية فورًا
@@ -1276,6 +1277,20 @@ function wireRecitation(li, b) {
     TL?.open(b.id); // التايم لاين تحت المعاينة: تختار من دقيقة كذا لدقيقة كذا
   });
   act('recTl').onclick = () => TL?.open(b.id);
+  act('qLib').onclick = () => openAudioLib(b, (kind, buffer, name, blob, clipId, msg) => {
+    AL.getClip(clipId).then(c => {
+      if (c?.kind === 'cut' && c.meta?.surah) {
+        Object.assign(b, { surah: c.meta.surah, from: c.meta.from, to: c.meta.to || c.meta.from });
+        applyCutToBlock(b, c, buffer);
+      } else {
+        b.rec = { name: name || 'قارئ', file: name || 'ملف', start: 0, end: +buffer.duration.toFixed(2), marks: [] };
+        b.audioId = clipId;
+      }
+      setHadithAudio(b, buffer, name || 'ملف', blob, 'upload');
+      renderBlocks(); persist(); refreshPreview();
+      status(msg || '✅ اتحط الصوت من المكتبة');
+    });
+  });
   act('recMarksClear').onclick = () => { if (!b.rec) return; b.rec.marks = []; delete b.rec.bas; changed(); };
   act('recClear').onclick = () => {
     player.pause();
@@ -2233,6 +2248,48 @@ function wireAudioControls(li, b, sync) {
 }
 
 // بيحفظ صوت المقطع في 📚 المكتبة، والمقطع بيفتكر رقمه (عشان يرجع بعد Refresh)
+// ===== ✂️ كل حتة اتقصّت في كارت آيات بتتحفظ في المكتبة لوحدها =====
+// (آية أو آيتين من ملف/سورة mp3quran بعد التريم والتوقيتات) — id ثابت لكل كارت «cut-<id>» فالتعديل بيحدّث نفس الحتة
+const cutRange = (b, au) => {
+  const start = Math.max(0, Number(b.rec.start) || 0);
+  const end = Math.min(au.buffer.duration, Number(b.rec.end) > start ? Number(b.rec.end) : au.buffer.duration);
+  return [start, end];
+};
+const cutSigOf = (b, start, end) => [b.surah, b.from, b.to, start.toFixed(2), end.toFixed(2), (b.rec.marks || []).map(t => (+t).toFixed(2)).join(','), b.rec.file || '', b.rec.name || ''].join('|');
+let cutTimer = null;
+function scheduleCuts() { clearTimeout(cutTimer); cutTimer = setTimeout(() => saveCuts().catch(() => {}), 2500); }
+async function saveCuts() {
+  let any = false;
+  for (const b of state.blocks) {
+    if (b.type !== 'quran' || !b.rec) continue;
+    const au = hadithAudio.get(b.id);
+    if (!au?.buffer) continue;
+    const [start, end] = cutRange(b, au);
+    if (end - start < 0.5 || end - start > 600) continue; // سورة كاملة من غير تحديد: مش حتة
+    const sig = cutSigOf(b, start, end);
+    if (b.cutSig === sig) continue;
+    const slice = sliceBuffer(au.buffer, start, end);
+    const marks = (b.rec.marks || []).filter(t => t > start && t < end).map(t => +(t - start).toFixed(2));
+    const sur = Q.surah(b.surah);
+    const range = b.from === b.to || !b.to ? Q.arabicNum(b.from) : `${Q.arabicNum(b.from)}–${Q.arabicNum(b.to)}`;
+    const id = await AL.addClip({
+      id: 'cut-' + b.id, kind: 'cut', voice: '', dur: slice.duration, blob: bufferToWavBlob(slice),
+      name: `سورة ${sur.ar} ${range} — ${b.rec.name || 'قارئ'}`,
+      text: `سورة ${sur.ar} ${range} ${b.rec.name || ''}`,
+      meta: { surah: b.surah, from: b.from, to: b.to, recName: b.rec.name || '', file: b.rec.file || '', marks },
+    });
+    if (id) { b.cutSig = sig; any = true; }
+  }
+  if (any) save('blocks', state.blocks); // من غير persist عشان مانعملش لفّة تاني
+}
+// كارت آيات من حتة متحفظة: نفس السورة والآيات، والصوت هو الحتة نفسها (من ٠ لآخرها)
+function applyCutToBlock(b, c, buf) {
+  const m = c.meta || {};
+  b.rec = { name: m.recName || 'قارئ', file: m.file || c.name, start: 0, end: +buf.duration.toFixed(2), marks: m.marks || [] };
+  b.audioId = c.id;
+  b.cutSig = cutSigOf(b, 0, +buf.duration.toFixed(2));
+}
+
 let savingClips = 0;
 addEventListener('beforeunload', e => { if (savingClips > 0) { e.preventDefault(); e.returnValue = 'الصوت لسه بيتحفظ على جهازك — استنى ثانية قبل الريفرش'; } });
 async function libSave(b, kind, blob, buffer, name) {
@@ -2261,6 +2318,13 @@ async function restoreBlockAudio() {
     }
     if ((!b.audioId && !(b.type === 'quran' && b.rec?.url)) || hadithAudio.has(b.id)) continue;
     let c = b.audioId ? await AL.getClip(b.audioId) : null;
+    // الملف الكبير ضاع بس الحتة اللي قصّيتها متحفظة: نرجّعها على طول (من غير نت)
+    if (!c && b.type === 'quran' && b.rec) {
+      const cut = await AL.getClip('cut-' + b.id);
+      if (cut) {
+        try { const buf = await decode(await cut.blob.arrayBuffer()); applyCutToBlock(b, cut, buf); setHadithAudio(b, buf, b.rec.file, cut.blob, 'upload'); n++; continue; } catch { /* نكمّل */ }
+      }
+    }
     // الملف مش في المكتبة: لو جاي من mp3quran بنحمّله تاني لوحده (القص والضبط محفوظين في الكارت)
     if (!c && b.type === 'quran' && b.rec?.url) {
       try {
@@ -2286,12 +2350,12 @@ async function restoreBlockAudio() {
 }
 
 // 📚 مكتبة الأصوات: اختار صوت اتعمل قبل كده للمقطع ده
-const KIND_ICON = { gtts: '🆓 Gemini', ai: '🤖 ElevenLabs', record: '🎙️ تسجيل', upload: '📁 ملف' };
+const KIND_ICON = { gtts: '🆓 Gemini', ai: '🤖 ElevenLabs', record: '🎙️ تسجيل', upload: '📁 ملف', cut: '✂️ حتة' };
 let libPlayer = null;
 async function openAudioLib(b, useAudio) {
   const dlg = $('#dlg-audiolib');
   const all = await AL.listClips();
-  const key = AL.textKey(b.text);
+  const key = b ? AL.textKey(b.text) : '\u0000';
   const draw = () => {
     const q = AL.textKey($('#al-search').value);
     const ol = $('#al-list');
@@ -2305,7 +2369,7 @@ async function openAudioLib(b, useAudio) {
       li.className = 'part';
       li.innerHTML = `<button class="btn icon" type="button" data-a="play" title="اسمع">▶</button>
         <span class="pname"></span><span class="pinfo"></span>
-        <button class="btn" type="button" data-a="use">استخدمه</button>
+        <button class="btn" type="button" data-a="use">${useAudio ? 'استخدمه' : '＋ كارت'}</button>
         <button class="btn icon" type="button" data-a="del" title="امسحه من المكتبة">🗑</button>`;
       li.querySelector('.pname').textContent = `${c.key === key ? '✅ ' : ''}${KIND_ICON[c.kind] || ''}${c.voice && c.kind === 'gtts' ? ` (${c.voice})` : ''}`;
       li.querySelector('.pinfo').textContent = `${(c.text || c.name || '').slice(0, 70)}${(c.text || '').length > 70 ? '…' : ''} • ${fmtDur(c.dur || 0)} • ${((c.size || 0) / 1024).toFixed(0)} KB • ${new Date(c.date).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}`;
@@ -2320,6 +2384,7 @@ async function openAudioLib(b, useAudio) {
         const full = await AL.getClip(c.id);
         if (!full) return;
         const buf = await decode(await full.blob.arrayBuffer());
+        if (!useAudio) { libToNewCard(full, buf); dlg.close(); return; }
         const ai = c.kind === 'ai' || c.kind === 'gtts';
         useAudio(c.kind, ai ? trimSilence(buf) : buf, c.kind === 'gtts' ? 'Gemini' : c.kind === 'ai' ? 'ElevenLabs' : c.name, full.blob, c.id,
           `✅ اتحط الصوت من المكتبة${c.key !== key ? ' — ⚠️ النص بتاعه مختلف عن نص المقطع، اتأكد إنه مطابق' : ''}.`);
@@ -2340,6 +2405,22 @@ async function openAudioLib(b, useAudio) {
   dlg.onclose = () => { if (libPlayer) { libPlayer.pause(); libPlayer = null; } };
   draw();
   dlg.showModal();
+}
+
+// من المكتبة لكارت جديد: الحتة المقصوصة بترجع كارت آيات بنفس السورة والآيات؛ أي صوت تاني بيبقى كارت «صوت بس»
+function libToNewCard(c, buf) {
+  let b;
+  if (c.kind === 'cut' && c.meta?.surah) {
+    b = newQuranBlock(c.meta.surah, c.meta.from, c.meta.to || c.meta.from);
+    applyCutToBlock(b, c, buf);
+  } else {
+    b = newCustomBlock();
+    Object.assign(b, { text: '', label: '', ref: '', audioOnly: true, audioMode: 'upload', seconds: Math.round(buf.duration * 2) / 2, secondsManual: true, audioId: c.id });
+  }
+  setHadithAudio(b, buf, c.name || 'ملف', c.blob, c.kind === 'cut' ? 'upload' : c.kind);
+  state.blocks.push(b);
+  persist(); renderBlocks(); refreshPublish(true); refreshPreview();
+  status(`✅ اتضاف كارت من المكتبة: ${c.name || ''}`);
 }
 
 // kind: 'ai' (ElevenLabs) أو 'gtts' (Gemini) أو 'record' أو 'upload' — عشان «ولّد تاني» يعرف يولّد بإيه
@@ -7011,6 +7092,7 @@ function setupPreviewTools() {
 
 function setupSpeech() {
   const dlg = $('#dlg-speech');
+  $('#open-lib').onclick = () => openAudioLib(null, null);
   $('#add-speech').onclick = async () => {
     dlg.showModal();
     // آخر ملف اترفع بيرجع لوحده
@@ -7624,7 +7706,7 @@ async function init() {
   } catch { /* */ }
   renderBlocks();
   // الأصوات اللي كروت المحتوى أو قايمة البث شغالة عليها: التنضيف التلقائي للمكتبة مايقربلهاش
-  AL.setInUse(() => new Set([...state.blocks, ...(live?.items || []).flatMap(it => it.blocks || [])].map(b => b.audioId).filter(Boolean)));
+  AL.setInUse(() => new Set([...state.blocks, ...(live?.items || []).flatMap(it => it.blocks || [])].flatMap(b => [b.audioId, b.type === 'quran' ? 'cut-' + b.id : null]).filter(Boolean)));
   AL.askPersist();
   restoreBlockAudio();
   // 🎛️ استوديو التسجيل (صفحة لوحدها) بيبعت التلاوة الجاهزة للكارت
