@@ -9,7 +9,7 @@ import { exportAudio, exportVideo, exportFilmoraPackage, renderStill, makeSrt, d
 import { PROVIDERS, downloadStock } from './stock.js';
 import * as STOCK from './stock.js';
 import * as T from './templates.js';
-import { getSettings, setSettings, load, save } from './storage.js';
+import { getSettings, setSettings, load, save, kvSet, kvGet } from './storage.js';
 import * as EL from './elevenlabs.js';
 import * as GT from './geminitts.js';
 import * as AL from './audiolib.js';
@@ -77,10 +77,20 @@ function newHadithBlock() {
 // الصوت المسجّل/المرفوع للأحاديث مش بيتحفظ في localStorage
 const hadithAudio = new Map(); // blockId -> { buffer, name, url }
 
+let lsWarned = false, kvTimer = null;
 function persist() {
-  save('blocks', state.blocks.map(b => b.type === 'hadith' ? { ...b } : b));
+  const blocks = state.blocks.map(b => b.type === 'hadith' ? { ...b } : b);
+  const t = Date.now();
+  const ok = save('blocks', blocks) && save('blocksT', t);
   T.rememberStyle(state.style);
+  // نسخة احتياطية في IndexedDB (بتتكتب بعد ثانية من آخر تعديل عشان ماتتقلش)
+  clearTimeout(kvTimer);
+  const snap = JSON.parse(JSON.stringify(blocks));
+  kvTimer = setTimeout(() => kvSet('blocks', { t, blocks: snap }), ok ? 800 : 0);
+  if (!ok && !lsWarned) { lsWarned = true; status('⚠️ مساحة حفظ المتصفح الصغيرة مليانة — كروتك بتتحفظ دلوقتي في النسخة الاحتياطية الكبيرة، فمش هتضيع. (لو عايز تفضّي: امسح قوالب قديمة أو إحصائيات من «📈»).', null, true); }
 }
+// قبل ما الصفحة تتقفل: اكتب النسخة الاحتياطية فورًا
+addEventListener('pagehide', () => { clearTimeout(kvTimer); kvSet('blocks', { t: Date.now(), blocks: JSON.parse(JSON.stringify(state.blocks)) }); });
 
 // ===== شريط الحالة =====
 const statusEl = $('#status'), statusText = $('#status-text'), barFill = $('#bar-fill');
@@ -1058,7 +1068,7 @@ async function openMp3q(b, onPick) {
       ]);
       st('⏳ بيقرا الملف…');
       const name = m.reciter + (m.hafs ? '' : ` (${m.moshaf})`);
-      await onPick({ blob, name, fileName: `mp3quran-${m.moshafId}-${String(b.surah).padStart(3, '0')}.mp3`, timing });
+      await onPick({ blob, name, fileName: `mp3quran-${m.moshafId}-${String(b.surah).padStart(3, '0')}.mp3`, timing, url: m.url, moshafId: m.moshafId });
       dlg.close();
       status(`✅ سورة ${sur.ar} بصوت ${name}${timing ? ' — بتوقيت الآيات من الموقع' : ''}. اسمع «▶ اسمع الآيات دي» في الكارت.`);
     } catch (e) { $('#mq-status').textContent = '❌ ' + e.message; showError(e); } finally { btn.disabled = false; }
@@ -1249,11 +1259,11 @@ function wireRecitation(li, b) {
     status(`🪄 لقيت آيات السورة كلها (${Q.arabicNum(n)} آية)، وحددت الآيات ${Q.arabicNum(from)}–${Q.arabicNum(to)}: من ${fmtDur(start)} لـ ${fmtDur(end)}. اسمع «▶ اسمع المقطع» — ولو غيّرت الآيات دوس 🪄 تاني (هيبقى فوري).`);
   };
   // 📥 السورة كاملة من mp3quran: لو ليها توقيت آيات جاهز بنحطه مكان التحليل (أدق وفوري)
-  act('mp3q').onclick = () => openMp3q(b, async ({ blob, name, fileName, timing }) => {
+  act('mp3q').onclick = () => openMp3q(b, async ({ blob, name, fileName, timing, url, moshafId }) => {
     let buffer = await decode(await blob.arrayBuffer());
     if (buffer.duration > 600 && buffer.numberOfChannels > 1) buffer = toMono(buffer);
     setHadithAudio(b, buffer, fileName, blob);
-    b.rec = { name, file: fileName, start: 0, end: buffer.duration, marks: [], whole: true, wholeSurah: b.surah, src: 'mp3quran' };
+    b.rec = { name, file: fileName, start: 0, end: buffer.duration, marks: [], whole: true, wholeSurah: b.surah, src: 'mp3quran', url, moshafId };
     if (timing) {
       const starts = timing.map(t => t.start);
       const ends = timing.map((t, i) => (i ? timing[i - 1].end : t.start));
@@ -2223,10 +2233,14 @@ function wireAudioControls(li, b, sync) {
 }
 
 // بيحفظ صوت المقطع في 📚 المكتبة، والمقطع بيفتكر رقمه (عشان يرجع بعد Refresh)
+let savingClips = 0;
+addEventListener('beforeunload', e => { if (savingClips > 0) { e.preventDefault(); e.returnValue = 'الصوت لسه بيتحفظ على جهازك — استنى ثانية قبل الريفرش'; } });
 async function libSave(b, kind, blob, buffer, name) {
   const big = blob.size > 5 * 1048576;
-  if (big) status('💾 بيحفظ الملف على جهازك عشان يفضل بعد الريفرش… استنى ثانية');
-  const id = await AL.addClip({ name, kind, text: b.text || '', voice: '', dur: buffer.duration, blob });
+  if (big) status('💾 بيحفظ الملف على جهازك عشان يفضل بعد الريفرش… ماتعملش ريفرش دلوقتي');
+  savingClips++;
+  let id;
+  try { id = await AL.addClip({ name, kind, text: b.text || '', voice: '', dur: buffer.duration, blob }); } finally { savingClips--; }
   if (!id) { status('⚠️ الملف ما اتحفظش على الجهاز (المساحة مليانة؟) — هيشتغل دلوقتي بس هيضيع لو عملت ريفرش. امسح أصوات قديمة من «📚 مكتبة الأصوات».', null, true); return; }
   b.audioId = id;
   persist();
@@ -2237,7 +2251,7 @@ async function libSave(b, kind, blob, buffer, name) {
 async function restoreBlockAudio() {
   let n = 0;
   const lost = [];
-  if (state.blocks.some(b => b.audioId && !hadithAudio.has(b.id))) status('⏳ بيرجّع صوت الكروت من جهازك…');
+  if (state.blocks.some(b => (b.audioId || b.rec?.url) && !hadithAudio.has(b.id))) status('⏳ بيرجّع صوت الكروت من جهازك…');
   for (const b of state.blocks) {
     if (b.srcClip && !hadithAudio.has(b.id)) {
       try {
@@ -2245,8 +2259,20 @@ async function restoreBlockAudio() {
         if (buf) { setHadithAudio(b, buf, b.rec?.file || 'ملف', bufferToWavBlob(buf), 'upload'); n++; continue; }
       } catch { /* نكمل بالطريقة القديمة */ }
     }
-    if (!b.audioId || hadithAudio.has(b.id)) continue;
-    const c = await AL.getClip(b.audioId);
+    if ((!b.audioId && !(b.type === 'quran' && b.rec?.url)) || hadithAudio.has(b.id)) continue;
+    let c = b.audioId ? await AL.getClip(b.audioId) : null;
+    // الملف مش في المكتبة: لو جاي من mp3quran بنحمّله تاني لوحده (القص والضبط محفوظين في الكارت)
+    if (!c && b.type === 'quran' && b.rec?.url) {
+      try {
+        status(`⏳ ملف سورة ${Q.surah(b.surah).ar} بصوت ${b.rec.name || 'القارئ'} مش على الجهاز — بيحمّله تاني من mp3quran بنفس القص…`);
+        const blob = await MQ.downloadSurah(b.rec.url, (got, total) => status(`⏳ بيحمّل سورة ${Q.surah(b.surah).ar} تاني… ${(got / 1048576).toFixed(1)}${total ? ' من ' + (total / 1048576).toFixed(1) : ''} ميجا`));
+        let buf = await decode(await blob.arrayBuffer());
+        if (buf.duration > 600 && buf.numberOfChannels > 1) buf = toMono(buf);
+        setHadithAudio(b, buf, b.rec.file || 'mp3quran', blob, 'upload');
+        await libSave(b, 'upload', blob, buf, b.rec.file || 'mp3quran.mp3');
+        n++; continue;
+      } catch { /* هنقول إنه ضاع تحت */ }
+    }
     if (!c) { if (b.type === 'quran' && b.rec) lost.push(`سورة ${Q.surah(b.surah).ar}${b.rec.name ? ' — ' + b.rec.name : ''}`); continue; }
     try {
       const buf = await decode(await c.blob.arrayBuffer());
@@ -2255,7 +2281,7 @@ async function restoreBlockAudio() {
     } catch { /* ملف بايظ */ }
   }
   if (n) { renderBlocks(); refreshPreview(); }
-  if (lost.length) status(`⚠️ صوت الكارت ده مش موجود على الجهاز: ${lost.join('، ')} — حمّله تاني من «📥 mp3quran» (من دلوقتي الملفات اللي كروتك شغالة عليها مابتتمسحش).`, null, true);
+  if (lost.length) status(`⚠️ صوت الكارت ده مش موجود على الجهاز: ${lost.join('، ')} — دوّر عليه في «📚 مكتبة الأصوات» (ملف اسمه mp3quran-…)، أو حمّله تاني من «📥 mp3quran». من دلوقتي ملفات mp3quran بترجع لوحدها بنفس القص.`, null, true);
   else if (n) status(`✅ رجع صوت ${Q.arabicNum(n)} كارت`);
 }
 
@@ -7591,6 +7617,11 @@ async function init() {
   setupStock();
   setupTemplates();
   setupSettings();
+  // لو النسخة الاحتياطية (IndexedDB) أحدث من localStorage (الحفظ الصغير فشل أو الصفحة اتقفلت بسرعة) — نرجّعها
+  try {
+    const kv = await kvGet('blocks');
+    if (kv?.blocks?.length && kv.t > (load('blocksT', 0) || 0) + 500) { state.blocks = kv.blocks; status('↩️ رجّعت آخر نسخة من كروتك من النسخة الاحتياطية'); }
+  } catch { /* */ }
   renderBlocks();
   // الأصوات اللي كروت المحتوى أو قايمة البث شغالة عليها: التنضيف التلقائي للمكتبة مايقربلهاش
   AL.setInUse(() => new Set([...state.blocks, ...(live?.items || []).flatMap(it => it.blocks || [])].map(b => b.audioId).filter(Boolean)));
