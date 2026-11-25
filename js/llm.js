@@ -203,7 +203,7 @@ function openRouterError(code, msg, model) {
   return `OpenRouter ${code}: ${m}`;
 }
 
-async function callClaude({ key, model }, system, user) {
+async function callClaude({ key, model }, system, user, opts = {}) {
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -216,7 +216,7 @@ async function callClaude({ key, model }, system, user) {
     },
     body: JSON.stringify({
       model,
-      max_tokens: 4000,
+      max_tokens: opts.maxTokens || 4000,
       system,
       messages: [{ role: 'user', content: user }],
       output_config: { effort: 'low' },
@@ -681,10 +681,16 @@ export async function generateMotion({ text, kind = 'نص ديني', style = nul
   if (idea) task += `\nUser's extra direction: ${idea}\n`;
   if (prev && change) task += `\nHere is the current code. Apply this change and return the full new code: ${change}\n---\n${prev.slice(0, 12000)}\n---\n`;
   if (prev && fix) task += `\nThe previous code failed with this error, fix it and return the full code:\n${fix}\n---\n${prev.slice(0, 12000)}\n---\n`;
-  let out;
-  try { out = parseJson(await CALLERS[c.provider](c, MOTION_RULES, task)); } catch (e) {
+  let raw, out;
+  try { raw = await CALLERS[c.provider](c, MOTION_RULES, task, { maxTokens: 12000 }); } catch (e) {
     if (e instanceof TypeError) throw new Error('الطلب ماوصلش للخدمة (النت أو الحجب). جرّب تاني، أو جرّب مزوّد تاني.');
     throw e;
+  }
+  try { out = parseJson(raw); } catch {
+    // بعض الموديلات بترجّع الكود في بلوك ```js بدل جوه الـ JSON
+    const blk = /```(?:js|javascript)?\s*([\s\S]*?)```/.exec(String(raw || ''));
+    if (!blk) throw new Error('رد الموديل اتقطع أو مش مفهوم — جرّب تاني، أو اختار موديل تاني');
+    out = { code: blk[1], title: /"title"\s*:\s*"([^"]+)"/.exec(raw)?.[1], idea: /"idea"\s*:\s*"([^"]+)"/.exec(raw)?.[1] };
   }
   const code = String(out.code || '').replace(/^```(?:js|javascript)?\s*|\s*```$/g, '');
   if (code.length < 40) throw new Error('الموديل مارجّعش كود رسم — جرّب تاني');

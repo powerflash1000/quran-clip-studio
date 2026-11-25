@@ -7735,25 +7735,48 @@ function fillMotionUi() {
   ss.innerHTML = '<option value="">— من غير (يختار هو) —</option>' + designStyles.map(d => `<option value="${d.id}">🎞️ ${escapeHtml(d.spec.name || 'ستايل')}</option>`).join('');
   ss.value = designStyles.some(d => d.id === keep) ? keep : '';
   const has = !!curMotion();
-  $('#mo-again').disabled = $('#mo-edit').disabled = $('#mo-del').disabled = !has || motionBusy;
+  // وقت الشغل: «ولّد تاني» بيبقى «⏹ وقّف» (مش مقفول)
+  const again = $('#mo-again');
+  again.textContent = motionBusy ? '⏹ وقّف' : '🔄 ولّد تاني';
+  again.disabled = !has && !motionBusy;
+  $('#mo-edit').disabled = $('#mo-del').disabled = !has || motionBusy;
   $('#mo-gen').disabled = motionBusy;
 }
+let motionRun = 0; // رقم المحاولة الحالية — «⏹ وقّف» بيزوّده فالرد القديم بيتجاهل
+function stopMotion(msg) {
+  motionRun++; motionBusy = false; fillMotionUi();
+  if (msg) $('#mo-status').textContent = msg;
+}
 async function makeMotion({ change = '' } = {}) {
-  if (motionBusy) return;
-  if (!LLM.isReady()) { needLLM(); return; }
+  if (motionBusy) { stopMotion('⏹ وقفت. دوس «✨ ولّد» تاني وقت ما تحب.'); return; }
+  if (!LLM.isReady()) { needLLM(); $('#mo-status').textContent = '🔑 محتاج مفتاح مساعد الكتابة: ⚙️ الإعدادات ← ✨ مساعد الكتابة'; return; }
   const st = $('#mo-status');
   const style = designStyles.find(d => d.id === $('#mo-style').value)?.spec || null;
   const prev = change ? curMotion() : null;
   const kinds = new Set(state.blocks.map(b => (b.type === 'quran' ? 'آيات قرآن' : b.type === 'hadith' ? 'حديث' : 'دعاء/ذكر')));
-  const args = { text: contentSummary(), kind: [...kinds].join(' + '), style, idea: $('#mo-idea').value.trim(), prev: prev?.code || null, change };
+  const text = contentSummary();
+  if (!String(text || '').trim()) { st.textContent = '✍️ ضيف محتوى الأول (آية أو دعاء أو حديث) عشان المشهد يتصمم على معناه'; return; }
+  const args = { text, kind: [...kinds].join(' + '), style, idea: $('#mo-idea').value.trim(), prev: prev?.code || null, change };
+  const run = ++motionRun;
   motionBusy = true; fillMotionUi();
+  const cfg = LLM.config();
+  const who = `${cfg.provider}${cfg.model ? ' · ' + cfg.model : ''}`;
+  const t0 = Date.now();
+  let phase = '';
+  const tick = () => { if (run === motionRun && motionBusy) st.textContent = `${phase} — ${Q.arabicNum(Math.round((Date.now() - t0) / 1000))} ث (${who}) — «⏹ وقّف» لو طوّل`; };
+  const timer = setInterval(tick, 1000);
+  const LIMIT = 150000;
+  const withLimit = pr => Promise.race([pr, new Promise((_, rej) => setTimeout(() => rej(new Error(`الموديل (${who}) ماردّش في ${Q.arabicNum(LIMIT / 1000)} ثانية. جرّب تاني، أو اختار موديل أسرع من ⚙️ الإعدادات (زي gemini flash).`)), LIMIT))]);
   try {
     let out = null, err = '';
     for (let attempt = 0; attempt < 3; attempt++) {
-      st.textContent = attempt ? `🔧 بيصلّح غلط في الكود (محاولة ${Q.arabicNum(attempt + 1)})…` : (change ? '⏳ بيعدّل المشهد…' : '⏳ بيصمّم مشهد على حسب معنى الكلام… (٢٠–٦٠ ثانية)');
-      out = await LLM.generateMotion(attempt && out ? { ...args, fix: err, prev: out.code, change: '' } : args);
+      phase = attempt ? `🔧 بيصلّح غلط في الكود (محاولة ${Q.arabicNum(attempt + 1)})` : (change ? '⏳ بيعدّل المشهد' : '⏳ بيصمّم مشهد على حسب معنى الكلام');
+      tick();
+      out = await withLimit(LLM.generateMotion(attempt && out ? { ...args, fix: err, prev: out.code, change: '' } : args));
+      if (run !== motionRun) return; // اتوقف
       err = await MO.load(out.code);
       if (!err) err = await MO.selfTest(270, 480, durCache?.duration || 12);
+      if (run !== motionRun) return;
       if (!err) break;
     }
     if (err) throw new Error('الكود اللي اتولّد فيه غلط مااتصلحش: ' + err + ' — جرّب «✨ ولّد» تاني');
@@ -7761,8 +7784,14 @@ async function makeMotion({ change = '' } = {}) {
     motions = [m, ...motions].slice(0, 30);
     await kvSet('motions', motions);
     if (state.style.bgType !== 'motion') { state.style.bgType = 'motion'; $('#bgType').value = 'motion'; updateBgVisibility(); }
+    clearInterval(timer); motionBusy = false;
     await useMotion(m, `✅ «${m.title}» — ${m.idea || ''} شغّل «▶ معاينة» تشوف الحركة.`);
-  } catch (e) { st.textContent = '❌ ' + e.message; } finally { motionBusy = false; fillMotionUi(); }
+  } catch (e) {
+    if (run === motionRun) st.textContent = '❌ ' + e.message;
+  } finally {
+    clearInterval(timer);
+    if (run === motionRun) { motionBusy = false; fillMotionUi(); }
+  }
 }
 async function setupMotion() {
   MOTION_LAYER.draw = (c, W, H, clock) => {
