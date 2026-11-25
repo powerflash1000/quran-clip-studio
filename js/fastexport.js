@@ -1,7 +1,7 @@
 // تصدير سريع بالـ WebCodecs (بيستخدم كارت الشاشة / مُرمّز الجهاز) بدل ffmpeg.wasm
 // بيشتغل في Chrome و Edge لما الجهاز يدعم H.264 + AAC. لو مش مدعوم بنرجع لـ ffmpeg تلقائيًا.
 import { Muxer, ArrayBufferTarget, StreamTarget } from '../vendor/mp4-muxer/mp4-muxer.mjs';
-import { drawBackground, drawOverlay, ENTER_SECS, textFont } from './slides.js';
+import { drawBackground, drawOverlay, ENTER_SECS, textFont, MOTION_LAYER } from './slides.js';
 import { drawLight, drawLightLoop, TRANS_SECS, subCardAge, drawSubCard } from './brand.js';
 import { kbAmount } from './frame.js';
 import { ZONE_SRC } from './zone.js';
@@ -88,11 +88,13 @@ export async function fastExportVideo(project, cfg, onProgress, onStage) {
   const totalFrames = Math.ceil(timeline.duration * FPS);
   // 🔁 مدة الدورة = عدد الإطارات بالظبط، فالحركة (Ken Burns / الإضاءة) بترجع لأول إطار بعد آخر إطار
   const D = totalFrames / FPS;
-  const moving = kbAmount(style) > 0;
+  const motion = style.bgType === 'motion' && !!MOTION_LAYER.prepare;
+  const moving = kbAmount(style) > 0 || motion;
+  if (motion) MOTION_LAYER.begin?.(segments.map(sg => sg.start ?? 0), D);
   const bg = newCanvas(W, H);
   drawBackground(bg.getContext('2d'), W, H, style, media?.kind === 'image' ? media : null);
   // خلفيات متعددة أو فيديو: بنرسم الخلفية لكل إطار
-  const list = project.mediaList?.length ? project.mediaList : media ? [media] : [];
+  const list = motion ? [] : project.mediaList?.length ? project.mediaList : media ? [media] : [];
   const dynamic = list.length > 1 || list.some(m => m.kind === 'video');
   let sched = null, sources = null;
   if (dynamic) {
@@ -201,6 +203,7 @@ export async function fastExportVideo(project, cfg, onProgress, onStage) {
       if (f) drawOverlay(octx, W, H, f.count == null ? { ...f.seg, age: entering ? age : null } : { ...f.seg, wordCount: f.count }, style);
     }
     clock = { t, dur: D };
+    if (motion) await MOTION_LAYER.prepare(t, D, W, H);
     if (!dynamic) {
       if (moving) drawBackground(ctx, W, H, style, media?.kind === 'image' ? media : null, clock);
       else ctx.drawImage(bg, 0, 0);

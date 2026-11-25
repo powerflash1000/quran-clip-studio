@@ -631,3 +631,62 @@ export function genFallbackPrompt({ tool = 'flow', style = 'nature', aspect = '9
   const T = GEN_TOOLS[tool] || GEN_TOOLS.flow, S = GEN_STYLES[style] || GEN_STYLES.nature;
   return `${T.video ? 'A slow, peaceful 6-second shot with a gentle camera push-in' : 'A peaceful still image'}: ${S.en}. ${aspect} framing. Serene, spiritual, respectful mood; soft uncluttered center for overlay text. No people, no animals, no text, letters or logos, no buildings or religious sites.`;
 }
+
+// ===== 🎨 موشن جرافيك بالذكاء الاصطناعي =====
+// ١) «افهم التصميم»: Gemini بيبص على إطارات من فيديو (أو يوتيوب) ويطلّع وصف تصميم (ستايل) — من غير ما ينسخ نصوص أو لوجوهات
+const DESIGN_RULES = `أنت مصمم موشن جرافيك محترف بتحلل فيديو قصير (ريل) علشان مصمم تاني يعمل حاجة على نفس الستايل.
+- وصّف التصميم البصري والحركة بس: الألوان، الخلفية، العناصر المرسومة، شكل الخط ومكان الكلام، نوع الحركة والانتقالات، الإيقاع، والفكرة اللي بتربط الرسومات بمعنى الكلام.
+- ماتنسخش أي نص مكتوب في الفيديو، وماتوصفش لوجو أو اسم القناة.
+- رجّع JSON بس.`;
+const DESIGN_TASK = `حلّل الفيديو ده ورجّع JSON بالشكل ده:
+{"name":"اسم قصير للستايل بالعربي (٢–٤ كلمات)","summary":"وصف بالعامية المصرية في ٢–٤ جمل للي شايفه وإزاي معمول","palette":["#hex",…٣–٦ ألوان],"background":"…","elements":"العناصر المرسومة وشكلها","motion":"إزاي الحاجات بتتحرك وبتتغير مع الكلام","typography":"شكل الخط ومكانه","concept":"الفكرة اللي رابطة الرسومات بالمعنى","mood":"الإحساس العام"}`;
+export async function designFromMedia(src) {
+  const c = mediaConfig();
+  if (!c) throw new Error('محتاج مفتاح Gemini (مجاني) — من ⚙️ الإعدادات ← ✨ مساعد الكتابة (اختار Gemini) أو 🔊 صوت Gemini');
+  const parts = [];
+  if (src.youtube) parts.push({ fileData: { fileUri: src.youtube } });
+  for (const im of src.images || []) parts.push({ inlineData: { mimeType: 'image/jpeg', data: im } });
+  if (!parts.length) throw new Error('مفيش إطارات من الفيديو');
+  parts.push({ text: DESIGN_TASK });
+  let j;
+  try {
+    j = await geminiGenerate(c, { systemInstruction: { parts: [{ text: DESIGN_RULES }] }, contents: [{ role: 'user', parts }], generationConfig: { responseMimeType: 'application/json' } });
+  } catch (e) {
+    if (e instanceof TypeError) throw new Error('الطلب ماوصلش لجوجل (النت). جرّب تاني.');
+    throw e;
+  }
+  const out = parseJson((j.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join(''));
+  if (!out.summary && !out.motion) throw new Error('مقدرتش أفهم تصميم الفيديو — جرّب فيديو أوضح');
+  return out;
+}
+
+// ٢) «ولّد موشن»: الموديل بيكتب كود Canvas بيرسم الخلفية المتحركة بس — النص (آيات/حديث/دعاء) البرنامج بيكتبه من المصدر
+const MOTION_RULES = `You are a senior motion designer who writes JavaScript Canvas 2D code for vertical short videos (reels) of Islamic content (Quran, hadith, dua).
+You write ONLY the animated visual layer; the app draws the exact religious text itself on top. You never write, change or draw the text.
+Hard rules for the code:
+- It is the BODY of: function draw(ctx, W, H, t, info, rand, ease) { …your code… } — called for every frame.
+- Paint the whole frame every call (start by filling the background).
+- Deterministic: derive everything from t and info. Never use Math.random, Date, performance, setTimeout or requestAnimationFrame. rand(n) returns a stable number 0..1 for an integer n (use it for star/particle positions). ease has: inOut(x), out(x), in(x), back(x), clamp(x).
+- info = { dur (seconds), p (0..1 whole video), seg (index of the current sentence/card), segCount, segP (0..1 inside the current sentence), segStarts (array of start times in seconds), text: {x,y,w,h} (where the app writes the text) }.
+- No text, letters, digits or words of any language, no fillText/strokeText. No people, faces, hands, prophets or angels; no musical instruments. No images, fetch, DOM, eval or globals.
+- Keep info.text readable: behind that box keep things calm and dark/low-contrast (you may add a soft dark vignette there); put the strong action around it (bottom, top, sides).
+- Performance: at most ~3000 draw calls per frame, loops ≤ 2000 iterations, shadowBlur ≤ 30, no getImageData/putImageData, no filter.
+- Make it beautiful and premium: a clear visual metaphor for the MEANING of the text that evolves sentence by sentence (use info.seg and info.segP to stage the story: something grows, fills, lights up, opens…). If the text is plain, keep it elegant and calm (soft light, particles, slow gradients) — not every text needs a metaphor. Smooth easing, no flicker, vertical 9:16 composition, modest and respectful.
+Return JSON only: {"title":"Arabic name 2-4 words","idea":"one Egyptian Arabic sentence explaining the visual idea","code":"…"}`;
+export async function generateMotion({ text, kind = 'نص ديني', style = null, idea = '', fix = null, prev = null, change = '' }) {
+  const c = config();
+  if (!c.provider || !c.key) throw new Error('محتاج تختار مزوّد وتحط المفتاح في ⚙️ الإعدادات ← ✨ مساعد الكتابة');
+  let task = `Content type: ${kind}\nThe text shown on screen (for meaning only — do not draw it):\n«${String(text).slice(0, 2500)}»\n`;
+  if (style) task += `\nMatch this visual style (from a reference video the user liked — same spirit, your own drawing):\n${JSON.stringify(style).slice(0, 2000)}\n`;
+  if (idea) task += `\nUser's extra direction: ${idea}\n`;
+  if (prev && change) task += `\nHere is the current code. Apply this change and return the full new code: ${change}\n---\n${prev.slice(0, 12000)}\n---\n`;
+  if (prev && fix) task += `\nThe previous code failed with this error, fix it and return the full code:\n${fix}\n---\n${prev.slice(0, 12000)}\n---\n`;
+  let out;
+  try { out = parseJson(await CALLERS[c.provider](c, MOTION_RULES, task)); } catch (e) {
+    if (e instanceof TypeError) throw new Error('الطلب ماوصلش للخدمة (النت أو الحجب). جرّب تاني، أو جرّب مزوّد تاني.');
+    throw e;
+  }
+  const code = String(out.code || '').replace(/^```(?:js|javascript)?\s*|\s*```$/g, '');
+  if (code.length < 40) throw new Error('الموديل مارجّعش كود رسم — جرّب تاني');
+  return { title: clean(out.title) || 'موشن', idea: clean(out.idea), code };
+}

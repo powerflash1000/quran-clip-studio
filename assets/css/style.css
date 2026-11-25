@@ -524,3 +524,10 @@ audio.full { width: 100%; margin: .4rem 0; }
 
 .loop-note{background:rgba(245,166,35,.12);border:1px solid rgba(245,166,35,.5);border-radius:10px;padding:8px 12px;margin:8px 0;font-size:14px;line-height:1.8}
 .loop-note .btn{margin-top:6px}
+
+/* 🎨 موشن بالذكاء الاصطناعي + فهم التصميم من فيديو مرجعي */
+.design-card { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; padding: 10px 12px; margin-top: 8px; line-height: 1.8; font-size: 14px; }
+.design-card .sw { display: inline-block; width: 22px; height: 22px; border-radius: 6px; margin-inline-end: 4px; vertical-align: middle; border: 1px solid rgba(255,255,255,.3); }
+.design-card dt { font-weight: 700; margin-top: 4px; }
+.design-card dd { margin: 0 0 2px; opacity: .9; }
+.motion-box { display: grid; gap: 8px; }

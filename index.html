@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261124c">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261125a">
 </head>
 <body>
   <header class="topbar">
@@ -262,10 +262,29 @@
               <option value="gradient">تدرّج لوني</option>
               <option value="color">لون واحد</option>
               <option value="media">صورة أو فيديو</option>
+              <option value="motion">✨ موشن جرافيك بالذكاء الاصطناعي</option>
             </select>
           </label>
           <label class="when-color">اللون 1 <input type="color" id="color1"></label>
           <label class="when-gradient">اللون 2 <input type="color" id="color2"></label>
+        </div>
+        <div class="when-motion motion-box" hidden>
+          <p class="hint">الذكاء الاصطناعي بيصمّم مشهد متحرك على حسب <b>معنى</b> الكلام اللي في الكروت (كل محتوى بشكل مختلف). الكلام نفسه البرنامج بيكتبه من المصدر بالظبط — الذكاء الاصطناعي بيرسم الخلفية والحركة بس. بيستخدم مزوّد «✨ مساعد الكتابة» اللي في الإعدادات.</p>
+          <div class="grid2">
+            <label>على ستايل فيديو مرجعي <select id="mo-style"><option value="">— من غير (يختار هو) —</option></select></label>
+            <label>مشاهد اتعملت قبل كده <select id="mo-saved"><option value="">—</option></select></label>
+          </div>
+          <label>فكرة إضافية (اختياري) <input type="text" id="mo-idea" placeholder="مثلًا: ألوان ذهبي وكحلي، وحاجة بتنور مع كل جملة"></label>
+          <div class="btn-row">
+            <button class="btn primary" id="mo-gen" type="button">✨ ولّد موشن للمحتوى ده</button>
+            <button class="btn" id="mo-again" type="button" disabled>🔄 ولّد تاني</button>
+            <button class="btn ghost" id="mo-del" type="button" disabled title="امسح المشهد ده من المحفوظ">🗑</button>
+          </div>
+          <div class="row">
+            <input type="text" id="mo-change" class="grow" placeholder="عايز تعدّل حاجة؟ مثلًا: خلّي الحركة أبطأ، أو غيّر اللون للأخضر">
+            <button class="btn" id="mo-edit" type="button" disabled>✏️ عدّل</button>
+          </div>
+          <p class="muted" id="mo-status"></p>
         </div>
         <div class="when-media media-box">
           <div class="btn-row">
@@ -654,7 +673,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261124c</div>
+    <div class="muted" id="app-version">الإصدار 20261125a</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -1615,6 +1634,21 @@
         <a class="btn ghost" id="ref-open" href="#" target="_blank" rel="noopener">↗ افتح الأصلي</a>
       </div>
       <details class="adv" open>
+        <summary>🎨 اعمل زيه بالذكاء الاصطناعي</summary>
+        <p class="hint">سجّل الفيديو اللي قدامك (زي Print Screen: ترسم مربع على الفيديو، وتشغّله، وتدوس «خلاص») أو ارفع ملفه. Gemini بيتفرج عليه ويفهم <b>التصميم والحركة</b>، وبعدين «✨ ولّد موشن» بيعمل حاجة على نفس الستايل لأي محتوى عندك. التسجيل من الشاشة على Chrome/Edge على الكمبيوتر.</p>
+        <div class="btn-row">
+          <button class="btn primary" id="ref-rec" type="button">🖥️ سجّل جزء من الشاشة</button>
+          <label class="btn file-btn">📁 من ملف فيديو<input type="file" id="ref-design-file" accept="video/*" hidden></label>
+          <span class="muted" id="ref-rec-status"></span>
+        </div>
+        <div class="btn-row" id="ref-rec-actions" hidden>
+          <button class="btn primary" id="ref-design" type="button">🎨 افهم التصميم</button>
+          <button class="btn" id="ref-rec-text" type="button">📥 طلّع الكلام منه</button>
+          <a class="btn ghost" id="ref-rec-dl" download>⬇ احفظ التسجيل</a>
+        </div>
+        <div class="design-card" id="ref-design-out" hidden></div>
+      </details>
+      <details class="adv" open>
         <summary>📥 طلّع الآيات والأدعية من الفيديو</summary>
         <p class="hint">يوتيوب: من اللينك على طول. تيك توك وإنستجرام وفيسبوك: احفظ الفيديو على جهازك (Save video / تنزيل) وارفعه هنا. بيسمع الصوت ويقرا الكلام المكتوب بمفتاح Gemini المجاني. الآيات بتتحوّل لكروت بنص المصحف بصوت القارئ اللي تختاره، والأدعية لكروت نص خاص تقراها بصوتك.</p>
         <div class="btn-row">
@@ -1802,6 +1836,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261124c"></script>
+  <script type="module" src="js/main.js?v=20261125a"></script>
 </body>
 </html>

@@ -158,7 +158,10 @@ function frameLayer(W, H, style, fg, A) {
   return c;
 }
 
+// 🎨 موشن بالذكاء الاصطناعي (main.js بيوصّل motion.js هنا): خلفية «motion» بترسم مشهد الكود اللي اتولّد
+export const MOTION_LAYER = { draw: null, prepare: null, begin: null };
 export function drawBackground(ctx, W, H, style, media, clock = null) {
+  if (style?.bgType === 'motion' && MOTION_LAYER.draw?.(ctx, W, H, clock)) return;
   ZONE_SRC.el = media?.el || null; // 📐 مكان الكلام التلقائي بيحلل الخلفية دي
   const still = !media || media.kind === 'image';
   // 🖼️ برواز (لوحة) أو حركة Ken Burns: الخلفية بتترسم جوه مساحة اللوحة بس

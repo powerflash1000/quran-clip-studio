@@ -4,7 +4,9 @@ import { COLLECTIONS, collection, getHadith, searchHadith, extractMatn, assessGr
 import { openMic, micMeter, micError, SILENT_PEAK, silentMsg } from './audio.js';
 import { loadAudio, decode, buildTimeline, startRecording, trimSilence, bufferToWavBlob, sliceBuffer, enhanceVoice, ENHANCE_PRESETS, REC_FX } from './audio.js';
 import { autoMarks } from './automark.js';
-import { ASPECTS, TEXT_FONT, TEXT_FONTS, TEXT_FX, TEXT_ANIM, WORD_STYLES, ensureFonts, drawBackground, drawOverlay, drawWave, textFont, WHEEL_THEMES } from './slides.js';
+import { ASPECTS, TEXT_FONT, TEXT_FONTS, TEXT_FX, TEXT_ANIM, WORD_STYLES, ensureFonts, drawBackground, drawOverlay, drawWave, textFont, WHEEL_THEMES, MOTION_LAYER } from './slides.js';
+import * as MO from './motion.js';
+import * as SR from './screenrec.js';
 import { exportAudio, exportVideo, exportFilmoraPackage, renderStill, makeSrt, download } from './exporter.js';
 import { PROVIDERS, downloadStock } from './stock.js';
 import * as STOCK from './stock.js';
@@ -3251,8 +3253,10 @@ function loopNote() {
 function updateBgVisibility() {
   const t = state.style.bgType;
   document.querySelectorAll('.when-gradient').forEach(e => { e.hidden = t !== 'gradient'; });
-  document.querySelectorAll('.when-color').forEach(e => { e.hidden = t === 'media'; });
+  document.querySelectorAll('.when-color').forEach(e => { e.hidden = t === 'media' || t === 'motion'; });
   document.querySelectorAll('.when-media').forEach(e => { e.hidden = t !== 'media'; });
+  document.querySelectorAll('.when-motion').forEach(e => { e.hidden = t !== 'motion'; });
+  if (t === 'motion') { const mb = document.querySelector('.media-box'); if (mb) mb.hidden = true; return; }
   // أزرار إضافة صورة/فيديو (رفع، خلفيات مجانية، ذكاء اصطناعي) ظاهرة دايمًا — أول ما تضيف حاجة الخلفية بتتحول لصورة/فيديو
   const box = document.querySelector('.media-box');
   if (box && t !== 'media') {
@@ -6426,11 +6430,14 @@ async function mediaFromFile(file) {
     audio = b64(monoWav(await off.startRendering()));
   } catch { /* فيديو من غير صوت */ }
   const images = [];
-  if (file.type.startsWith('video/')) {
+  if (file.frames?.length) images.push(...file.frames.slice(0, 10)); // 🖥️ تسجيل الشاشة: الإطارات اتاخدت وقت التسجيل
+  else if (file.type.startsWith('video/')) {
     const v = document.createElement('video');
     v.muted = true; v.preload = 'auto'; v.src = URL.createObjectURL(file);
     try {
       await new Promise((res, rej) => { v.onloadeddata = res; v.onerror = rej; });
+      // ملفات webm من MediaRecorder مدتها Infinity لحد ما نروح لآخرها
+      if (!Number.isFinite(v.duration)) { v.currentTime = 1e9; await new Promise(res => { v.ontimeupdate = res; setTimeout(res, 3000); }); v.ontimeupdate = null; }
       for (const f of [0.15, 0.5, 0.85]) {
         v.currentTime = v.duration * f;
         await new Promise(res => { v.onseeked = res; setTimeout(res, 3000); });
@@ -7702,6 +7709,139 @@ async function restoreMedia() {
 }
 
 // ===== البداية =====
+// ===== 🎨 موشن جرافيك بالذكاء الاصطناعي =====
+// المشاهد اللي اتولّدت بتتحفظ في IndexedDB (kv: motions)، والستايلات اللي اتفهمت من فيديوهات مرجعية (kv: designStyles)
+let motions = [], designStyles = [], motionBusy = false;
+const curMotion = () => motions.find(m => m.id === state.style.motionId) || null;
+function motionIdleT() {
+  const sg = durCache?.segs?.[state.segIndex];
+  return sg ? Math.min((sg.end ?? sg.start + 2) - 0.05, sg.start + 1.2) : 1.2;
+}
+async function useMotion(m, msg) {
+  const st = $('#mo-status');
+  state.style.motionId = m?.id || '';
+  T.rememberStyle(state.style);
+  const err = m ? await MO.load(m.code) : 'مفيش مشهد';
+  fillMotionUi();
+  if (m && !err) st.textContent = msg || `✅ ${m.title}${m.idea ? ' — ' + m.idea : ''}`;
+  else if (m) st.textContent = '⚠️ المشهد ده فيه غلط: ' + err + ' — دوس «🔄 ولّد تاني»';
+  refreshPreview();
+}
+function fillMotionUi() {
+  const sv = $('#mo-saved');
+  sv.innerHTML = '<option value="">—</option>' + motions.map(m => `<option value="${m.id}">${escapeHtml(m.title)} — ${new Date(m.at).toLocaleDateString('ar-EG')}</option>`).join('');
+  sv.value = state.style.motionId || '';
+  const ss = $('#mo-style'), keep = ss.value;
+  ss.innerHTML = '<option value="">— من غير (يختار هو) —</option>' + designStyles.map(d => `<option value="${d.id}">🎞️ ${escapeHtml(d.spec.name || 'ستايل')}</option>`).join('');
+  ss.value = designStyles.some(d => d.id === keep) ? keep : '';
+  const has = !!curMotion();
+  $('#mo-again').disabled = $('#mo-edit').disabled = $('#mo-del').disabled = !has || motionBusy;
+  $('#mo-gen').disabled = motionBusy;
+}
+async function makeMotion({ change = '' } = {}) {
+  if (motionBusy) return;
+  if (!LLM.isReady()) { needLLM(); return; }
+  const st = $('#mo-status');
+  const style = designStyles.find(d => d.id === $('#mo-style').value)?.spec || null;
+  const prev = change ? curMotion() : null;
+  const kinds = new Set(state.blocks.map(b => (b.type === 'quran' ? 'آيات قرآن' : b.type === 'hadith' ? 'حديث' : 'دعاء/ذكر')));
+  const args = { text: contentSummary(), kind: [...kinds].join(' + '), style, idea: $('#mo-idea').value.trim(), prev: prev?.code || null, change };
+  motionBusy = true; fillMotionUi();
+  try {
+    let out = null, err = '';
+    for (let attempt = 0; attempt < 3; attempt++) {
+      st.textContent = attempt ? `🔧 بيصلّح غلط في الكود (محاولة ${Q.arabicNum(attempt + 1)})…` : (change ? '⏳ بيعدّل المشهد…' : '⏳ بيصمّم مشهد على حسب معنى الكلام… (٢٠–٦٠ ثانية)');
+      out = await LLM.generateMotion(attempt && out ? { ...args, fix: err, prev: out.code, change: '' } : args);
+      err = await MO.load(out.code);
+      if (!err) err = await MO.selfTest(270, 480, durCache?.duration || 12);
+      if (!err) break;
+    }
+    if (err) throw new Error('الكود اللي اتولّد فيه غلط مااتصلحش: ' + err + ' — جرّب «✨ ولّد» تاني');
+    const m = { id: 'm' + Date.now().toString(36), title: out.title, idea: out.idea, code: out.code, at: Date.now(), styleId: $('#mo-style').value || '' };
+    motions = [m, ...motions].slice(0, 30);
+    await kvSet('motions', motions);
+    if (state.style.bgType !== 'motion') { state.style.bgType = 'motion'; $('#bgType').value = 'motion'; updateBgVisibility(); }
+    await useMotion(m, `✅ «${m.title}» — ${m.idea || ''} شغّل «▶ معاينة» تشوف الحركة.`);
+  } catch (e) { st.textContent = '❌ ' + e.message; } finally { motionBusy = false; fillMotionUi(); }
+}
+async function setupMotion() {
+  MOTION_LAYER.draw = (c, W, H, clock) => {
+    if (durCache?.segs?.length) MO.setTimeline(durCache.segs.map(sg => sg.start), durCache.duration);
+    return MO.draw(c, W, H, clock ? clock.t : motionIdleT());
+  };
+  MOTION_LAYER.prepare = (t, D, W, H) => MO.prepare(t, W, H, D);
+  MOTION_LAYER.begin = (starts, D) => MO.setTimeline(starts, D);
+  let pend = false;
+  MO.setOnReady(() => { if (player || pend) return; pend = true; requestAnimationFrame(() => { pend = false; refreshPreview(); }); });
+  motions = (await kvGet('motions')) || [];
+  designStyles = (await kvGet('designStyles')) || [];
+  $('#mo-gen').onclick = () => makeMotion();
+  $('#mo-again').onclick = () => makeMotion();
+  $('#mo-edit').onclick = () => { const ch = $('#mo-change').value.trim(); if (!ch) { $('#mo-status').textContent = 'اكتب التعديل اللي عايزه الأول'; return; } makeMotion({ change: ch }); };
+  $('#mo-saved').onchange = () => useMotion(motions.find(m => m.id === $('#mo-saved').value) || null);
+  $('#mo-del').onclick = async () => {
+    const m = curMotion(); if (!m || !confirm(`تمسح «${m.title}»؟`)) return;
+    motions = motions.filter(x => x !== m); await kvSet('motions', motions);
+    await useMotion(motions[0] || null);
+  };
+  fillMotionUi();
+  if (curMotion()) await useMotion(curMotion());
+}
+
+// ===== 🎨 فهم التصميم من فيديو مرجعي (تسجيل جزء من الشاشة أو ملف) =====
+let refRecFile = null;
+function setRefFile(file) {
+  refRecFile = file;
+  $('#ref-rec-actions').hidden = !file;
+  const dl = $('#ref-rec-dl');
+  if (dl.href) URL.revokeObjectURL(dl.href);
+  dl.href = URL.createObjectURL(file); dl.download = file.name;
+  $('#ref-rec-status').textContent = `✅ جاهز: ${file.name}${file.secs ? ` (${fmtDur(file.secs)})` : ''} — دوس «🎨 افهم التصميم»`;
+}
+function renderDesign(spec) {
+  const box = $('#ref-design-out');
+  const row = (k, v) => (v ? `<dt>${k}</dt><dd>${escapeHtml(String(v))}</dd>` : '');
+  box.innerHTML = `<b>🎨 ${escapeHtml(spec.name || 'ستايل')}</b> ${(spec.palette || []).map(c => `<span class="sw" style="background:${escapeHtml(String(c))}"></span>`).join('')}
+    <p>${escapeHtml(spec.summary || '')}</p><dl>${row('الخلفية', spec.background)}${row('العناصر', spec.elements)}${row('الحركة', spec.motion)}${row('الخط', spec.typography)}${row('الفكرة', spec.concept)}${row('الإحساس', spec.mood)}</dl>
+    <div class="btn-row"><button class="btn primary" type="button" id="ref-design-use">✨ ولّد موشن بالستايل ده للمحتوى بتاعي</button></div>`;
+  box.hidden = false;
+}
+function setupRefDesign() {
+  $('#ref-rec').onclick = async () => {
+    const st = $('#ref-rec-status');
+    const fr = $('#ref-frame'), shown = !$('#ref-player').hidden && fr?.getBoundingClientRect();
+    const hint = shown && shown.width > 60 ? { x: shown.left, y: shown.top, w: shown.width, h: shown.height } : null;
+    try {
+      const file = await SR.recordRegion({ host: $('#dlg-ref'), hint, onStatus: t => { st.textContent = t; } });
+      setRefFile(file);
+    } catch (e) { st.textContent = '⚠️ ' + e.message; }
+  };
+  $('#ref-design-file').onchange = () => { const f = $('#ref-design-file').files[0]; $('#ref-design-file').value = ''; if (f) setRefFile(f); };
+  $('#ref-rec-text').onclick = () => { if (refRecFile) refExtract({ file: refRecFile }); };
+  $('#ref-design').onclick = async () => {
+    const st = $('#ref-rec-status'), btn = $('#ref-design');
+    if (!LLM.canReadMedia()) { st.textContent = '🔑 محتاج مفتاح Gemini (مجاني): ⚙️ الإعدادات ← ✨ مساعد الكتابة (Gemini) أو 🔊 صوت Gemini'; return; }
+    btn.disabled = true; st.textContent = '⏳ Gemini بيتفرج على الفيديو ويفهم التصميم…';
+    try {
+      const media = await mediaFromFile(refRecFile);
+      const spec = await LLM.designFromMedia({ images: media.images });
+      const d = { id: 'd' + Date.now().toString(36), spec, at: Date.now() };
+      designStyles = [d, ...designStyles].slice(0, 30);
+      await kvSet('designStyles', designStyles);
+      fillMotionUi();
+      renderDesign(spec);
+      $('#ref-design-use').onclick = () => {
+        $('#dlg-ref').close();
+        state.style.bgType = 'motion'; $('#bgType').value = 'motion'; updateBgVisibility(); T.rememberStyle(state.style);
+        $('#mo-style').value = d.id;
+        showTab('look');
+        makeMotion();
+      };
+      st.textContent = `✅ اتحفظ كستايل «${spec.name || 'ستايل'}» — تلاقيه في «الشكل» ← الخلفية ← ✨ موشن`;
+    } catch (e) { st.textContent = '❌ ' + e.message; } finally { btn.disabled = false; }
+  };
+}
+
 async function init() {
   status('تحميل نص المصحف…');
   await Promise.all([Q.loadQuran(), ensureFonts(), loadAzkar()]);
@@ -7716,6 +7856,7 @@ async function init() {
   ensureFonts(state.style).then(() => refreshPreview());
   status('');
   setupStyle();
+  setupMotion();
   restoreMedia();
   setupReciters();
   setupAyahSearch();
@@ -7798,6 +7939,7 @@ async function init() {
   setupLive();
   setupReference();
   setupRefExtract();
+  setupRefDesign();
   setupSpeech();
   setupGen();
   setupCompetitors();
