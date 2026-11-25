@@ -408,6 +408,60 @@ function drawGroup(ctx, lines, cx, y, size, lineH, grp, style) {
   ctx.fillStyle = base;
 }
 
+// 📜 عمود الآيات بيطلع لفوق: «خط القراءة» ثابت (٤٠٪ من المساحة) والكلام بيعدّي عليه بسرعة التلاوة —
+// اللي خلص بيطلع لفوق ويبهت، واللي جاي بيطلع من تحت. الآية الحالية بلون الكلام كامل والباقي باهت.
+const scrollCache = new WeakMap();
+function drawScroll(ctx, grp, seg, o) {
+  const { cx, top, bottom, boxW, lineH, unit, font, style } = o;
+  const area = bottom - top;
+  let size = o.size;
+  ctx.font = font(size);
+  const key = `${size}|${Math.round(boxW)}|${ctx.font}`;
+  let lay = scrollCache.get(grp);
+  if (!lay || lay.key !== key) {
+    // لو أطول آية أطول من نص المساحة، نصغّر الخط شوية
+    for (;;) {
+      ctx.font = font(size);
+      const blocks = grp.texts.map(t => wrap(ctx, t, boxW));
+      const maxH = Math.max(...blocks.map(b => b.length)) * size * lineH;
+      if (maxH <= area * 0.55 || size <= o.minSize) {
+        const gap = size * 0.7;
+        let y = 0;
+        const pos = blocks.map(b => { const h = b.length * size * lineH, r = { y, h, lines: b }; y += h + gap; return r; });
+        lay = { key: `${o.size}|${Math.round(boxW)}|${font(o.size)}`, size, pos };
+        break;
+      }
+      size = Math.max(o.minSize, Math.floor(size * 0.92));
+    }
+    scrollCache.set(grp, lay);
+  }
+  size = lay.size;
+  const i = Math.max(0, Math.min(lay.pos.length - 1, grp.idx));
+  const dur = seg.end != null && seg.start != null ? Math.max(0.3, seg.end - seg.start) : 0;
+  const p = dur && seg.age != null ? Math.max(0, Math.min(1, seg.age / dur)) : 0;
+  const cur = lay.pos[i];
+  const anchor = top + area * 0.4;
+  const off = anchor - (cur.y + cur.h * p); // نقطة القراءة على خط القراءة
+  const fade = area * 0.16;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, top, ctx.canvas.width, area); ctx.clip();
+  ctx.font = font(size);
+  const base = ctx.fillStyle;
+  lay.pos.forEach((b, k) => {
+    const y0 = off + b.y;
+    if (y0 > bottom || y0 + b.h < top) return;
+    b.lines.forEach((ln, li) => {
+      const yy = y0 + size * lineH * (li + 0.5);
+      const edge = Math.min(1, (yy - top) / fade, (bottom - yy) / fade);
+      if (edge <= 0) return;
+      ctx.globalAlpha = Math.max(0, edge) * (k === i ? 1 : 0.42);
+      ctx.fillStyle = base;
+      drawLines(ctx, [ln], cx, yy - size * lineH / 2, size, lineH, 'rtl');
+    });
+  });
+  ctx.restore();
+}
+
 function drawLines(ctx, lines, x, y, size, lineH, dir) {
   ctx.direction = dir;
   ctx.textAlign = 'center';
@@ -760,6 +814,10 @@ export function drawOverlay(ctx, W, H, seg, style) {
 
   // كل آيات الكارت مرة واحدة (seg.group) — الكلمات مع التلاوة مش بتشتغل هنا
   const grp = seg.group && style.ayahLayout && style.ayahLayout !== 'one' ? seg.group : null;
+  // 📜 الشاشة طالعة لفوق: كل آيات الكارت عمود واحد بيطلع لفوق مع التلاوة
+  if (grp?.scroll) {
+    drawScroll(ctx, grp, seg, { cx, top, bottom, boxW, size: Math.round(style.textSize * unit * 0.86), minSize: Math.round(22 * unit), lineH, unit, font: mainFont, style });
+  } else {
   const main = fit(ctx, grp ? grp.texts.join(' ') : seg.text, mainFont, Math.round(style.textSize * unit * (isQuran ? 1 : 0.8)),
     Math.round(22 * unit), boxW, area * (1 - subShare) - 30 * unit, lineH);
 
@@ -834,6 +892,7 @@ export function drawOverlay(ctx, W, H, seg, style) {
     drawLines(ctx, sub.lines, cx, y, sub.size, 1.45, sub.dir);
   }
   ctx.restore();
+  }
 
   // تحت: اسم القارئ أو مصدر الحديث ودرجته
   if (style.showFooter && seg.footer) {

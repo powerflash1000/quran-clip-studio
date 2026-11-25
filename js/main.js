@@ -169,11 +169,12 @@ async function buildSegments(withAudio, onProgress, blocks = state.blocks, serie
       if (st.ayahLayout && st.ayahLayout !== 'one' && !ayahPart(b) && to > from) {
         const texts = [];
         for (let a = from; a <= to; a++) texts.push(`${Q.ayahText(b.surah, a)}\u00A0${Q.arabicNum(a)}`);
-        if (to - from < 15 && texts.join(' ').length <= 900) {
+        const scroll = st.ayahLayout === 'scroll'; // 📜 الشاشة طالعة لفوق: بيستحمل مقاطع طويلة
+        if (scroll ? to - from < 120 : to - from < 15 && texts.join(' ').length <= 900) {
           for (const sg of segs.slice(n0)) {
             if (sg.kind !== 'ayah') continue;
-            sg.group = { texts, idx: sg.a - from, hi: st.ayahLayout === 'allHi' };
-            sg.label = st.ayahLayout === 'allHi' ? `سورة ${s.ar} • الآية ${Q.arabicNum(sg.a)}` : `سورة ${s.ar}${from === 1 && to === s.count ? '' : ` • ${Q.arabicNum(from)}–${Q.arabicNum(to)}`}`;
+            sg.group = { texts, idx: sg.a - from, hi: st.ayahLayout === 'allHi', scroll };
+            sg.label = st.ayahLayout === 'allHi' || scroll ? `سورة ${s.ar} • الآية ${Q.arabicNum(sg.a)}` : `سورة ${s.ar}${from === 1 && to === s.count ? '' : ` • ${Q.arabicNum(from)}–${Q.arabicNum(to)}`}`;
           }
         }
       }
