@@ -1,5 +1,6 @@
 import { lookLayers, lookVignette, drawBrand, drawBumper, drawCardTrans } from './brand.js';
 import { currentZone, ZONE_SRC, SAFE_UI, safeUIOn, textBgLum } from './zone.js';
+import { keysFor, tokens as keyTokens, KEY_CATS } from './keywords.js';
 import { frameGeom, artRect, kbAt, kbAmount, drawWall, drawFrameBorder, drawPattern } from './frame.js';
 
 // رسم الشرائح (النص فوق الخلفية) على Canvas.
@@ -408,6 +409,204 @@ function drawGroup(ctx, lines, cx, y, size, lineH, grp, style) {
   ctx.fillStyle = base;
 }
 
+// ===== ✨ الكلمة المفتاحية: بتنوّر لحظة ما القارئ بيقولها =====
+// المنحنى: هادية ← لمعة (٠٫٤ ث) + خط ضوء بيعدّي عليها + كبرة خفيفة ← بتهدى وتفضل منوّرة بنعومة (بتتنفّس).
+// وكل معنى ليه لمسة صغيرة حواليه: جمرات للنار، موجة للمية، نجوم صغيرة للسما والليل، شرارات دهب للرحمة والجلال…
+const KG_REST = 0.6;
+const kgClamp = x => Math.max(0, Math.min(1, x));
+const kgEase = x => 1 - Math.pow(1 - kgClamp(x), 3);
+const kgRand = n => { let x = (Math.floor(n) + 7) * 2654435761 >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; };
+// a = الثواني من ساعة ما الكلمة اتقالت (null = مش معروف ← منوّرة هادية، عشان تبان في المعاينة والغلاف)
+function kgLevel(a) {
+  if (a == null) return { L: KG_REST, sweep: -1, pop: 0 };
+  if (a < 0) return { L: 0, sweep: -1, pop: 0 };
+  let L;
+  if (a < 0.4) L = kgEase(a / 0.4);
+  else if (a < 1.8) L = 1 - (1 - KG_REST) * kgEase((a - 0.4) / 1.4);
+  else L = KG_REST + 0.05 * Math.sin((a - 1.8) * 2.2);
+  return { L, sweep: a < 1.05 ? kgClamp((a - 0.05) / 0.95) : -1, pop: a < 0.7 ? Math.sin(Math.PI * kgClamp(a / 0.7)) * 0.075 : 0 };
+}
+function kgPalette(cat, style) {
+  if (style.keyGlow === 'accent') return { core: mixHex(style.accent, '#ffffff', 0.55), glow: style.accent };
+  if (style.keyGlow === 'gold') return KEY_CATS.mercy;
+  return KEY_CATS[cat] || KEY_CATS.mercy;
+}
+function mixHex(a, b, k) {
+  const A = hexRgb(a), B = hexRgb(b);
+  return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * k)).join(',')})`;
+}
+// بيرسم الكلمة منوّرة فوق مكانها (x = حافتها اليمين). token ممكن يكون «كلمة + NBSP + رقم الآية» ← بننوّر الكلمة بس
+function drawKeyWord(ctx, token, x, yy, size, cat, a, style, seed) {
+  const part = String(token).split(' ')[0];
+  const { L, sweep, pop } = kgLevel(a);
+  if (L <= 0.01) return;
+  const P = kgPalette(cat, style);
+  const darkInk = luma(style.textColor) < 0.45; // كلام غامق على خلفية فاتحة: لون غني من غير هالة بيضا
+  const pw = measureRtl(ctx, part);
+  const mx = x - pw / 2;
+  const t = a == null ? 0 : a;
+  const saved = PAINT;
+  ctx.save();
+  ctx.direction = 'rtl'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+  if (pop) { ctx.translate(mx, yy); ctx.scale(1 + pop, 1 + pop); ctx.translate(-mx, -yy); }
+  // الحروف بتاخد لون المعنى (أقوى في الذروة) عشان خط الضوء الأبيض يبان وهو بيعدّي
+  const ink = darkInk ? mixHex(P.glow, '#000000', 0.35) : mixHex(P.core, P.glow, Math.min(0.6, 0.25 + 0.4 * L));
+  // ١) هالة النور (لمعة أقوى في الذروة)
+  let blur = size * (0.12 + 0.5 * L);
+  if (cat === 'fire' && style.keyGlow !== 'gold' && style.keyGlow !== 'accent') blur *= 0.82 + 0.18 * Math.sin(t * 13 + seed) * Math.sin(t * 7.3);
+  ctx.globalAlpha *= Math.min(1, 0.35 + L);
+  ctx.shadowColor = hexA(P.glow, darkInk ? 0.35 : Math.min(1, 0.55 + 0.45 * L));
+  ctx.shadowBlur = darkInk ? size * 0.12 * L : blur;
+  ctx.fillStyle = ink;
+  fillRtl(ctx, part, x, yy);
+  if (!darkInk) {
+    // هالة واسعة في الذروة + هالة قريبة دايمًا (النور بيبان «طالع» من الحروف)
+    if (L > 0.75) { ctx.shadowBlur = size * (0.6 + 0.6 * (L - 0.75) * 4); ctx.shadowColor = hexA(P.glow, 0.85); fillRtl(ctx, part, x, yy); }
+    ctx.shadowBlur = size * 0.22; ctx.shadowColor = hexA(P.glow, 0.95); fillRtl(ctx, part, x, yy);
+    ctx.shadowBlur = size * 0.06; ctx.shadowColor = hexA(P.core, 0.9); fillRtl(ctx, part, x, yy);
+  }
+  // ٢) خط الضوء بيعدّي على الكلمة من اليمين للشمال (اتجاه القراية)
+  if (sweep >= 0) {
+    PAINT = null;
+    const band = Math.max(size * 0.45, pw * 0.28);
+    const c = x + band - sweep * (pw + band * 2);
+    const g = ctx.createLinearGradient(c + band, 0, c - band, 0);
+    g.addColorStop(0, 'rgba(255,255,255,0)');
+    g.addColorStop(0.5, darkInk ? hexA(P.glow, 0.9) : 'rgba(255,255,255,1)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.shadowBlur = darkInk ? 0 : size * 0.25; ctx.shadowColor = darkInk ? 'transparent' : 'rgba(255,255,255,0.8)';
+    ctx.fillStyle = g;
+    fillRtl(ctx, part, x, yy);
+  }
+  ctx.restore();
+  PAINT = saved;
+  if (a == null || style.keyGlow === 'gold' || style.keyGlow === 'accent' || darkInk) { if (a != null && (style.keyGlow === 'gold' || style.keyGlow === 'accent')) kgSparks(ctx, x, pw, yy, size, P, t, seed, 'mercy'); return; }
+  kgSparks(ctx, x, pw, yy, size, P, t, seed, cat);
+}
+// اللمسة الصغيرة حوالين الكلمة حسب معناها (خفيفة — مش بتغطي على الكلام)
+function kgSparks(ctx, x, pw, yy, size, P, t, seed, cat) {
+  ctx.save();
+  ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+  const left = x - pw, base = ctx.globalAlpha;
+  if (cat === 'fire') {
+    // جمرات بتطلع لفوق وتنطفي
+    for (let i = 0; i < 7; i++) {
+      const life = 1.6, ph = (t + kgRand(seed * 13 + i) * life) % life, k = ph / life;
+      if (t < kgRand(seed * 13 + i) * 0.6) continue;
+      const ex = left + kgRand(seed * 31 + i) * pw + Math.sin(t * 3 + i) * size * 0.06;
+      const ey = yy - size * 0.35 - k * size * 0.9;
+      ctx.globalAlpha = base * (1 - k) * 0.9;
+      ctx.fillStyle = k < 0.4 ? '#ffd27a' : '#ff6a1f';
+      ctx.shadowColor = '#ff4d12'; ctx.shadowBlur = size * 0.15;
+      ctx.beginPath(); ctx.arc(ex, ey, size * (0.035 - 0.02 * k), 0, Math.PI * 2); ctx.fill();
+    }
+  } else if (cat === 'water') {
+    // موجة رفيعة بتجري تحت الكلمة
+    const k = kgClamp(t / 0.6);
+    ctx.globalAlpha = base * 0.75 * k;
+    ctx.strokeStyle = P.glow; ctx.lineWidth = Math.max(1.5, size * 0.035); ctx.lineCap = 'round';
+    ctx.shadowColor = P.glow; ctx.shadowBlur = size * 0.2;
+    ctx.beginPath();
+    const y0 = yy + size * 0.62, amp = size * 0.05, n = 28;
+    for (let i = 0; i <= n; i++) { const u = i / n, px = x - u * pw * k; const py = y0 + Math.sin(u * Math.PI * 4 - t * 5) * amp * Math.sin(Math.PI * u); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+    ctx.stroke();
+  } else if (cat === 'light') {
+    // أشعة ناعمة من ورا الكلمة
+    const k = kgLevel(t).L;
+    ctx.globalCompositeOperation = 'lighter';
+    const r = Math.max(pw, size) * 0.9;
+    const g = ctx.createRadialGradient(x - pw / 2, yy, 0, x - pw / 2, yy, r);
+    g.addColorStop(0, `rgba(220,240,255,${0.3 * k})`); g.addColorStop(0.5, `rgba(180,220,255,${0.12 * k})`); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g; ctx.globalAlpha = base;
+    ctx.beginPath(); ctx.ellipse(x - pw / 2, yy, r, r * 0.55, 0, 0, Math.PI * 2); ctx.fill();
+    // أشعة رفيعة بتلف ببطء
+    ctx.globalCompositeOperation = 'lighter';
+    const cxr = x - pw / 2;
+    for (let i = 0; i < 10; i++) {
+      const ang = i / 10 * Math.PI * 2 + t * 0.25, len = r * (1.1 + 0.35 * Math.sin(i * 1.7 + t));
+      const lg = ctx.createLinearGradient(cxr, yy, cxr + Math.cos(ang) * len, yy + Math.sin(ang) * len * 0.6);
+      lg.addColorStop(0, `rgba(230,245,255,${0.16 * k})`); lg.addColorStop(1, 'rgba(230,245,255,0)');
+      ctx.strokeStyle = lg; ctx.lineWidth = Math.max(1, size * 0.03);
+      ctx.beginPath(); ctx.moveTo(cxr + Math.cos(ang) * pw * 0.3, yy + Math.sin(ang) * size * 0.2); ctx.lineTo(cxr + Math.cos(ang) * len, yy + Math.sin(ang) * len * 0.6); ctx.stroke();
+    }
+  } else {
+    // نجوم صغيرة بتلمع (سما/ليل) أو شرارات دهب (رحمة/جلال/قلب/زرع) — بتظهر في الذروة وتختفي
+    const n = cat === 'sky' ? 6 : 5, life = cat === 'sky' ? 99 : 1.6;
+    if (t > life) { ctx.restore(); return; }
+    for (let i = 0; i < n; i++) {
+      const d = kgRand(seed * 17 + i) * 0.5, tw = t - d;
+      if (tw < 0) continue;
+      const a = cat === 'sky' ? kgClamp(tw / 0.4) * (0.55 + 0.45 * Math.sin(tw * 3 + i * 2)) : Math.sin(Math.PI * kgClamp(tw / (life - d)));
+      const sx = left - size * 0.15 + kgRand(seed * 29 + i) * (pw + size * 0.3);
+      const sy = yy + (kgRand(seed * 41 + i) - 0.5) * size * 1.5;
+      const r = size * (0.08 + 0.08 * kgRand(seed * 53 + i)) * (0.6 + 0.4 * a);
+      ctx.globalAlpha = base * a * 0.95;
+      ctx.fillStyle = P.core; ctx.shadowColor = P.glow; ctx.shadowBlur = size * 0.18;
+      ctx.beginPath(); // نجمة رباعية
+      ctx.moveTo(sx, sy - r); ctx.quadraticCurveTo(sx, sy, sx + r, sy); ctx.quadraticCurveTo(sx, sy, sx, sy + r);
+      ctx.quadraticCurveTo(sx, sy, sx - r, sy); ctx.quadraticCurveTo(sx, sy, sx, sy - r); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+// توقيت كل كلمة (بالثواني من أول الكارت): من التلاوة لو موجود، وإلا تقسيم تقريبي على الحروف
+const kgTimesMemo = new Map();
+function kgTimes(seg, text) {
+  if (seg.wordTimes?.length && text === seg.text) return seg.wordTimes;
+  const dur = seg.end != null && seg.start != null ? seg.end - seg.start : (seg.silence || 3);
+  const key = text + '|' + dur.toFixed(2);
+  let r = kgTimesMemo.get(key);
+  if (!r) {
+    const ws = keyTokens(text), wt = ws.map(w => w.replace(/[ً-ٰٟ]/g, '').length + 1.5), tot = wt.reduce((a, b) => a + b, 0);
+    let acc = 0; r = ws.map((_, i) => { const v = acc / tot * dur * 0.94; acc += wt[i]; return v; });
+    if (kgTimesMemo.size > 300) kgTimesMemo.clear();
+    kgTimesMemo.set(key, r);
+  }
+  return r;
+}
+// خريطة: رقم الكلمة في النص المرسوم ← {c, a}. texts = نصوص الآيات بالترتيب (آية واحدة أو مجموعة)،
+// cur = رقم الآية اللي بتتقال: اللي قبلها منوّرة هادية، واللي بعدها لسه
+function keyMap(seg, texts, cur, style) {
+  const map = new Map();
+  if (!style.keyGlow || style.hideText) return map;
+  let off = 0;
+  texts.forEach((tx, j) => {
+    const keys = keysFor(tx);
+    if (keys.length) {
+      const times = j === cur ? kgTimes(seg, tx) : null;
+      for (const k of keys) {
+        let a;
+        if (j < cur) a = 9; // خلصت ← منوّرة هادية
+        else if (j > cur) a = -1;
+        else a = seg.age == null ? null : seg.age - (times[k.w] ?? 0);
+        map.set(off + k.w, { c: k.c, a, seed: off + k.w + 1 });
+      }
+    }
+    off += keyTokens(tx).length;
+  });
+  return map;
+}
+// بيعدّي على سطر ويرسم الكلمات المفتاحية اللي فيه فوق مكانها — بيرجّع رقم أول كلمة في السطر اللي بعده
+function glowLine(ctx, line, cx, yy, size, idx0, map, style, visible = Infinity) {
+  const ws = line.split(' ');
+  if (!map.size) return idx0 + ws.length;
+  const space = ctx.measureText(' ').width;
+  const widths = ws.map(w => measureRtl(ctx, w));
+  let x = cx + (widths.reduce((a, b) => a + b, 0) + space * (ws.length - 1)) / 2;
+  ws.forEach((w, k) => {
+    const g = idx0 + k, key = map.get(g);
+    if (key && g < visible) drawKeyWord(ctx, w, x, yy, size, key.c, key.a, style, key.seed);
+    x -= widths[k] + space;
+  });
+  return idx0 + ws.length;
+}
+function glowLines(ctx, lines, cx, y, size, lineH, map, style, visible) {
+  if (!map.size) return;
+  let idx = 0;
+  lines.forEach((ln, li) => { idx = glowLine(ctx, ln, cx, y + size * lineH * (li + 0.5), size, idx, map, style, visible); });
+}
+
 // 📜 عمود الآيات بيطلع لفوق: «خط القراءة» ثابت (٤٠٪ من المساحة) والكلام بيعدّي عليه بسرعة التلاوة —
 // اللي خلص بيطلع لفوق ويبهت، واللي جاي بيطلع من تحت. الآية الحالية بلون الكلام كامل والباقي باهت.
 const scrollCache = new WeakMap();
@@ -464,14 +663,22 @@ function drawScroll(ctx, grp, seg, o) {
   if (fx === 'glow') { ctx.shadowColor = style.accent; ctx.shadowBlur = 34 * unit; ctx.shadowOffsetY = 0; }
   if (fx === 'neon') { ctx.shadowColor = style.accent; ctx.shadowBlur = 26 * unit; ctx.shadowOffsetY = 0; PAINT = { stroke: Math.max(2, size * 0.05), strokeColor: style.accent, noShadowFill: false }; }
   if (fx === 'gold') PAINT = { stroke: Math.max(2, size * 0.035), strokeColor: 'rgba(60,35,0,0.85)' };
+  const kmap = keyMap(seg, grp.texts, i, style);
+  let tok0 = 0;
   try {
     lay.pos.forEach((b, k) => {
       const y0 = off + b.y;
+      const blockStart = tok0;
+      tok0 += keyTokens(grp.texts[k]).length;
       if (y0 > bottom || y0 + b.h < top) return;
+      let lineTok = blockStart;
       b.lines.forEach((ln, li) => {
         const yy = y0 + size * lineH * (li + 0.5);
+        const myTok = lineTok;
+        lineTok += ln.split(' ').length;
         const edge = Math.min(1, (yy - top) / fade, (bottom - yy) / fade);
         if (edge <= 0) return;
+        const glowAfter = () => { if (kmap.size) glowLine(ctx, ln, cx, yy, size, myTok, kmap, style); };
         // الكارت/الشريط ورا الآية الحالية بس، فالباقي بلون الكلام العادي
         const onBand = fx === 'band' && k === i;
         ctx.globalAlpha = Math.max(0, edge) * (k === i ? 1 : 0.5);
@@ -488,6 +695,7 @@ function drawScroll(ctx, grp, seg, o) {
           if (style.wordStyle === 'underline') ctx.fillStyle = style.accent;
         }
         drawLines(ctx, [ln], cx, yy - size * lineH / 2, size, lineH, 'rtl');
+        glowAfter();
       });
     });
   } finally { PAINT = null; }
@@ -923,10 +1131,17 @@ export function drawOverlay(ctx, W, H, seg, style) {
     PAINT = { stroke: Math.max(2, main.size * 0.035), strokeColor: 'rgba(60,35,0,0.85)' };
   }
   try {
-    if (grp) drawGroup(ctx, main.lines, cx, y, main.size, lineH, grp, style);
-    else if (live) drawLive(ctx, main.lines, cx, y + main.height / 2, boxW, main.size, mainFont, seg.wordCount, style.wordMode, style, fx);
-    else if (words) drawWords(ctx, main.lines, cx, y, main.size, lineH, seg.wordCount, style.wordMode, style);
-    else drawLines(ctx, main.lines, cx, y, main.size, lineH, 'rtl');
+    if (grp) {
+      drawGroup(ctx, main.lines, cx, y, main.size, lineH, grp, style);
+      glowLines(ctx, main.lines, cx, y, main.size, lineH, keyMap(seg, grp.texts, grp.idx, style), style);
+    } else if (live) drawLive(ctx, main.lines, cx, y + main.height / 2, boxW, main.size, mainFont, seg.wordCount, style.wordMode, style, fx);
+    else if (words) {
+      drawWords(ctx, main.lines, cx, y, main.size, lineH, seg.wordCount, style.wordMode, style);
+      glowLines(ctx, main.lines, cx, y, main.size, lineH, keyMap(seg, [seg.text], 0, style), style, style.wordMode === 'highlight' ? Infinity : seg.wordCount);
+    } else {
+      drawLines(ctx, main.lines, cx, y, main.size, lineH, 'rtl');
+      glowLines(ctx, main.lines, cx, y, main.size, lineH, keyMap(seg, [seg.text], 0, style), style);
+    }
   } finally { PAINT = null; }
   y += main.height + gapMS;
   ctx.restore();

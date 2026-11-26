@@ -195,12 +195,14 @@ export async function fastExportVideo(project, cfg, onProgress, onStage) {
     const age = fr && fr.seg.start != null ? t - fr.seg.start : null;
     // + المقدمة/الخاتمة والانتقال بين الكروت بيتحركوا كل إطار
     const animWin = fr?.seg.kind === 'bumper' || (fr?.seg.group?.scroll && style.ayahLayout === 'scroll') ? 9e9 : Math.max(style.textAnim ? ENTER_SECS : 0, style.cardTrans ? TRANS_SECS : 0);
-    const entering = animWin > 0 && fr && fr.count == null && age != null && age >= 0 && age < animWin + 1 / FPS;
+    // ✨ الكلمة المفتاحية بتنوّر وتتنفّس ← الطبقة بتتعاد كل إطار طول الكارت (وبنبعت الوقت حتى مع «الكلمات مع التلاوة»)
+    const keyAnim = !!style.keyGlow && !style.hideText && fr && age != null && fr.seg.kind !== 'bumper';
+    const entering = (animWin > 0 && fr && fr.count == null && age != null && age >= 0 && age < animWin + 1 / FPS) || keyAnim;
     if (next !== fi || entering) {
       fi = next;
       const f = frames[Math.max(0, fi)];
       octx.clearRect(0, 0, W, H);
-      if (f) drawOverlay(octx, W, H, f.count == null ? { ...f.seg, age: entering ? age : null } : { ...f.seg, wordCount: f.count }, style);
+      if (f) drawOverlay(octx, W, H, f.count == null ? { ...f.seg, age: entering ? age : null } : { ...f.seg, wordCount: f.count, ...(keyAnim ? { age } : {}) }, style);
     }
     clock = { t, dur: D };
     if (motion) await MOTION_LAYER.prepare(t, D, W, H);

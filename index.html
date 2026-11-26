@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261126b">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261126c">
 </head>
 <body>
   <header class="topbar">
@@ -335,6 +335,25 @@
           <label>📐 مكان الكلام <select id="textZone"></select></label>
           <label>🎨 لون الكلام <select id="textInk"></select></label>
           <label class="check span2"><input type="checkbox" id="hideText"> 🙈 من غير كتابة خالص في الفيديو كله (الخلفية والصوت بس — العلامة واللوجو بيفضلوا)</label>
+          <div class="key-box span2">
+            <label>✨ الكلمة المفتاحية تنوّر لحظة ما بتتقال
+              <select id="keyGlow">
+                <option value="">من غير</option>
+                <option value="meaning">بلون معناها — دهبي للرحمة، نور، مية، نار، سما… ✨</option>
+                <option value="gold">دهبي بس</option>
+                <option value="accent">بلون العناوين بتاعي</option>
+              </select>
+            </label>
+            <div class="when-key">
+              <p class="hint">في كل آية أو دعاء كلمة واحدة هي قلب المعنى (واتنين في الطويل). لما القارئ يقولها بتنوّر، ويعدّي عليها خط ضوء، وبعدين تهدى وتفضل منوّرة بنعومة. وكل معنى ليه لمسة صغيرة: جمرات للنار، موجة للمية، نجوم للسما والليل، شرارات دهب للرحمة. النص نفسه مابيتغيّرش.</p>
+              <div class="btn-row">
+                <button class="btn" type="button" id="key-ai">🧠 خلّي الذكاء يختار الكلمات</button>
+                <button class="btn" type="button" id="key-edit">✏️ شوف وغيّر الكلمات</button>
+              </div>
+              <small class="muted" id="key-status">بيختار لوحده من قاموس معاني جوه البرنامج. «🧠» بيخلّي الذكاء يفهم المعنى ويختار أدق.</small>
+              <div id="key-list" class="key-list" hidden></div>
+            </div>
+          </div>
           <label class="check span2"><input type="checkbox" id="safeUI"> 📱 الكلام يبعد عن أزرار تيك توك/الريلز/الشورتس (في الطولي) — بيسيب عمود اللايك على اليمين والوصف تحت، والكلام يفضل كبير ومتوسّط</label>
         </div>
         <p class="hint">آيات القرآن بتفضل دايمًا بخط المصحف (حفص)؛ الخط اللي تختاره للأدعية والأحاديث والعناوين. التأثير (ذهبي، توهّج، حدود…) بيشتغل على الكل. وحركة الدخول بتظهر في المعاينة بالصوت والفيديو والبث — مع «الكلمات مع التلاوة» الكلمات نفسها هي الحركة.</p>
@@ -674,7 +693,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261126b</div>
+    <div class="muted" id="app-version">الإصدار 20261126c</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -1837,6 +1856,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261126b"></script>
+  <script type="module" src="js/main.js?v=20261126c"></script>
 </body>
 </html>

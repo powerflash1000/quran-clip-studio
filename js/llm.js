@@ -696,3 +696,27 @@ export async function generateMotion({ text, kind = 'نص ديني', style = nul
   if (code.length < 40) throw new Error('الموديل مارجّعش كود رسم — جرّب تاني');
   return { title: clean(out.title) || 'موشن', idea: clean(out.idea), code };
 }
+
+// ===== ✨ الكلمة المفتاحية: الذكاء بيختار الكلمة اللي هي قلب المعنى في كل نص (رقمها بس — النص مابيتغيّرش) =====
+const KEY_RULES = `You help design short vertical videos of Islamic texts (Quran ayat, hadith, duas) in Arabic.
+For each numbered text, choose the ONE word that carries its emotional core or central image — the word the viewer should feel when it is recited (choose TWO only if the text has more than 18 words).
+Prefer meaningful nouns/verbs (mercy, forgiveness, paradise, light, guidance, patience, heart, water, rain, fire, night, stars, seeds…) over particles, pronouns, conjunctions and very frequent words. Choose "الله" only when nothing else carries the meaning. Never choose a token that is only a number or a stop mark.
+Give each chosen word a category: mercy (mercy, forgiveness, paradise, glad tidings, provision, ease), light (light, guidance, dawn), water (water, rain, sea, rivers, springs), fire (fire, hell, punishment — solemn), growth (seeds, plants, trees, fruit, earth), sky (sky, night, stars, moon, sun, daybreak), heart (heart, patience, gratitude, remembrance, love, supplication, trust, fear of Allah), majesty (names and greatness of Allah, the Throne, praise, glorification).
+Words are given as [number]word. Return JSON only: {"items":[{"i":<text number>,"keys":[{"w":<word number>,"c":"<category>"}]}]}`;
+export async function pickKeywords(list) {
+  const c = config();
+  if (!c.provider || !c.key) throw new Error('محتاج تختار مزوّد وتحط المفتاح في ⚙️ الإعدادات ← ✨ مساعد الكتابة');
+  const task = list.map((ws, i) => `#${i}: ` + ws.map((w, j) => `[${j}]${w}`).join(' ')).join('\n');
+  let out;
+  try { out = parseJson(await CALLERS[c.provider](c, KEY_RULES, task)); } catch (e) {
+    if (e instanceof TypeError) throw new Error('الطلب ماوصلش للخدمة (النت أو الحجب). جرّب تاني، أو جرّب مزوّد تاني.');
+    throw e;
+  }
+  const res = list.map(() => null);
+  for (const it of out.items || []) {
+    const i = Number(it.i);
+    if (!Number.isInteger(i) || i < 0 || i >= list.length) continue;
+    res[i] = (it.keys || []).map(k => ({ w: Number(k.w), c: String(k.c || '').toLowerCase() }));
+  }
+  return res;
+}

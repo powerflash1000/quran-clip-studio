@@ -26,6 +26,7 @@ import * as FX from './livefx.js';
 import { OBS } from './obs.js';
 import { THEMES, pick as pickOne } from './themes.js';
 import * as LLM from './llm.js';
+import * as KW from './keywords.js';
 import * as SND from './sounds.js';
 import * as WT from './words.js';
 import { fetchFirst, imageViaProxy } from './net.js';
@@ -116,7 +117,8 @@ function playStyle(st = state.style) {
 async function buildSegments(withAudio, onProgress, blocks = state.blocks, series = state.activeSeries) {
   const st = playStyle();
   const reciter = findReciter(st.reciter);
-  const wordSync = st.wordMode && st.wordMode !== 'full';
+  // توقيت الكلمات بيتحسب كمان مع «✨ الكلمة المفتاحية» عشان تنوّر في لحظة نطقها بالظبط
+  const wordSync = (st.wordMode && st.wordMode !== 'full') || !!st.keyGlow;
   const segs = [];
   const jobs = [];
   try { await Q.setScript(st.script); } catch { await Q.setScript('uthmani'); }
@@ -3143,7 +3145,7 @@ function renderLong() {
 const PAINT_PRESET = {
   aspect: '16:9', bgType: 'gradient', color1: '#f6f0e4', color2: '#e7dbc6', dim: 0,
   textColor: '#2b211a', subColor: '#5b4a37', accent: '#a8781e', textSize: 92, textFx: '', textAnim: '', textZone: '', textInk: '',
-  ayahLayout: 'all', script: 'uthmani', countViz: '', safeUI: true, hideText: false, countTheme: 'gold', countRim: 'none', countInk: '', countAlpha: 0, countTick: true, countSound: 'wood', countNext: 'whoosh', wordMode: 'full', wordStyle: '', wordSync: 0, showLabel: true, showFooter: false, showTranslation: false, waveform: false,
+  ayahLayout: 'all', script: 'uthmani', countViz: '', safeUI: true, hideText: false, countTheme: 'gold', countRim: 'none', countInk: '', countAlpha: 0, countTick: true, countSound: 'wood', countNext: 'whoosh', wordMode: 'full', wordStyle: '', wordSync: 0, keyGlow: '', showLabel: true, showFooter: false, showTranslation: false, waveform: false,
   frame: 'mirror', wall: '#0e0e0e', pattern: 'stars', kenBurns: 'slow', loop: true,
   look: '', light: '', cardTrans: '', bumper: '', subCard: '', intro: '', handleOpacity: 0.45,
 };
@@ -3221,7 +3223,7 @@ function setupPainting() {
 
 // ===== الشكل =====
 let syncInk = () => {}, ctInk = () => {};
-const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'textZone', 'textInk', 'safeUI', 'hideText', 'ayahLayout', 'script', 'countViz', 'countTheme', 'countRim', 'countAlpha', 'countTick', 'countSound', 'countNext', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'wordStyle', 'wordSync', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade', 'frame', 'wall', 'pattern', 'kenBurns', 'loop'];
+const STYLE_INPUTS = ['aspect', 'bgType', 'color1', 'color2', 'dim', 'textSize', 'labelScale', 'textColor', 'accent', 'subColor', 'gap', 'trimSilence', 'recFx', 'textFont', 'textFx', 'textAnim', 'textZone', 'textInk', 'safeUI', 'hideText', 'ayahLayout', 'script', 'countViz', 'countTheme', 'countRim', 'countAlpha', 'countTick', 'countSound', 'countNext', 'handleSize', 'handleOpacity', 'handleX', 'handleY', 'logoOn', 'logoPos', 'logoSize', 'logoOpacity', 'logoX', 'logoY', 'look', 'light', 'lightAmount', 'cardTrans', 'bumper', 'channelName', 'outroText', 'bumperSecs', 'subCard', 'subCardPos', 'wordMode', 'wordStyle', 'wordSync', 'keyGlow', 'intro', 'introSeconds', 'handle', 'handlePos', 'showLabel', 'showFooter', 'showTranslation', 'waveform', 'translation', 'bgSwitch', 'bgEvery', 'bgFade', 'frame', 'wall', 'pattern', 'kenBurns', 'loop'];
 
 function applyStyleToInputs() {
   const st = state.style;
@@ -3306,6 +3308,7 @@ function setupStyle() {
       if (['bgSwitch', 'bgEvery'].includes(k)) renderBgList();
       if (k === 'loop') { renderLong(); scheduleDuration(); }
       if (k === 'wordSync') syncLbl();
+      if (k === 'keyGlow') updateKeyUi();
       loopNote();
       persist();
       if (k === 'textFont') ensureFonts(state.style).then(() => refreshPreview());
@@ -4066,7 +4069,7 @@ function setupTemplates() {
     const tpl = T.listTemplates()[$('#templates').value];
     if (!tpl) return;
     const keepMedia = state.mediaList.length > 0 && state.style.bgType === 'media';
-    state.style = { ...T.DEFAULT_STYLE, ...tpl, ...keepBgTiming(tpl), script: state.style.script || 'uthmani', bgType: keepMedia ? 'media' : tpl.bgType === 'media' && !state.media ? 'gradient' : tpl.bgType };
+    state.style = { ...T.DEFAULT_STYLE, ...tpl, ...keepBgTiming(tpl), keyGlow: tpl.keyGlow ?? state.style.keyGlow ?? '', script: state.style.script || 'uthmani', bgType: keepMedia ? 'media' : tpl.bgType === 'media' && !state.media ? 'gradient' : tpl.bgType };
     applyStyleToInputs();
     persist();
     refreshPreview();
@@ -5011,7 +5014,7 @@ async function runQueue() {
   const saved = { blocks: state.blocks, style: state.style, activeSeries: state.activeSeries };
   if (tplName) {
     const tpl = T.listTemplates()[tplName];
-    state.style = { ...T.DEFAULT_STYLE, ...tpl, ...keepBgTiming(tpl), script: state.style.script || 'uthmani', bgType: tpl.bgType === 'media' && !state.media ? 'gradient' : tpl.bgType };
+    state.style = { ...T.DEFAULT_STYLE, ...tpl, ...keepBgTiming(tpl), keyGlow: tpl.keyGlow ?? state.style.keyGlow ?? '', script: state.style.script || 'uthmani', bgType: tpl.bgType === 'media' && !state.media ? 'gradient' : tpl.bgType };
   }
   queue.running = true;
   queue.stopAfter = false;
@@ -7872,6 +7875,83 @@ function setupRefDesign() {
   };
 }
 
+// ===== ✨ الكلمة المفتاحية: اختيار الذكاء + تعديلك بإيدك =====
+function updateKeyUi() {
+  const on = !!state.style.keyGlow;
+  document.querySelectorAll('.when-key').forEach(el => { el.hidden = !on; });
+}
+// نصوص الكروت الحالية (آية آية / دعاء / حديث) — نفس النص اللي بيترسم
+async function keyTexts() {
+  const segs = await buildSegments(false);
+  const seen = new Set(), out = [];
+  for (const sg of segs) {
+    const t = sg.text;
+    if (!t || sg.counter || sg.kind === 'bumper' || sg.kind === 'title' || seen.has(t)) continue;
+    if (!/[ء-ي]/.test(t) || KW.tokens(t).length < 2) continue;
+    seen.add(t); out.push(t);
+  }
+  return out;
+}
+async function renderKeyList() {
+  const box = $('#key-list');
+  const texts = await keyTexts();
+  if (!texts.length) { box.innerHTML = '<p class="muted">مفيش كلام لسه — ضيف آية أو دعاء.</p>'; return; }
+  const catOpts = sel => Object.entries(KW.KEY_CATS).map(([k, v]) => `<option value="${k}"${k === sel ? ' selected' : ''}>${v.name}</option>`).join('');
+  const SRC = { me: '✋ اختيارك', ai: '🧠 الذكاء', dict: '📖 قاموس البرنامج' };
+  box.innerHTML = texts.map((t, i) => {
+    const keys = KW.keysFor(t), tk = KW.tokens(t);
+    const words = tk.map((w, j) => { const k = keys.find(x => x.w === j); return `<span data-w="${j}" class="${k ? 'on' : ''}" ${k ? `style="--kg:${KW.KEY_CATS[k.c].glow}"` : ''}>${escapeHtml(w)}</span>`; }).join(' ');
+    return `<div class="key-row" data-i="${i}"><div class="kw">${words}</div><div class="meta"><span>${SRC[KW.keySource(t)]}</span>
+      ${keys.length ? `<label>اللون <select data-cat>${catOpts(keys[0].c)}</select></label>` : '<span>من غير كلمة</span>'}
+      ${KW.keySource(t) === 'me' ? '<button class="btn small" type="button" data-reset>↺ رجّعها تلقائي</button>' : ''}</div></div>`;
+  }).join('') + '<p class="muted">دوس على أي كلمة تخليها هي المنوّرة (تاني دوسة تشيلها). ممكن كلمتين بالكتير في الآية.</p>';
+  box.querySelectorAll('.key-row').forEach(row => {
+    const t = texts[+row.dataset.i];
+    row.querySelectorAll('.kw span').forEach(sp => {
+      sp.onclick = () => {
+        const w = +sp.dataset.w;
+        let keys = KW.keysFor(t).map(k => ({ ...k }));
+        if (keys.some(k => k.w === w)) keys = keys.filter(k => k.w !== w);
+        else { keys.push({ w, c: KW.guessCat(KW.tokens(t)[w]) }); if (keys.length > 2) keys = keys.slice(-2); keys.sort((a, b) => a.w - b.w); }
+        KW.setMyKeys(t, keys);
+        renderKeyList(); refreshPreview();
+      };
+    });
+    const cs = row.querySelector('[data-cat]');
+    if (cs) cs.onchange = () => { KW.setMyKeys(t, KW.keysFor(t).map(k => ({ ...k, c: cs.value }))); renderKeyList(); refreshPreview(); };
+    const rs = row.querySelector('[data-reset]');
+    if (rs) rs.onclick = () => { KW.setMyKeys(t, null); renderKeyList(); refreshPreview(); };
+  });
+}
+function setupKeywords() {
+  updateKeyUi();
+  $('#key-edit').onclick = async () => {
+    const box = $('#key-list');
+    box.hidden = !box.hidden;
+    if (!box.hidden) { box.innerHTML = '<p class="muted">⏳</p>'; await renderKeyList(); }
+  };
+  $('#key-ai').onclick = async () => {
+    if (!LLM.isReady()) { needLLM(); return; }
+    const st = $('#key-status'), btn = $('#key-ai');
+    btn.disabled = true;
+    try {
+      const texts = await keyTexts();
+      if (!texts.length) { st.textContent = 'مفيش كلام لسه — ضيف آية أو دعاء.'; return; }
+      let done = 0;
+      for (let i = 0; i < texts.length; i += 30) {
+        st.textContent = `🧠 الذكاء بيقرا المعنى ويختار… (${Q.arabicNum(done)} من ${Q.arabicNum(texts.length)})`;
+        const part = texts.slice(i, i + 30);
+        const res = await LLM.pickKeywords(part.map(t => KW.tokens(t)));
+        part.forEach((t, j) => { if (res[j]) KW.setAiKeys(t, res[j]); });
+        done += part.length;
+      }
+      st.textContent = `✅ الذكاء اختار الكلمات لـ ${Q.arabicNum(texts.length)} نص — دوس «✏️ شوف وغيّر» لو عايز تعدّل حاجة.`;
+      if (!$('#key-list').hidden) renderKeyList();
+      refreshPreview();
+    } catch (e) { st.textContent = '❌ ' + e.message; } finally { btn.disabled = false; }
+  };
+}
+
 async function init() {
   status('تحميل نص المصحف…');
   await Promise.all([Q.loadQuran(), ensureFonts(), loadAzkar()]);
@@ -7887,6 +7967,7 @@ async function init() {
   status('');
   setupStyle();
   setupMotion();
+  setupKeywords();
   restoreMedia();
   setupReciters();
   setupAyahSearch();
