@@ -446,19 +446,51 @@ function drawScroll(ctx, grp, seg, o) {
   ctx.save();
   ctx.beginPath(); ctx.rect(0, top, ctx.canvas.width, area); ctx.clip();
   ctx.font = font(size);
-  const base = ctx.fillStyle;
-  lay.pos.forEach((b, k) => {
-    const y0 = off + b.y;
-    if (y0 > bottom || y0 + b.h < top) return;
-    b.lines.forEach((ln, li) => {
-      const yy = y0 + size * lineH * (li + 0.5);
-      const edge = Math.min(1, (yy - top) / fade, (bottom - yy) / fade);
-      if (edge <= 0) return;
-      ctx.globalAlpha = Math.max(0, edge) * (k === i ? 1 : 0.42);
-      ctx.fillStyle = base;
-      drawLines(ctx, [ln], cx, yy - size * lineH / 2, size, lineH, 'rtl');
+  // نفس «شكل الكلام» (textFx) بتاع الوضع العادي: لون الكلام، تحديد، توهج، نيون، ذهبي، كارت/شريط ورا الآية الحالية
+  const fx = style.textFx || '';
+  const box = lay.pos[i];
+  if (fx === 'card' || fx === 'band') {
+    const ph = 26 * unit, by = off + box.y - ph, bh = box.h + ph * 2;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 30 * unit; ctx.shadowOffsetY = 0;
+    ctx.fillStyle = fx === 'card' ? 'rgba(0,0,0,0.45)' : hexA(style.accent, 0.82);
+    ctx.beginPath();
+    if (fx === 'card') ctx.roundRect(cx - boxW / 2 - 30 * unit, by, boxW + 60 * unit, bh, 36 * unit); else ctx.rect(0, by, ctx.canvas.width, bh);
+    ctx.fill();
+    ctx.restore();
+  }
+  const ink = fx === 'band' ? bandInk(style.accent) : fx === 'neon' ? '#ffffff' : style.textColor;
+  if (fx === 'outline') PAINT = { stroke: Math.max(3, size * 0.09), strokeColor: 'rgba(0,0,0,0.9)' };
+  if (fx === 'glow') { ctx.shadowColor = style.accent; ctx.shadowBlur = 34 * unit; ctx.shadowOffsetY = 0; }
+  if (fx === 'neon') { ctx.shadowColor = style.accent; ctx.shadowBlur = 26 * unit; ctx.shadowOffsetY = 0; PAINT = { stroke: Math.max(2, size * 0.05), strokeColor: style.accent, noShadowFill: false }; }
+  if (fx === 'gold') PAINT = { stroke: Math.max(2, size * 0.035), strokeColor: 'rgba(60,35,0,0.85)' };
+  try {
+    lay.pos.forEach((b, k) => {
+      const y0 = off + b.y;
+      if (y0 > bottom || y0 + b.h < top) return;
+      b.lines.forEach((ln, li) => {
+        const yy = y0 + size * lineH * (li + 0.5);
+        const edge = Math.min(1, (yy - top) / fade, (bottom - yy) / fade);
+        if (edge <= 0) return;
+        // الكارت/الشريط ورا الآية الحالية بس، فالباقي بلون الكلام العادي
+        const onBand = fx === 'band' && k === i;
+        ctx.globalAlpha = Math.max(0, edge) * (k === i ? 1 : 0.5);
+        if (fx === 'gold') {
+          const g = ctx.createLinearGradient(0, yy - size * 0.6, 0, yy + size * 0.6);
+          g.addColorStop(0, '#fff4c2'); g.addColorStop(0.5, '#e7c25a'); g.addColorStop(1, '#a8781e');
+          ctx.fillStyle = g;
+        } else ctx.fillStyle = fx === 'band' && !onBand ? style.textColor : ink;
+        // «شكل الكلمة اللي بتتقال» (كلمة صفرا على أحمر، برواز نيون، …) بيتطبق على سطور الآية الحالية
+        if (k === i && style.wordStyle) {
+          ctx.direction = 'rtl'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+          const w = measureRtl(ctx, ln);
+          if (drawWordStyled(ctx, ln, cx + w / 2, yy, w, size, style, true)) return;
+          if (style.wordStyle === 'underline') ctx.fillStyle = style.accent;
+        }
+        drawLines(ctx, [ln], cx, yy - size * lineH / 2, size, lineH, 'rtl');
+      });
     });
-  });
+  } finally { PAINT = null; }
   ctx.restore();
 }
 
