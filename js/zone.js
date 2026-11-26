@@ -97,6 +97,28 @@ export function analyzeZone(el, W, H) {
   return out;
 }
 
+// متوسط إضاءة الخلفية مكان الكلام (نص الشاشة) — 0 غامق … 1 فاتح، أو null لو مش معروف. بيتحسب مرة لكل صورة/فيديو
+const lumCache = new WeakMap();
+export function textBgLum(el) {
+  if (!el || typeof document === 'undefined') return null;
+  if (lumCache.has(el)) return lumCache.get(el);
+  const iw = el.naturalWidth || el.videoWidth || el.width, ih = el.naturalHeight || el.videoHeight || el.height;
+  if (!iw || !ih) return null; // الفيديو لسه ماحمّلش — نجرّب المرة الجاية
+  const c = document.createElement('canvas'); c.width = 36; c.height = 64;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  const k = Math.max(c.width / iw, c.height / ih);
+  g.drawImage(el, (c.width - iw * k) / 2, (c.height - ih * k) / 2, iw * k, ih * k);
+  let v = null;
+  try {
+    const d = g.getImageData(3, 10, 30, 38).data; // تقريبًا من ١٥٪ لـ ٧٥٪ من الطول
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    v = sum / (d.length / 4) / 255;
+  } catch { v = null; }
+  lumCache.set(el, v);
+  return v;
+}
+
 // مصدر الخلفية الحالية (slides.js بيسجّله وهو بيرسم الخلفية)
 export const ZONE_SRC = { el: null };
 

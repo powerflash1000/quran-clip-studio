@@ -1,5 +1,5 @@
 import { lookLayers, lookVignette, drawBrand, drawBumper, drawCardTrans } from './brand.js';
-import { currentZone, ZONE_SRC, SAFE_UI, safeUIOn } from './zone.js';
+import { currentZone, ZONE_SRC, SAFE_UI, safeUIOn, textBgLum } from './zone.js';
 import { frameGeom, artRect, kbAt, kbAmount, drawWall, drawFrameBorder, drawPattern } from './frame.js';
 
 // رسم الشرائح (النص فوق الخلفية) على Canvas.
@@ -798,6 +798,21 @@ export function drawOverlay(ctx, W, H, seg, style) {
       ink = lum > 0.58
         ? { text: '#2b211a', sub: '#4d4036', accent: darken(style.accent, 0.45), shadow: 'rgba(255,255,255,0.35)' }
         : { text: '#ffffff', sub: '#e9e4da', accent: style.accent, shadow: 'rgba(0,0,0,0.55)' };
+    }
+  }
+  // 🛟 أمان الألوان: لو لون الكلام قريب أوي من لون الخلفية (كلام غامق على فيديو ليل مثلًا) بنقلبه أبيض/غامق لوحده
+  if (!ink && !style.hideText) {
+    let bl = null;
+    if (style.bgType === 'motion') bl = 0.18; // مشاهد الموشن بتسيب مكان الكلام غامق
+    else if (ZONE_SRC.el && style.bgType !== 'color' && style.bgType !== 'gradient') bl = textBgLum(ZONE_SRC.el);
+    else if (style.color1) bl = style.bgType === 'gradient' && style.color2 ? (luma(style.color1) + luma(style.color2)) / 2 : luma(style.color1);
+    if (bl != null) {
+      bl *= 1 - (style.dim || 0);
+      if (Math.abs(luma(style.textColor) - bl) < 0.32) {
+        ink = bl > 0.5
+          ? { text: '#2b211a', sub: '#4d4036', accent: darken(style.accent, 0.45), shadow: 'rgba(255,255,255,0.35)' }
+          : { text: '#ffffff', sub: '#e9e4da', accent: luma(style.accent) < 0.4 ? '#f4d58d' : style.accent, shadow: 'rgba(0,0,0,0.55)' };
+      }
     }
   }
   const brandStyle = style; // العلامة واللوجو مكانهم برّه المساحة، فبيفضلوا بألوانك
