@@ -32,33 +32,74 @@ export async function getHadith(colId, number, withEnglish = false) {
       english = en.hadiths?.[0]?.text || '';
     } catch { /* الترجمة اختيارية */ }
   }
-  return { colId, number, text: h.text.trim(), english, grades: h.grades || [], reference: h.reference };
+  return { colId, number, text: h.text.trim(), english, grades: h.grades || [], reference: h.reference, famous: h.arabicnumber || '' };
 }
 
 // البحث بكلمة: بيحمّل الكتاب كله مرة واحدة (حجمه من 50KB لـ 9MB)
 const bookCache = new Map();
 
-export async function searchHadith(colId, query, limit = 30) {
+function loadBook(colId) {
   if (!bookCache.has(colId)) {
-    bookCache.set(colId, fetchJson(bases(`editions/ara-${colId}.min.json`)).catch(e => { bookCache.delete(colId); throw e; }));
+    bookCache.set(colId, fetchJson(bases(`editions/ara-${colId}.min.json`)).then(book => {
+      // نسخة متطبّعة من كل حديث مرة واحدة (البحث بعد كده فوري)
+      book.norm = book.hadiths.map(h => normalize(h.text));
+      return book;
+    }).catch(e => { bookCache.delete(colId); throw e; }));
   }
-  const book = await bookCache.get(colId);
+  return bookCache.get(colId);
+}
+
+// البحث: كل الكلمات لازم تكون موجودة (بأي ترتيب)، والجملة بالظبط بتطلع الأول
+function match(book, query, limit) {
   const q = normalize(query);
-  if (q.length < 2) return [];
-  const out = [];
-  for (const h of book.hadiths) {
-    if (normalize(h.text).includes(q)) {
-      out.push({ number: h.hadithnumber, text: h.text, grades: h.grades || [] });
-      if (out.length >= limit) break;
+  const words = q.split(' ').filter(w => w.length >= 2);
+  if (!words.length) return [];
+  const exact = [], loose = [];
+  book.hadiths.forEach((h, i) => {
+    const t = book.norm[i];
+    if (!words.every(w => t.includes(w))) return;
+    (t.includes(q) ? exact : loose).push({ number: h.hadithnumber, famous: h.arabicnumber || '', text: h.text, grades: h.grades || [], exact: t.includes(q) });
+  });
+  return [...exact, ...loose].slice(0, limit);
+}
+
+// الرقم المشهور (زي ما مكتوب في جوجل والدرر السنية — ترقيم عبد الباقي في مسلم مثلًا) ← رقم الحديث في ترقيم البرنامج
+export async function findFamous(colId, famous) {
+  const book = await loadBook(colId);
+  const n = String(famous).trim();
+  const h = book.hadiths.find(x => String(x.arabicnumber ?? '').trim() === n) || book.hadiths.find(x => parseInt(x.arabicnumber, 10) === parseInt(n, 10));
+  return h ? h.hadithnumber : null;
+}
+
+export async function searchHadith(colId, query, limit = 30) {
+  return match(await loadBook(colId), query, limit);
+}
+
+// 🔎 البحث في كل الكتب مرة واحدة: بيحمّل الكتب (٣ في نفس الوقت) ويرجّع النتايج كتاب كتاب أول ما يجهز
+// onBook({col, results, done, total, error}) — بيرجّع كل النتايج مرتبة (الجملة بالظبط الأول، وبترتيب الكتب)
+export async function searchHadithAll(query, { perBook = 12, onBook } = {}) {
+  const all = [];
+  let done = 0, i = 0;
+  const worker = async () => {
+    while (i < COLLECTIONS.length) {
+      const c = COLLECTIONS[i++];
+      let results = [], error = null;
+      try { results = match(await loadBook(c.id), query, perBook).map(r => ({ ...r, col: c.id })); } catch (e) { error = e.message || String(e); }
+      all.push(...results);
+      done++;
+      onBook?.({ col: c.id, results, done, total: COLLECTIONS.length, error });
     }
-  }
-  return out;
+  };
+  await Promise.all([worker(), worker(), worker()]);
+  const order = Object.fromEntries(COLLECTIONS.map((c, k) => [c.id, k]));
+  return all.sort((a, b) => (b.exact - a.exact) || order[a.col] - order[b.col]);
 }
 
 function normalize(t) {
   return (t || '')
-    .replace(/[ؐ-ًؚ-ٰٟ]/g, '')
-    .replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
+    .replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, '')
+    .replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
+    .replace(/[^\u0621-\u064A0-9a-z ]+/gi, ' ').replace(/\s+/g, ' ')
     .trim();
 }
 

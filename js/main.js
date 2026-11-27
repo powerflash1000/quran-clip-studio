@@ -1,6 +1,6 @@
 import * as Q from './quran.js';
 import { RECITERS, findReciter, customReciter, ayahAudioUrls } from './reciters.js';
-import { COLLECTIONS, collection, getHadith, searchHadith, extractMatn, assessGrade } from './hadith.js';
+import { COLLECTIONS, collection, getHadith, searchHadith, searchHadithAll, findFamous, extractMatn, assessGrade } from './hadith.js';
 import { openMic, micMeter, micError, SILENT_PEAK, silentMsg } from './audio.js';
 import { loadAudio, decode, buildTimeline, startRecording, trimSilence, bufferToWavBlob, sliceBuffer, enhanceVoice, ENHANCE_PRESETS, REC_FX } from './audio.js';
 import { autoMarks } from './automark.js';
@@ -1931,7 +1931,7 @@ function hadithBlockEl(b, i) {
   const title = li.querySelector('.block-title');
   const gradeEl = li.querySelector('.grade');
   const sync = () => {
-    title.textContent = `${collection(b.col).name} ${Q.arabicNum(b.number)}`;
+    title.textContent = `${collection(b.col).name} ${Q.arabicNum(b.number)}${b.famous && String(b.famous) !== String(b.number) ? ` · المشهور ${Q.arabicNum(b.famous)}` : ''}`;
     if (b.fetched) {
       const g = assessGrade(b.col, b.grades);
       gradeEl.textContent = g.label;
@@ -1953,7 +1953,15 @@ function hadithBlockEl(b, i) {
   const loadOne = async () => {
     status('جلب الحديث…');
     try {
+      // الرقم المشهور (جوجل/الدرر) ← رقم البرنامج
+      if (f('numMode').value === 'famous') {
+        status('بدوّر على الرقم المشهور في الكتاب… (أول مرة بيحمّل الكتاب)');
+        const n = await findFamous(b.col, f('number').value);
+        if (!n) throw new Error(`مالقيتش رقم ${Q.arabicNum(f('number').value)} المشهور في ${collection(b.col).name} — جرّب البحث بكلمة من الحديث في كل الكتب.`);
+        b.number = n; f('number').value = n; f('numMode').value = 'app';
+      }
       const h = await getHadith(b.col, b.number, true);
+      b.famous = h.famous || '';
       b.fullText = h.text;
       b.text = extractMatn(h.text);
       b.english = h.english;
@@ -1974,24 +1982,45 @@ function hadithBlockEl(b, i) {
   act('fetch').onclick = loadOne;
   f('number').onkeydown = e => { if (e.key === 'Enter') loadOne(); };
 
+  // البحث: في كل الكتب (الأساسي — اختيارك بيتحفظ) أو في الكتاب المختار بس
+  f('scope').value = load('hadithScope', 'all');
+  f('scope').onchange = () => save('hadithScope', f('scope').value);
+  const showResults = (box, res, head = '') => {
+    box.innerHTML = head;
+    if (!res.length) { box.insertAdjacentHTML('beforeend', '<div class="result">مفيش نتايج — جرّب كلمة واحدة مميزة، أو من غير «ال».</div>'); return; }
+    for (const r of res) {
+      const d = document.createElement('div');
+      d.className = 'result hadith-r';
+      d.innerHTML = `<div class="ref"></div><div class="txt"></div>`;
+      const col = r.col || b.col;
+      d.querySelector('.ref').textContent = `${collection(col).name} ${Q.arabicNum(r.number)}${r.famous && String(r.famous) !== String(r.number) ? ` (الرقم المشهور ${Q.arabicNum(r.famous)})` : ''}${r.exact ? '' : ' · (الكلمات موجودة بس مش ورا بعض)'}`;
+      d.querySelector('.txt').textContent = r.text.length > 240 ? r.text.slice(0, 240) + '…' : r.text;
+      d.onclick = () => { b.col = col; f('col').value = col; b.number = r.number; f('number').value = r.number; box.hidden = true; loadOne(); };
+      box.appendChild(d);
+    }
+  };
   const doSearch = async () => {
     const q = f('q').value.trim();
     if (q.length < 2) return;
     const box = el('results');
     box.hidden = false;
-    box.textContent = 'جاري البحث… (أول مرة بيحمّل الكتاب كله)';
     try {
-      const res = await searchHadith(b.col, q);
-      box.innerHTML = res.length ? '' : '<div class="result">مفيش نتايج</div>';
-      for (const r of res) {
-        const d = document.createElement('div');
-        d.className = 'result hadith-r';
-        d.innerHTML = `<div class="ref"></div><div class="txt"></div>`;
-        d.querySelector('.ref').textContent = `${collection(b.col).name} ${r.number}`;
-        d.querySelector('.txt').textContent = r.text.length > 220 ? r.text.slice(0, 220) + '…' : r.text;
-        d.onclick = () => { b.number = r.number; f('number').value = r.number; box.hidden = true; loadOne(); };
-        box.appendChild(d);
+      if (f('scope').value === 'one') {
+        box.textContent = 'جاري البحث… (أول مرة بيحمّل الكتاب كله)';
+        showResults(box, await searchHadith(b.col, q));
+        return;
       }
+      box.textContent = 'جاري البحث في كل الكتب… (أول مرة بيحمّلهم — بعد كده البحث فوري)';
+      const found = new Map(), failed = [];
+      const res = await searchHadithAll(q, {
+        onBook: ({ col, results, done, total, error }) => {
+          if (error) failed.push(collection(col).name);
+          found.set(col, results.length);
+          box.firstChild && done < total && (box.firstChild.textContent = `⏳ دوّرت في ${Q.arabicNum(done)} من ${Q.arabicNum(total)} كتب…`);
+        },
+      });
+      const sum = COLLECTIONS.filter(c => found.get(c.id)).map(c => `${c.name}: ${Q.arabicNum(found.get(c.id))}`).join(' · ');
+      showResults(box, res, `<div class="result muted">${res.length ? '🔎 لقيته في: ' + sum : ''}${failed.length ? ' · ⚠️ ماتحمّلش: ' + failed.join('، ') : ''}</div>`);
     } catch (e) {
       box.textContent = 'تعذر البحث: ' + e.message;
     }

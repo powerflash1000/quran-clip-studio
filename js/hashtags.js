@@ -57,6 +57,29 @@ const IDEAS = {
   ],
 };
 
+// 🔀 الترند المشترك بين المنصات (مصر/السعودية): بيتجمع كل ساعة في استوديو الريلز (tools/cross-trends.mjs → data/cross.json)
+const CROSS_URLS = ['https://powerflash1000.github.io/news-reels-studio/data/cross.json', 'https://raw.githubusercontent.com/powerflash1000/news-reels-studio/main/data/cross.json'];
+const PLAT = { google: ['🔍', 'جوجل'], youtube: ['▶️', 'يوتيوب'], x: ['𝕏', 'X'], tiktok: ['🎵', 'تيك توك'] };
+const normT = s => String(s || '').toLowerCase().replace(/[ؐ-ًؚ-ٰٟۖ-ۭـ]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/[#_]/g, ' ').replace(/\s+/g, ' ');
+// موضوع ترند ← فكرة قرآنية/دعاء صحيح مرتبط بيه فعلًا (النصوص بمصادرها؛ راجع النص من البرنامج قبل النشر)
+const QIDEAS = [
+  [/مطر|امطار|سيول|غيث|\brain\b/, '🌧️ مطر', 'دعاء المطر: «اللهم صيبًا نافعًا» (رواه البخاري) + «وهو الذي ينزل الغيث من بعد ما قنطوا» (الشورى ٢٨).'],
+  [/عاصف|رياح|ريح|غبار|storm|wind/, '🌬️ رياح وعواصف', 'دعاء الريح: «اللهم إني أسألك خيرها وخير ما فيها وخير ما أرسلت به، وأعوذ بك من شرها وشر ما فيها وشر ما أرسلت به» (رواه مسلم).'],
+  [/زلزال|هزه ارضيه|earthquake/, '🌍 زلزال', 'سورة الزلزلة، ودعاء للمتضررين — من غير تخويف ولا صور مؤلمة.'],
+  [/وفاه|توفي|رحيل|نعي|died|death|passed away/, '🤍 وفاة', '«إنا لله وإنا إليه راجعون، اللهم أجرني في مصيبتي واخلف لي خيرًا منها» (رواه مسلم). احترم أهل المتوفى وماتستغلش الخبر.'],
+  [/امتحان|نتيجه|ثانويه|exam/, '📚 امتحانات', '«رب اشرح لي صدري ويسر لي أمري» (طه ٢٥–٢٦) و«وقل رب زدني علما» (طه ١١٤).'],
+  [/رمضان|صيام|سحور|افطار|ramadan/, '🌙 رمضان', 'آية الصيام (البقرة ١٨٣)، ودعاء ليلة القدر: «اللهم إنك عفو تحب العفو فاعف عني» (رواه الترمذي وصححه).'],
+  [/جمعه|friday/, '🕌 الجمعة', 'سورة الكهف، والإكثار من الصلاة على النبي ﷺ يوم الجمعة.'],
+  [/(^| )عيد|اضحي|حج|عرفه|عمره|الحرم|مكه|eid|hajj/, '🕋 حج وعيد', 'التكبير، وآية الحج «وأذن في الناس بالحج» (الحج ٢٧).'],
+  [/موجه حاره|حر شديد|درجات الحراره|heat ?wave/, '☀️ حر شديد', 'حديث «اشتكت النار إلى ربها…» (متفق عليه) — تذكير لطيف بالنار والجنة.'],
+  [/غزه|فلسطين|الاقصي|القدس|gaza|palestin/, '🤲 فلسطين', 'آية الإسراء (الإسراء ١)، ودعاء للمستضعفين — من غير صور عنف.'],
+  [/مباراه|ماتش|الاهلي|الزمالك|منتخب|كاس|دوري|الهلال|النصر|الاتحاد|\bmatch\b|\bcup\b/, '⚽ كورة', '«وما النصر إلا من عند الله» (آل عمران ١٢٦) — مشهد سجود شكر بعد الجول.'],
+  [/مرض|مستشفي|شفاء|فيروس|virus/, '🩺 مرض وشفاء', 'دعاء الشفاء: «اللهم رب الناس، أذهب البأس، اشف أنت الشافي…» (متفق عليه).'],
+  [/سفر|طيران|مطار|travel/, '✈️ سفر', 'دعاء السفر (رواه مسلم).'],
+  [/كسوف|خسوف|eclipse/, '🌘 كسوف وخسوف', '«إن الشمس والقمر آيتان من آيات الله…» (متفق عليه).'],
+];
+const qIdea = text => { const t = normT(text); const m = QIDEAS.find(([re]) => re.test(t)); return m ? { t: m[1], d: m[2] } : null; };
+
 const css = `
 .ht-wrap{max-width:1100px;margin:0 auto;padding:16px}
 .ht-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.55rem}
@@ -73,6 +96,11 @@ const css = `
 .ht-warn{font-size:.88rem;opacity:.85;line-height:1.7}
 .ht-btn{display:inline-block;padding:.35rem .7rem;border:1px solid var(--line,#ccc);border-radius:8px;text-decoration:none;color:inherit;font-size:.92rem}
 .ht-btn:hover{border-color:var(--accent,#1f6f5c)}
+.ht-x{border:1px solid var(--line,#ddd);border-radius:10px;padding:.55rem .7rem;margin:.4rem 0}
+.ht-x.hot{border-color:#ff3b5c}
+.ht-x .pl{display:flex;flex-wrap:wrap;gap:.3rem;font-size:.85rem;margin-top:.25rem}
+.ht-x .pl a{padding:0 .45rem;border:1px solid var(--line,#ccc);border-radius:999px;text-decoration:none;color:inherit}
+.ht-q{margin-top:.35rem;padding:.4rem .6rem;border-radius:8px;background:rgba(31,111,92,.12);font-size:.92rem;line-height:1.7}
 `;
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -94,6 +122,16 @@ export function mountHashtags(root, opts) {
     <div class="ht-row" style="margin-bottom:.4rem"><h1 style="margin:0;font-size:1.35rem;flex:1">#️⃣ الهاشتاجات والترند</h1>
       <label>البلد <select data-h="region">${REGIONS.map(r => `<option value="${r[0]}">${r[1]}</option>`).join('')}</select></label></div>
     <p class="ht-warn">⚠️ الهاشتاج لازم يبقى <b>مرتبط فعلًا</b> بالمحتوى. هاشتاجات الكورة أو الأفلام على ريل مالوش علاقة بيها فيسبوك بيعتبرها سبام (ممكن يقلّل وصول الصفحة)، والجمهور اللي بيجي منها مش بيتابعك. خد <b>الموضوع</b> الترند واعمل عليه محتوى صادق — والأفكار تحت أمثلة.</p>
+
+    <h2 class="ht-sec">🔀 الترند المشترك بين المنصات</h2>
+    <div class="ht-box">
+      <div class="ht-row"><span data-h="xChips"></span>
+        ${opts.app === 'quran' ? '<label class="ht-warn"><input type="checkbox" data-h="xMine"> 🕌 اللي ينفع أعمل عليه محتوى ديني بس</label>' : ''}
+        <button class="btn ghost" type="button" data-h="xReload">↻ حدّث</button></div>
+      <p class="ht-warn" data-h="xSrc"></p>
+      <div data-h="xList"><p class="ht-warn">⏳ بيحمّل…</p></div>
+      <p class="ht-warn">الموضوع اللي طالع في أكتر من منصة في نفس الوقت (جوجل، يوتيوب، X، تيك توك) = ترند حقيقي واسع. بيتحدّث كل ساعة لوحده. دوس على أي هاشتاج يتعلّم ويتنسخ مع الباقي تحت.</p>
+    </div>
 
     <h2 class="ht-sec">📈 فين الترند دلوقتي؟ <small style="font-weight:400;opacity:.7" data-h="regName"></small></h2>
     <div class="ht-grid" data-h="trends"></div>
@@ -153,6 +191,53 @@ export function mountHashtags(root, opts) {
   };
   q('region').value = region[0];
   q('region').onchange = () => { region = REGIONS.find(r => r[0] === q('region').value) || REGIONS[0]; save('region', region[0]); renderTrends(); renderSearch(); };
+
+  // 🔀 الترند المشترك
+  let cross = null, xr = load('xr', 'eg');
+  const loadCross = async () => {
+    q('xList').innerHTML = '<p class="ht-warn">⏳ بيحمّل…</p>';
+    cross = null;
+    for (const u of opts.crossUrl ? [opts.crossUrl] : CROSS_URLS) {
+      try { const r = await fetch(u + '?t=' + Date.now()); if (r.ok) { cross = await r.json(); break; } } catch { /* اللي بعده */ }
+    }
+    renderCross();
+  };
+  const ago = iso => { const h = (Date.now() - Date.parse(iso)) / 36e5; return h < 1 ? 'أقل من ساعة' : h < 48 ? `${Math.round(h)} ساعة` : `${Math.round(h / 24)} يوم`; };
+  const renderCross = () => {
+    if (!cross?.regions) { q('xChips').innerHTML = ''; q('xSrc').textContent = ''; q('xList').innerHTML = '<p class="ht-warn">❌ مقدرتش أجيب الترند المشترك دلوقتي — جرّب «↻ حدّث» كمان شوية.</p>'; return; }
+    if (!cross.regions[xr]) xr = Object.keys(cross.regions)[0];
+    const Rg = cross.regions[xr];
+    q('xChips').innerHTML = Object.entries(cross.regions).map(([k, r]) => `<button class="btn${k === xr ? ' primary' : ''}" type="button" data-xr="${k}">${k === 'eg' ? '🇪🇬' : k === 'sa' ? '🇸🇦' : '🌍'} ${esc(r.name)}</button>`).join(' ');
+    q('xSrc').innerHTML = Object.entries(PLAT).map(([k, [ic, nm]]) => { const v = Rg.sources?.[k]; return v?.ok ? `${ic} ${nm} ✅` : v?.url ? `${ic} ${nm}: <a href="${esc(v.url)}" target="_blank" rel="noopener">افتحه بنفسك ↗</a>` : `${ic} ${nm} ⚠️ مش متاح`; }).join(' · ') + ` · آخر تحديث من ${ago(cross.updated)}`;
+    const mine = opts.app === 'quran' && q('xMine')?.checked;
+    const card = (t, single) => {
+      const idea = opts.app === 'quran' ? qIdea(t.label + ' ' + Object.values(t.platforms || {}).map(v => v.label).join(' ')) : null;
+      if (mine && !idea) return '';
+      const pl = Object.entries(t.platforms || {}).sort((a, b) => a[1].rank - b[1].rank).map(([k, v]) => `<a href="${esc(v.url)}" target="_blank" rel="noopener" title="${esc(v.label)}">${PLAT[k][0]} ${PLAT[k][1]} #${v.rank}</a>`).join('');
+      const tags = [...new Set([...(t.tags || []), '#' + cleanTag(t.label)])].filter(x => x.length > 2).slice(0, 6);
+      return `<div class="ht-x${t.count >= 3 ? ' hot' : ''}"><b>${esc(t.label)}</b> ${single ? '' : `<span class="ht-warn">🔀 في ${t.count} منصات</span>`}
+        <div class="pl">${pl}</div><div class="ht-tags">${tags.map(h => `<span class="ht-tag" data-t="${esc(cleanTag(h))}">#${esc(cleanTag(h))}</span>`).join('')}</div>
+        ${idea ? `<div class="ht-q">🕌 <b>${esc(idea.t)}:</b> ${esc(idea.d)}</div>` : ''}</div>`;
+    };
+    let html = (Rg.cross || []).map(t => card(t)).join('');
+    if (!html) html = `<p class="ht-warn">${mine ? 'مفيش موضوع مشترك مناسب لمحتوى ديني دلوقتي.' : 'مفيش موضوع مشترك بين المنصات دلوقتي.'}</p>`;
+    // مواضيع في منصة واحدة بس، بس ليها فكرة قرآنية (فرصة حتى لو مش مشتركة)
+    if (opts.app === 'quran') {
+      const seen = new Set((Rg.cross || []).map(t => normT(t.label)));
+      const singles = [];
+      for (const [k, L] of Object.entries(Rg.top || {})) for (const e of L) {
+        if (k === 'youtube' || seen.has(normT(e.label)) || !qIdea(e.label)) continue;
+        seen.add(normT(e.label));
+        singles.push({ label: e.label.replace(/^#/, '').replace(/_/g, ' '), tags: e.label.startsWith('#') ? [e.label] : [], count: 1, platforms: { [k]: { rank: e.rank, label: e.label, url: e.url } } });
+      }
+      if (singles.length) html += `<h3 class="ht-sec" style="font-size:1rem">🕌 ترند في منصة واحدة بس — بس ليه فكرة مناسبة ليك</h3>` + singles.slice(0, 8).map(t => card(t, true)).join('');
+    }
+    q('xList').innerHTML = html;
+    renderPicked();
+  };
+  q('xChips').onclick = e => { const b = e.target.closest('[data-xr]'); if (b) { xr = b.dataset.xr; save('xr', xr); renderCross(); } };
+  if (q('xMine')) { q('xMine').checked = load('xMine', false); q('xMine').onchange = () => { save('xMine', q('xMine').checked); renderCross(); }; }
+  q('xReload').onclick = loadCross;
 
   const renderSearch = () => {
     const raw = q('q').value.trim(), tag = cleanTag(raw);
@@ -282,6 +367,7 @@ export function mountHashtags(root, opts) {
   q('checks').onchange = checkOut; checkOut();
 
   renderTrends(); renderSearch(); renderPicked(); renderSets();
+  loadCross();
 }
 
 // البرومبت المشترك للاقتراح (كل برنامج بيبعته لمزوّده)

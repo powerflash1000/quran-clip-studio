@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700&family=El+Messiri:wght@400;700&family=Lalezar&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700&display=swap">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261126c">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261127a">
 </head>
 <body>
   <header class="topbar">
@@ -693,7 +693,7 @@
   </nav>
 
   <footer class="foot">
-    <div class="muted" id="app-version">الإصدار 20261126c</div>
+    <div class="muted" id="app-version">الإصدار 20261127a</div>
     نص المصحف: مجمع الملك فهد (QuranEnc) · التلاوات: EveryAyah.com و Islamic Network · الأحاديث: hadith-api ·
     الخط: KFGQPC Uthmanic Script HAFS · توقيت الكلمات: quran-align (Collin Fair, CC BY 4.0)
   </footer>
@@ -953,10 +953,20 @@
       <div class="grid3">
         <label class="span2">الكتاب <select data-f="col"></select></label>
         <label>رقم الحديث <input type="number" data-f="number" min="1"></label>
+        <label class="span3">الرقم ده
+          <select data-f="numMode">
+            <option value="app">بترقيم البرنامج</option>
+            <option value="famous">الرقم المشهور (اللي في جوجل والدرر السنية)</option>
+          </select>
+        </label>
       </div>
       <div class="btn-row">
         <button class="btn" data-act="fetch" type="button">جلب الحديث</button>
-        <input type="search" data-f="q" class="grow" placeholder="أو ابحث في الكتاب بكلمة">
+        <input type="search" data-f="q" class="grow" placeholder="أو ابحث بكلمة (مثلًا: أبشر بنورين)">
+        <select data-f="scope" title="تدوّر فين" style="width:auto">
+          <option value="all">🔎 في كل الكتب</option>
+          <option value="one">في الكتاب ده بس</option>
+        </select>
         <button class="btn" data-act="search" type="button">بحث</button>
       </div>
       <div class="results" data-el="results" hidden></div>
@@ -1856,6 +1866,6 @@
     </li>
   </template>
 
-  <script type="module" src="js/main.js?v=20261126c"></script>
+  <script type="module" src="js/main.js?v=20261127a"></script>
 </body>
 </html>
